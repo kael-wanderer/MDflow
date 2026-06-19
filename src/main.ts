@@ -13,6 +13,7 @@ import { getState, refreshDir, setState, subscribe } from "./store";
 import { initTabbar } from "./tabbar";
 import { findByPath, nextActiveAfterClose, type TabMeta } from "./tabops";
 import { applyViewMode, applyZoom } from "./views";
+import { initWindowToolbar } from "./windowtoolbar";
 import helpDoc from "../HELP.md?raw";
 
 const editorEl = document.getElementById("editor")!;
@@ -78,6 +79,11 @@ function onDocChange(id: string, text: string): void {
 }
 
 const editor = createEditor(editorEl, onDocChange);
+
+const toolbar = initWindowToolbar({
+  onMode: (m) => setMode(m),
+  onToggleLineNumbers: () => toggleLineNumbers(),
+});
 
 function activate(id: string): void {
   const tab = getState().tabs.find((candidate) => candidate.id === id);
@@ -235,6 +241,14 @@ function setMode(mode: ViewMode): void {
   ui = { ...ui, viewMode: mode };
   applyViewMode(mode);
   saveState(ui);
+  toolbar.update(ui.viewMode, ui.lineNumbers);
+}
+
+function toggleLineNumbers(): void {
+  ui = { ...ui, lineNumbers: !ui.lineNumbers };
+  editor.setLineNumbers(ui.lineNumbers);
+  saveState(ui);
+  toolbar.update(ui.viewMode, ui.lineNumbers);
 }
 
 function toggleSoftWrap(): void {
@@ -311,6 +325,8 @@ listen<string>("menu", (event) => {
 applyViewMode(ui.viewMode);
 applyZoom(ui.zoom);
 editor.setSoftWrap(ui.softWrap);
+editor.setLineNumbers(ui.lineNumbers);
+toolbar.update(ui.viewMode, ui.lineNumbers);
 void invoke("set_soft_wrap", { on: ui.softWrap });
 
 if (ui.folder) {
