@@ -357,6 +357,10 @@ body.explorer-hidden #explorer-resize {
   border-right: 1px solid var(--border);
 }
 
+#activitybar .ab-settings {
+  margin-top: auto;
+}
+
 .ab-btn {
   width: 40px;
   height: 40px;
