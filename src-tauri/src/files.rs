@@ -31,9 +31,51 @@ pub fn read_entries(path: &str) -> Result<Vec<Entry>, String> {
     Ok(entries)
 }
 
+const WALK_CAP: usize = 5000;
+
+pub fn should_skip(name: &str) -> bool {
+    name == ".git" || name == "node_modules" || name.starts_with('.')
+}
+
+pub fn walk_files(dir: &Path, root: &Path, out: &mut Vec<String>) {
+    if out.len() >= WALK_CAP {
+        return;
+    }
+    let read = match fs::read_dir(dir) {
+        Ok(read) => read,
+        Err(_) => return,
+    };
+    let mut items: Vec<_> = read.filter_map(Result::ok).collect();
+    items.sort_by_key(|entry| entry.file_name());
+    for entry in items {
+        if out.len() >= WALK_CAP {
+            return;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if should_skip(&name) {
+            continue;
+        }
+        let path = entry.path();
+        let is_dir = entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false);
+        if is_dir {
+            walk_files(&path, root, out);
+        } else if let Ok(relative) = path.strip_prefix(root) {
+            out.push(relative.to_string_lossy().into_owned());
+        }
+    }
+}
+
 #[tauri::command]
 pub fn list_dir(path: String) -> Result<Vec<Entry>, String> {
     read_entries(&path)
+}
+
+#[tauri::command]
+pub fn list_files_recursive(folder: String) -> Vec<String> {
+    let root = Path::new(&folder);
+    let mut out = Vec::new();
+    walk_files(root, root, &mut out);
+    out
 }
 
 pub fn count_words(text: &str) -> usize {
@@ -306,6 +348,45 @@ mod duplicate_tests {
             "inside"
         );
 
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
+#[cfg(test)]
+mod walk_tests {
+    use super::{should_skip, walk_files};
+    use std::fs;
+
+    #[test]
+    fn should_skip_hidden_and_known_dirs() {
+        assert!(should_skip(".git"));
+        assert!(should_skip("node_modules"));
+        assert!(should_skip(".DS_Store"));
+        assert!(!should_skip("notes.md"));
+        assert!(!should_skip("src"));
+    }
+
+    #[test]
+    fn walk_returns_relative_files_skipping_noise() {
+        let tmp = std::env::temp_dir().join("mdflow_walk_test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("src")).unwrap();
+        fs::create_dir_all(tmp.join(".git")).unwrap();
+        fs::create_dir_all(tmp.join("node_modules/pkg")).unwrap();
+        fs::write(tmp.join("readme.md"), "x").unwrap();
+        fs::write(tmp.join("src/main.ts"), "x").unwrap();
+        fs::write(tmp.join(".hidden"), "x").unwrap();
+        fs::write(tmp.join(".git/config"), "x").unwrap();
+        fs::write(tmp.join("node_modules/pkg/index.js"), "x").unwrap();
+
+        let mut out: Vec<String> = Vec::new();
+        walk_files(&tmp, &tmp, &mut out);
+        out.sort();
+
+        assert_eq!(
+            out,
+            vec!["readme.md".to_string(), "src/main.ts".to_string()]
+        );
         let _ = fs::remove_dir_all(&tmp);
     }
 }
