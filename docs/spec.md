@@ -101,9 +101,13 @@ src-tauri/src/
 "Refined / cleaner" relative to Kaelio: same 3-pane mental model (editor | preview,
 with split/editor/preview modes), but a fresh palette, more minimal chrome, and
 deliberate spacing/typography. CSS is written fresh (also required for legal
-independence). The actual visual design is done at the M1 `styles.css` step using
-the `ui-ux-pro-max` / `frontend-design` skills against the running app — not designed
-in a vacuum beforehand.
+independence). The actual visual design is done at the M1 `styles.css` step against
+the running app — not designed in a vacuum beforehand — using the UI/UX skills:
+
+- `taste-skills`
+- `impeccable`
+- `ui-ux-pro-max`
+- `frontend-design`
 
 ## Roadmap (each milestone = its own spec → plan → build cycle)
 
