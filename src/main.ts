@@ -5,6 +5,7 @@ import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
 import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
 import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
+import { pickFolder } from "./filesys";
 import { initResize } from "./resize";
 import { loadState, saveState, type ViewMode } from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
@@ -423,6 +424,10 @@ listen<string>("menu", (event) => {
       return newDoc();
     case "file.open":
       return void doOpen();
+    case "file.open_folder":
+      return void pickFolder().then((directory) => {
+        if (directory) void openFolder(directory);
+      });
     case "file.save":
       return void doSave(false);
     case "file.save_as":

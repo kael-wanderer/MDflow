@@ -1,5 +1,6 @@
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { showContextMenu, type MenuItem } from "./contextmenu";
+import { glyphs } from "./glyphs";
 import { fileIcon } from "./icons";
 import {
   copyPath,
@@ -14,7 +15,13 @@ import {
 } from "./filesys";
 import { joinPath, parentPath } from "./paths";
 import { getState, refreshDir, setState, subscribe } from "./store";
-import { findNode, setChildren, toggleExpanded, type TreeNode } from "./treeops";
+import {
+  findNode,
+  setAllExpanded,
+  setChildren,
+  toggleExpanded,
+  type TreeNode,
+} from "./treeops";
 
 const ICON: Record<string, string> = {
   md: "M",
@@ -336,9 +343,33 @@ export function initExplorer(
     if (directory) await openFolder(directory);
   };
 
-  document.getElementById("explorer-open")!.addEventListener("click", () => {
-    void chooseFolder();
+  const setIcon = (id: string, key: string): void => {
+    document.getElementById(id)!.innerHTML = glyphs[key];
+  };
+  setIcon("ex-new-file", "newFile");
+  setIcon("ex-new-folder", "newFolder");
+  setIcon("ex-collapse", "collapseAll");
+  setIcon("ex-expand", "expandAll");
+
+  const withFolder = (fn: (folder: string) => void) => (): void => {
+    const folder = getState().folder;
+    if (folder) fn(folder);
+  };
+  document
+    .getElementById("ex-new-file")!
+    .addEventListener("click", withFolder((folder) => startCreate(folder, "file")));
+  document
+    .getElementById("ex-new-folder")!
+    .addEventListener("click", withFolder((folder) => startCreate(folder, "dir")));
+  document.getElementById("ex-collapse")!.addEventListener("click", () => {
+    const tree = getState().tree;
+    if (tree) setState({ tree: setAllExpanded(tree, false) });
   });
+  document.getElementById("ex-expand")!.addEventListener("click", () => {
+    const tree = getState().tree;
+    if (tree) setState({ tree: setAllExpanded(tree, true) });
+  });
+
   document.getElementById("explorer-empty-open")!.addEventListener("click", () => {
     void chooseFolder();
   });

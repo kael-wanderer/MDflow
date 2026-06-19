@@ -38,3 +38,11 @@ export function setChildren(root: TreeNode, path: string, children: TreeNode[]):
 export function toggleExpanded(root: TreeNode, path: string): TreeNode {
   return mapNode(root, path, (node) => ({ ...node, expanded: !node.expanded }));
 }
+
+export function setAllExpanded(root: TreeNode, expanded: boolean): TreeNode {
+  const children = root.children
+    ? root.children.map((child) => setAllExpanded(child, expanded))
+    : root.children;
+  if (!root.isDir) return { ...root, children };
+  return { ...root, expanded, children };
+}

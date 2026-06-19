@@ -28,6 +28,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let open = MenuItemBuilder::with_id("file.open", "Open File…")
         .accelerator("CmdOrCtrl+O")
         .build(app)?;
+    let open_folder = MenuItemBuilder::with_id("file.open_folder", "Open Folder…")
+        .accelerator("CmdOrCtrl+Shift+O")
+        .build(app)?;
     let save = MenuItemBuilder::with_id("file.save", "Save")
         .accelerator("CmdOrCtrl+S")
         .build(app)?;
@@ -41,6 +44,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&new)
         .separator()
         .item(&open)
+        .item(&open_folder)
         .separator()
         .item(&save)
         .item(&save_as)
