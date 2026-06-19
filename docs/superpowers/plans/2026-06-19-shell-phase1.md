@@ -58,7 +58,7 @@ src-tauri/src/
   `Entry { name: String, path: String, is_dir: bool }`, sorted directories-first then
   case-insensitive by name. One directory level only (lazy).
 
-- [ ] **Step 1: Write the failing Rust test** — add to `src-tauri/src/files.rs`:
+- [x] **Step 1: Write the failing Rust test** — add to `src-tauri/src/files.rs`:
 
 ```rust
 #[cfg(test)]
@@ -95,12 +95,12 @@ mod list_dir_tests {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `cd src-tauri && cargo test list_dir`
 Expected: FAIL — `read_entries` / `Entry` not found.
 
-- [ ] **Step 3: Implement in `src-tauri/src/files.rs`** (add near the top, after the `use` lines):
+- [x] **Step 3: Implement in `src-tauri/src/files.rs`** (add near the top, after the `use` lines):
 
 ```rust
 use serde::Serialize;
@@ -139,7 +139,7 @@ pub fn list_dir(path: String) -> Result<Vec<Entry>, String> {
 }
 ```
 
-- [ ] **Step 4: Register in `src-tauri/src/lib.rs`** — add `files::list_dir,` to the `generate_handler!` list:
+- [x] **Step 4: Register in `src-tauri/src/lib.rs`** — add `files::list_dir,` to the `generate_handler!` list:
 
 ```rust
         .invoke_handler(tauri::generate_handler![
@@ -152,12 +152,12 @@ pub fn list_dir(path: String) -> Result<Vec<Entry>, String> {
         ])
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd src-tauri && cargo test list_dir`
 Expected: PASS (1 test).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src-tauri/src/files.rs src-tauri/src/lib.rs
@@ -178,7 +178,7 @@ git commit -m "feat: list_dir command (lazy directory listing)"
   - `setChildren(root: TreeNode, path: string, children: TreeNode[]): TreeNode` — returns a new tree with that node's `children` set and `expanded = true` (immutable update).
   - `toggleExpanded(root: TreeNode, path: string): TreeNode` — returns a new tree with that node's `expanded` flipped.
 
-- [ ] **Step 1: Write the failing test** — `src/__tests__/treeops.test.ts`:
+- [x] **Step 1: Write the failing test** — `src/__tests__/treeops.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
@@ -215,12 +215,12 @@ describe("treeops", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `npm run test -- treeops`
 Expected: FAIL — cannot find `../treeops`.
 
-- [ ] **Step 3: Implement `src/treeops.ts`**
+- [x] **Step 3: Implement `src/treeops.ts`**
 
 ```ts
 export type TreeNode = {
@@ -256,12 +256,12 @@ export function toggleExpanded(root: TreeNode, path: string): TreeNode {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npm run test -- treeops`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/treeops.ts src/__tests__/treeops.test.ts
@@ -279,7 +279,7 @@ git commit -m "feat: pure tree helpers + tests"
 - Produces: `fileIcon(name: string, isDir: boolean): string` — returns an icon id from
   `"folder" | "md" | "txt" | "json" | "html" | "pdf" | "file"`.
 
-- [ ] **Step 1: Write the failing test** — `src/__tests__/icons.test.ts`:
+- [x] **Step 1: Write the failing test** — `src/__tests__/icons.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
@@ -299,12 +299,12 @@ describe("fileIcon", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `npm run test -- icons`
 Expected: FAIL — cannot find `../icons`.
 
-- [ ] **Step 3: Implement `src/icons.ts`**
+- [x] **Step 3: Implement `src/icons.ts`**
 
 ```ts
 const BY_EXT: Record<string, string> = {
@@ -319,12 +319,12 @@ export function fileIcon(name: string, isDir: boolean): string {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npm run test -- icons`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/icons.ts src/__tests__/icons.test.ts
@@ -346,7 +346,7 @@ git commit -m "feat: file-type icon mapping + tests"
   - `setState(patch: Partial<ShellState>): void` — merges + notifies subscribers.
   - `subscribe(fn: () => void): () => void` — returns an unsubscribe function.
 
-- [ ] **Step 1: Implement `src/store.ts`** (glue over the tested `treeops`; no separate unit test — its behavior is exercised by Task 8 session tests and manual runs):
+- [x] **Step 1: Implement `src/store.ts`** (glue over the tested `treeops`; no separate unit test — its behavior is exercised by Task 8 session tests and manual runs):
 
 ```ts
 import type { TreeNode } from "./treeops";
@@ -382,12 +382,12 @@ export function subscribe(fn: () => void): () => void {
 }
 ```
 
-- [ ] **Step 2: Type-check**
+- [x] **Step 2: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/store.ts
@@ -408,7 +408,7 @@ git commit -m "feat: central shell state store"
   - `listDir(path: string): Promise<Entry[]>` — calls `list_dir`, maps `is_dir` → `isDir`.
   - `pickFolder(): Promise<string | null>` — directory open dialog.
 
-- [ ] **Step 1: Implement `src/filesys.ts`**
+- [x] **Step 1: Implement `src/filesys.ts`**
 
 ```ts
 import { invoke } from "@tauri-apps/api/core";
@@ -428,12 +428,12 @@ export async function pickFolder(): Promise<string | null> {
 }
 ```
 
-- [ ] **Step 2: Type-check**
+- [x] **Step 2: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/filesys.ts
@@ -453,7 +453,7 @@ git commit -m "feat: filesystem IPC wrappers (listDir, pickFolder)"
   handle `#explorer-resize`, and the existing `.panes` (`#editor`/`#preview`) now inside
   `#editorarea`. Body keeps the `view-split/editor/preview` classes from M1.
 
-- [ ] **Step 1: Restructure `index.html` body**
+- [x] **Step 1: Restructure `index.html` body**
 
 ```html
   <body class="view-split">
@@ -493,7 +493,7 @@ git commit -m "feat: filesystem IPC wrappers (listDir, pickFolder)"
   </body>
 ```
 
-- [ ] **Step 2: Add shell CSS to `src/styles.css`** (append; reuse the M1 theme variables):
+- [x] **Step 2: Add shell CSS to `src/styles.css`** (append; reuse the M1 theme variables):
 
 ```css
 /* ---------- Shell ---------- */
@@ -553,9 +553,9 @@ body.no-folder .explorer-empty { display: block; }
 #editorarea .panes { flex: 1; }
 ```
 
-- [ ] **Step 3: Verify the layout renders** — start dev (`npm run tauri dev`) and confirm: activity bar on the left, an empty explorer panel with an "Open Folder" empty state, and the editor/preview filling the rest. (Wiring comes next.)
+- [x] **Step 3: Verify the layout renders** — start dev (`npm run tauri dev`) and confirm: activity bar on the left, an empty explorer panel with an "Open Folder" empty state, and the editor/preview filling the rest. (Wiring comes next.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add index.html src/styles.css
@@ -577,7 +577,7 @@ git commit -m "feat: shell layout (activity bar + explorer + editor area)"
     changes; clicking a folder lazy-loads/expands; clicking a file calls `onOpenFile(path)`.
   - `openFolder(path: string): Promise<void>` — sets folder, loads root tree.
 
-- [ ] **Step 1: Implement `src/activitybar.ts`**
+- [x] **Step 1: Implement `src/activitybar.ts`**
 
 ```ts
 import { getState, setState } from "./store";
@@ -594,7 +594,7 @@ export function initActivityBar(): void {
 }
 ```
 
-- [ ] **Step 2: Implement `src/explorer.ts`**
+- [x] **Step 2: Implement `src/explorer.ts`**
 
 ```ts
 import { getState, setState, subscribe } from "./store";
@@ -684,12 +684,12 @@ export function initExplorer(onOpenFile: (path: string) => void): void {
 }
 ```
 
-- [ ] **Step 3: Type-check**
+- [x] **Step 3: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/explorer.ts src/activitybar.ts
@@ -706,7 +706,7 @@ git commit -m "feat: explorer + activity bar render and interactions"
 **Interfaces:**
 - Consumes: everything above. `state.ts` gains folder + explorer fields in persisted state.
 
-- [ ] **Step 1: Extend session state in `src/state.ts`** — replace the `UIState` type and defaults:
+- [x] **Step 1: Extend session state in `src/state.ts`** — replace the `UIState` type and defaults:
 
 ```ts
 export type ViewMode = "split" | "editor" | "preview";
@@ -728,7 +728,7 @@ const DEFAULTS: UIState = {
 
 (The `loadState`/`saveState` bodies are unchanged — they already spread `DEFAULTS`.)
 
-- [ ] **Step 2: Update `src/__tests__/state.test.ts` defaults** so the three default-shape assertions match the new fields, e.g.:
+- [x] **Step 2: Update `src/__tests__/state.test.ts` defaults** so the three default-shape assertions match the new fields, e.g.:
 
 ```ts
 expect(loadState()).toEqual({
@@ -739,12 +739,12 @@ expect(loadState()).toEqual({
 
 (Apply to the "returns defaults", "falls back", and "merges partial" tests.)
 
-- [ ] **Step 3: Run state tests**
+- [x] **Step 3: Run state tests**
 
 Run: `npm run test -- state`
 Expected: PASS.
 
-- [ ] **Step 4: Wire the shell in `src/main.ts`** — add imports and init after the editor is created:
+- [x] **Step 4: Wire the shell in `src/main.ts`** — add imports and init after the editor is created:
 
 ```ts
 import { initActivityBar } from "./activitybar";
@@ -800,7 +800,10 @@ subscribe(() => {
   - Click a file → it opens in the editor + preview; status path updates.
   - Quit + relaunch → the folder reopens and explorer width/visibility persist.
 
-- [ ] **Step 6: Commit**
+  Browser-level toggle and resize persistence are verified. Native folder-dialog and
+  file-opening checks remain in `docs/review.md`.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main.ts src/state.ts src/__tests__/state.test.ts
@@ -818,7 +821,7 @@ git commit -m "feat: wire shell into app + persist folder/explorer session"
 - Produces: `initResize(onCommit: (width: number) => void): void` — drag `#explorer-resize`
   to set `--explorer-w` (clamped 160–480px); calls `onCommit(finalWidth)` on mouseup.
 
-- [ ] **Step 1: Implement `src/resize.ts`**
+- [x] **Step 1: Implement `src/resize.ts`**
 
 ```ts
 export function initResize(onCommit: (width: number) => void): void {
@@ -850,9 +853,9 @@ export function initResize(onCommit: (width: number) => void): void {
 }
 ```
 
-- [ ] **Step 2: Verify** — `npm run tauri dev`, drag the border between explorer and editor; width changes and persists across relaunch.
+- [x] **Step 2: Verify** — `npm run tauri dev`, drag the border between explorer and editor; width changes and persists across relaunch.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/resize.ts
@@ -866,7 +869,7 @@ git commit -m "feat: draggable explorer width"
 **Files:**
 - Modify: `docs/review.md`, `docs/tasks.md`
 
-- [ ] **Step 1: Run all automated tests**
+- [x] **Step 1: Run all automated tests**
 
 Run: `npm run test && (cd src-tauri && cargo test)`
 Expected: all green (treeops ×3, icons ×3, state ×4, preview ×5; Rust list_dir + word_count).
@@ -878,9 +881,12 @@ Expected: all green (treeops ×3, icons ×3, state ×4, preview ×5; Rust list_d
   - Click file → opens in editor/preview; M1 view modes (⌘B/E/P), save, soft wrap still work.
   - Explorer width drag persists; folder reopens on relaunch.
 
-- [ ] **Step 3: Update `docs/tasks.md`** — mark Phase 1 tasks done; note Phases 2–4 pending their own plans.
+  Automated and browser-level checks are recorded. Native folder-dialog interactions
+  remain as an explicit checklist because macOS accessibility capture was unavailable.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Update `docs/tasks.md`** — mark Phase 1 tasks done; note Phases 2–4 pending their own plans.
+
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/review.md docs/tasks.md

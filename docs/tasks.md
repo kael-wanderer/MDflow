@@ -6,25 +6,19 @@
 
 ## Where we are (2026-06-19)
 
-- Brainstorming complete. Spec written and committed → `docs/spec.md`.
 - Locked decisions: name **MDflow**; **MIT** license; **clean-room incremental
-  rewrite** of Kaelio (reference only, never copy code/CSS); modular architecture;
-  refined/cleaner UI; identifier `com.kael.mdflow`.
-- M1 = lean core. M2 = activate auto-update (must-have-early). See spec roadmap.
-- No app code written yet. This repo currently holds only docs.
+  rewrite**; modular architecture; refined/cleaner UI; identifier `com.kael.mdflow`.
+- M1 lean core is implemented.
+- Shell Phase 1 is implemented: activity bar, collapsible/resizable Explorer, lazy
+  directory tree, file-type icons, click-to-open, and shell session persistence.
+- Shell Phases 2-4 remain: Explorer CRUD, tabs, then the Sub window and per-window
+  view modes.
+- M2 auto-update follows the shell sub-project.
 
 ## Next step (the immediate task)
 
-**Write the Milestone 1 implementation plan** using the `writing-plans` skill.
-Requirements for the plan:
-
-- First build step must be a **static UI shell mockup** (HTML/CSS only, no logic) for
-  user approval before any wiring. Use the UI skills: taste-skills, impeccable,
-  ui-ux-pro-max, frontend-design.
-- Include an early step to create the full `mdflow/CLAUDE.md` (commands, architecture)
-  once the project is scaffolded.
-- Keep tasks discrete and bounded so **Codex** can pick them up (add Codex once the
-  plan is task-broken, at "start building M1").
+Run the Shell Phase 1 native GUI checklist in `docs/review.md`, then write and execute
+the Phase 2 Explorer file-management plan.
 
 ## Code Tasks
 
@@ -50,13 +44,36 @@ Plan: `docs/superpowers/plans/2026-06-19-m1-lean-core.md`
 
 Note: Help ▸ "Check for Updates" intentionally deferred to M2 (needs the real updater feed).
 
+## Shell Sub-project
+
+Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
+
+### Phase 1 - Shell + read-only Explorer
+
+[x] Rust lazy `list_dir` command with dir-first sorting and unit test
+[x] Pure tree operations and file-icon mapping with Vitest coverage
+[x] Central shell store and filesystem IPC wrappers
+[x] Activity bar, Explorer layout, empty state, and lazy tree renderer
+[x] Explorer toggle and drag-resizable width
+[x] Click Explorer file to open in the existing editor and preview
+[x] Persist folder, Explorer visibility, and Explorer width
+[x] Automated tests, production build, Rust tests, and compile-check
+[~] Native GUI smoke checklist in `docs/review.md`
+
+### Remaining phases
+
+[ ] Phase 2 - Explorer file management
+[ ] Phase 3 - Tabs
+[ ] Phase 4 - Sub window and per-window view modes
+
 ## Documentation Tasks
 
 [x] docs/spec.md
-[~] docs/tasks.md (this file)
-[ ] mdflow/CLAUDE.md (full version — currently a starter)
-[ ] README.md
+[x] docs/tasks.md (this file)
+[x] CLAUDE.md
+[x] README.md
 
 ## Testing Tasks
 
-[ ] M1 manual smoke test (open/save, preview, view modes, hotkeys)
+[~] M1 manual smoke test (checklist in `docs/review.md`)
+[~] Shell Phase 1 native GUI smoke test (checklist in `docs/review.md`)
