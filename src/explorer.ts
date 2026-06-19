@@ -242,6 +242,7 @@ function rowMenu(node: TreeNode): MenuItem[] {
   return [
     { label: "New File", action: () => startCreate(directory, "file") },
     { label: "New Folder", action: () => startCreate(directory, "dir") },
+    ...(node.isDir ? [] : [{ label: "Open in Sub Window", action: () => (window as any).mdflowOpenInSub(node.path) }]),
     "separator",
     { label: "Rename", action: () => startRename(node.path, node.name) },
     {

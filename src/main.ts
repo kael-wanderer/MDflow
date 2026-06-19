@@ -97,17 +97,17 @@ function openInWindow(windowId: string, opts: { path: string | null; name: strin
   activateTab(windowId, id);
 }
 
-async function closeTab(windowId: string, tabId: string): Promise<void> {
+async function closeTab(windowId: string, tabId: string): Promise<boolean> {
   const w = getWindow(windowId)!;
   const t = w.tabs.find((x) => x.id === tabId);
-  if (!t) return;
+  if (!t) return true;
 
   if (t.dirty) {
     const approved = await confirm(`Discard unsaved changes to "${t.name}"?`, {
       title: "Close tab",
       kind: "warning",
     });
-    if (!approved) return;
+    if (!approved) return false;
   }
 
   const next = nextActiveAfterClose(w.tabs, tabId, w.activeTabId);
@@ -127,6 +127,7 @@ async function closeTab(windowId: string, tabId: string): Promise<void> {
       renderAll();
     }
   }
+  return true;
 }
 
 function onDocChange(windowId: string, tabId: string, text: string): void {
@@ -358,6 +359,20 @@ function removeSplitter(): void {
   windowsHost.querySelectorAll<HTMLElement>(".window").forEach((el) => (el.style.flex = ""));
 }
 
+async function openInSub(path: string): Promise<void> {
+  if (getState().windows.length < 2) await toggleSub();
+  // move if already open in main
+  const found = findTabByPath(getState().windows, path);
+  if (found && found.windowId === "main") {
+    const closed = await closeTab("main", found.tab.id);
+    if (!closed) return;
+  }
+  const contents = await invoke<string>("read_file", { path });
+  openInWindow("sub", { path, name: basename(path), text: contents });
+}
+(window as any).mdflowOpenInSub = (p: string) => void openInSub(p);
+
+
 
 setState({
   folder: ui.folder,
@@ -427,6 +442,14 @@ listen<string>("menu", (event) => {
       return toggleSoftWrap();
     case "help.guide":
       return openHelp();
+  }
+});
+
+window.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "w") {
+    e.preventDefault();
+    const w = activeWindow();
+    if (w.activeTabId) void closeTab(w.id, w.activeTabId);
   }
 });
 
