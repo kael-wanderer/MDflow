@@ -5,7 +5,7 @@ import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
 import { createEditor } from "./editor";
 import { initExplorer, openFolder } from "./explorer";
-import { getInitialFile, openFile, saveFile } from "./files";
+import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
 import { renderMarkdown } from "./preview";
 import { initResize } from "./resize";
 import { loadState, saveState, type ViewMode } from "./state";
@@ -177,15 +177,34 @@ async function doSave(saveAs = false): Promise<void> {
   const tab = activeTab();
   if (!tab) return;
 
-  const written = await saveFile(saveAs ? null : tab.path, editor.getText(tab.id));
-  if (!written) return;
+  try {
+    let target = saveAs ? null : tab.path;
+    if (!target) {
+      target = await pickSavePath();
+      if (!target) return;
 
-  patchTab(tab.id, {
-    path: written,
-    name: basename(written),
-    dirty: false,
-  });
-  statusPath.textContent = written;
+      const existing = findByPath(getState().tabs, target);
+      if (existing && existing.id !== tab.id) {
+        await message("That file is already open in another tab.", {
+          title: "Save As",
+          kind: "warning",
+        });
+        activate(existing.id);
+        return;
+      }
+    }
+
+    await writeFile(target, editor.getText(tab.id));
+    patchTab(tab.id, {
+      path: target,
+      name: basename(target),
+      dirty: false,
+    });
+    statusPath.textContent = target;
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error);
+    await message(text, { title: "Save file", kind: "error" });
+  }
 }
 
 function openHelp(): void {
@@ -240,11 +259,17 @@ initTabbar({
 
 subscribe(() => {
   const shell = getState();
+  const openPaths = shell.tabs
+    .map((tab) => tab.path)
+    .filter((path): path is string => path !== null);
+  const current = shell.tabs.find((tab) => tab.id === shell.activeTabId);
   ui = {
     ...ui,
     folder: shell.folder,
     explorerVisible: shell.explorerVisible,
     explorerWidth: shell.explorerWidth,
+    openPaths,
+    activePath: current?.path ?? null,
   };
   saveState(ui);
 });
@@ -292,8 +317,31 @@ if (ui.folder) {
   });
 }
 
-void getInitialFile().then((result) => {
+async function restoreTabs(): Promise<void> {
+  const paths = [...ui.openPaths];
+  const savedActivePath = ui.activePath;
+
+  for (const path of paths) {
+    try {
+      const contents = await invoke<string>("read_file", { path });
+      openDoc({ path, name: basename(path), text: contents });
+    } catch {
+      // A session file may have moved or been deleted while the app was closed.
+    }
+  }
+
+  if (savedActivePath) {
+    const savedActive = findByPath(getState().tabs, savedActivePath);
+    if (savedActive) activate(savedActive.id);
+  }
+}
+
+async function restoreDocuments(): Promise<void> {
+  await restoreTabs();
+  const result = await getInitialFile();
   if (result) {
     openDoc({ path: result.path, name: basename(result.path), text: result.contents });
   }
-});
+}
+
+void restoreDocuments();
