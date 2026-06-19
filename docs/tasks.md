@@ -16,12 +16,14 @@
 - Shell Phase 3 is implemented: multiple tabs, per-document editor state and undo,
   dirty tracking, confirmed close, and session restoration.
 - Shell Phase 4a is implemented: per-window toolbar and line numbers toggle.
-- Shell Phase 4b remains: the Sub-window.
+- Shell Phase 4b is implemented: Sub window, per-window tabs/view modes, and splitter.
+- Shell Phase 4c is implemented: icon toolbar, per-window status lines, colored file
+  icons, Explorer header actions, and File ▸ Open Folder.
 - M2 auto-update follows the shell sub-project.
 
 ## Next step (the immediate task)
 
-Run the Shell Phase 4a native GUI checklist in `docs/review.md`, then implement Phase 4b (Sub window).
+Run the remaining native GUI checklists in `docs/review.md`, then begin M2 auto-update.
 
 ## Code Tasks
 
@@ -96,6 +98,7 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 
 [x] Phase 4a - Per-window Toolbar + Line Numbers
 [x] Phase 4b - Sub window
+[x] Phase 4c - UI polish
 
 ### Workflow
 
