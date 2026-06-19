@@ -252,8 +252,10 @@ mod crud_tests {
 
 #[cfg(test)]
 mod duplicate_tests {
-    use super::duplicate_target;
+    use super::{duplicate_path, duplicate_target};
     use std::collections::HashSet;
+    use std::fs;
+    use std::path::Path;
 
     #[test]
     fn picks_first_free_copy_name() {
@@ -280,5 +282,30 @@ mod duplicate_tests {
             duplicate_target("/d", "notes", "", &|path| taken.contains(path)),
             "/d/notes copy"
         );
+    }
+
+    #[test]
+    fn duplicates_files_and_dotted_directories() {
+        let tmp = std::env::temp_dir().join("mdflow_duplicate_test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        let file = tmp.join("note.md");
+        fs::write(&file, "hello").unwrap();
+        let file_copy = duplicate_path(file.to_string_lossy().into_owned()).unwrap();
+        assert!(file_copy.ends_with("note copy.md"));
+        assert_eq!(fs::read_to_string(file_copy).unwrap(), "hello");
+
+        let directory = tmp.join("docs.v1");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("inside.txt"), "inside").unwrap();
+        let directory_copy = duplicate_path(directory.to_string_lossy().into_owned()).unwrap();
+        assert!(directory_copy.ends_with("docs.v1 copy"));
+        assert_eq!(
+            fs::read_to_string(Path::new(&directory_copy).join("inside.txt")).unwrap(),
+            "inside"
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 }

@@ -9,7 +9,7 @@ import { loadState, saveState, type ViewMode } from "./state";
 import { initActivityBar } from "./activitybar";
 import { initExplorer, openFolder } from "./explorer";
 import { initResize } from "./resize";
-import { getState, setState, subscribe } from "./store";
+import { getState, refreshDir, setState, subscribe } from "./store";
 import helpDoc from "../HELP.md?raw";
 
 const editorEl = document.getElementById("editor")!;
@@ -37,7 +37,18 @@ document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
 
 initActivityBar();
 initResize((explorerWidth) => setState({ explorerWidth }));
-initExplorer((path) => void doOpenPath(path));
+initExplorer(
+  (path) => void doOpenPath(path),
+  (from, to) => {
+    if (!currentPath) return;
+    const affected =
+      currentPath === from ||
+      currentPath.startsWith(`${from}/`) ||
+      currentPath.startsWith(`${from}\\`);
+    if (!affected) return;
+    setPath(to === null ? null : `${to}${currentPath.slice(from.length)}`);
+  },
+);
 
 subscribe(() => {
   const shell = getState();
@@ -48,6 +59,11 @@ subscribe(() => {
     explorerWidth: shell.explorerWidth,
   };
   saveState(ui);
+});
+
+window.addEventListener("focus", () => {
+  const folder = getState().folder;
+  if (folder) void refreshDir(folder).catch(() => {});
 });
 
 let timer: number | undefined;

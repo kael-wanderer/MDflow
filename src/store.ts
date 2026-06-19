@@ -41,12 +41,18 @@ export async function refreshDir(dirPath: string): Promise<void> {
   if (!isRoot && findNode(tree, dirPath) === null) return;
 
   const entries = await listDir(dirPath);
-  const children: TreeNode[] = entries.map((entry) => ({
-    name: entry.name,
-    path: entry.path,
-    isDir: entry.isDir,
-    expanded: false,
-    children: null,
-  }));
+  const children: TreeNode[] = entries.map((entry) => {
+    const existing = findNode(tree, entry.path);
+    if (existing && existing.isDir === entry.isDir) {
+      return { ...existing, name: entry.name, path: entry.path };
+    }
+    return {
+      name: entry.name,
+      path: entry.path,
+      isDir: entry.isDir,
+      expanded: false,
+      children: null,
+    };
+  });
   setState({ tree: setChildren(tree, dirPath, children) });
 }
