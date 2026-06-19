@@ -265,7 +265,9 @@ function handleExplorerPathChange(from: string, to: string | null): void {
 
 function setMode(windowId: string, mode: ViewMode): void {
   patchWindow(windowId, { mode });
-  views.get(windowId)!.render();
+  const view = views.get(windowId)!;
+  view.render();
+  requestAnimationFrame(() => view.requestMeasure());
 }
 
 function toggleLineNumbers(): void {

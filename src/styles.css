@@ -92,6 +92,10 @@ body {
 /* per-window view mode */
 .window-mode-editor .pane-preview, .window-mode-editor .seam { display: none; }
 .window-mode-preview .pane-editor, .window-mode-preview .seam { display: none; }
+.window-mode-preview .doc {
+  width: 100%;
+  max-width: none;
+}
 
 /* active-window cue (only meaningful when Sub is open) */
 .windows.has-sub .window:not(.active) .editor-header { opacity: 0.85; }
@@ -357,12 +361,16 @@ body.explorer-hidden #explorer-resize {
   padding: 0;
   color: var(--muted);
   font: inherit;
-  font-size: 24px;
   line-height: 1;
   background: transparent;
   border: 0;
   border-radius: 7px;
   cursor: default;
+}
+
+.ab-btn svg {
+  width: 26px;
+  height: 26px;
 }
 
 .ab-btn:hover {

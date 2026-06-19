@@ -2,6 +2,9 @@ const wrap = (inner: string): string =>
   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 
 export const glyphs: Record<string, string> = {
+  explorer: wrap(
+    `<rect x="2.5" y="1.5" width="11" height="13" rx="1"/><path d="M4.5 4h7M4.5 6h7M4.5 8h7M4.5 10h7M4.5 12h7"/>`,
+  ),
   editor: wrap(`<path d="M10.5 2.5l3 3-8 8-3.5.5.5-3.5z"/>`),
   read: wrap(
     `<path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.8"/>`,

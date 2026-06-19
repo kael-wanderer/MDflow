@@ -1,7 +1,9 @@
 import { getState, setState } from "./store";
+import { glyphs } from "./glyphs";
 
 export function initActivityBar(onLayoutChange: () => void = () => {}): void {
   const explorerButton = document.getElementById("ab-explorer")!;
+  explorerButton.innerHTML = glyphs.explorer;
 
   const applyVisibility = (visible: boolean): void => {
     document.body.classList.toggle("explorer-hidden", !visible);
