@@ -353,7 +353,7 @@ body.explorer-hidden #explorer-resize {
   align-items: center;
   gap: 4px;
   padding: 8px 0;
-  background: #161921;
+  background: var(--bg-elev);
   border-right: 1px solid var(--border);
 }
 
