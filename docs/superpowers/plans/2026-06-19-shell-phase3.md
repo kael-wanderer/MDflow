@@ -65,7 +65,7 @@ export type TabMeta = { id: string; path: string | null; name: string; dirty: bo
     tab to its right, else the one to its left, else `null` (no tabs left). If closing a
     non-active tab, the active stays.
 
-- [ ] **Step 1: Write the failing test** — `src/__tests__/tabops.test.ts`:
+- [x] **Step 1: Write the failing test** — `src/__tests__/tabops.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
@@ -101,12 +101,12 @@ describe("tabops", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `npm run test -- tabops`
 Expected: FAIL — cannot find `../tabops`.
 
-- [ ] **Step 3: Implement `src/tabops.ts`**
+- [x] **Step 3: Implement `src/tabops.ts`**
 
 ```ts
 export type TabMeta = { id: string; path: string | null; name: string; dirty: boolean };
@@ -129,12 +129,12 @@ export function nextActiveAfterClose(
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npm run test -- tabops`
 Expected: PASS (5 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tabops.ts src/__tests__/tabops.test.ts
@@ -153,7 +153,7 @@ git commit -m "feat: pure tab-list helpers + tests"
 - Produces: store now also holds `tabs: TabMeta[]` and `activeTabId: string | null`,
   reachable via the existing `getState()`/`setState()`/`subscribe()`.
 
-- [ ] **Step 1: Extend `ShellState` and initial state in `src/store.ts`** — add the import and two fields:
+- [x] **Step 1: Extend `ShellState` and initial state in `src/store.ts`** — add the import and two fields:
 
 ```ts
 import type { TabMeta } from "./tabops";
@@ -173,12 +173,12 @@ In the initial `state` object add:
   activeTabId: null,
 ```
 
-- [ ] **Step 2: Type-check**
+- [x] **Step 2: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: errors only where `main.ts` hasn't been updated yet are acceptable at this step; the store file itself must compile. Run `npx tsc --noEmit src/store.ts` if needed to confirm the store is valid.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/store.ts
@@ -201,7 +201,7 @@ git commit -m "feat: tabs + activeTabId in the store"
   - `setSoftWrap(on: boolean): void`, `setLineNumbers(on: boolean): void`, `focus(): void`.
 - `createEditor(parent, onChange)` — `onChange(id, text)` now fires with the active doc id.
 
-- [ ] **Step 1: Replace `src/editor.ts` with the multi-document version**
+- [x] **Step 1: Replace `src/editor.ts` with the multi-document version**
 
 ```ts
 import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from "@codemirror/view";
@@ -320,12 +320,12 @@ export function createEditor(parent: HTMLElement, onChange: (id: string, text: s
 }
 ```
 
-- [ ] **Step 2: Type-check the editor**
+- [x] **Step 2: Type-check the editor**
 
 Run: `npx tsc --noEmit src/editor.ts`
 Expected: no errors. (Other files may not compile until Task 5 — that's fine here.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/editor.ts
@@ -345,7 +345,7 @@ git commit -m "feat: multi-document editor (per-doc EditorState, undo isolation)
 - Produces: `initTabbar(handlers: { onActivate: (id: string) => void; onClose: (id: string) => void }): void`
   — renders `#tabbar` from the store on every change.
 
-- [ ] **Step 1: Add the tab strip to `index.html`** — inside `#editorarea`, above `.panes`:
+- [x] **Step 1: Add the tab strip to `index.html`** — inside `#editorarea`, above `.panes`:
 
 ```html
         <section id="editorarea">
@@ -360,7 +360,7 @@ git commit -m "feat: multi-document editor (per-doc EditorState, undo isolation)
 
 (Adjust `#editorarea` to stack vertically — see CSS below.)
 
-- [ ] **Step 2: Implement `src/tabbar.ts`**
+- [x] **Step 2: Implement `src/tabbar.ts`**
 
 ```ts
 import { getState, subscribe } from "./store";
@@ -404,7 +404,7 @@ export function initTabbar(handlers: {
 }
 ```
 
-- [ ] **Step 3: Add tab CSS to `src/styles.css`**
+- [x] **Step 3: Add tab CSS to `src/styles.css`**
 
 ```css
 /* ---------- Tabs ---------- */
@@ -436,7 +436,7 @@ export function initTabbar(handlers: {
 
 (`#editorarea` was `display: flex` from Phase 1; this changes its direction to column so the tab strip sits above the panes.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add index.html src/tabbar.ts src/styles.css
@@ -454,7 +454,7 @@ git commit -m "feat: tab strip rendering + styling"
 - Consumes: every module above. Replaces the single-`currentPath` model with the store's
   `tabs`/`activeTabId` plus the editor's per-doc states.
 
-- [ ] **Step 1: Rewrite the document handling in `src/main.ts`**
+- [x] **Step 1: Rewrite the document handling in `src/main.ts`**
 
 Replace the old `currentPath` / `doOpenPath` / `doOpen` / `doSave` / `newDoc` / `openHelp`
 logic with the tab-aware versions below. Keep the existing imports and add:
@@ -562,7 +562,7 @@ function openHelp(): void {
 }
 ```
 
-- [ ] **Step 2: Update editor creation + initial wiring** — change `createEditor` to the new signature and mount the tab bar. Replace the old `const editor = createEditor(editorEl, schedulePreview);` with:
+- [x] **Step 2: Update editor creation + initial wiring** — change `createEditor` to the new signature and mount the tab bar. Replace the old `const editor = createEditor(editorEl, schedulePreview);` with:
 
 ```ts
 const editor = createEditor(editorEl, onDocChange);
@@ -573,11 +573,11 @@ initTabbar({ onActivate: activate, onClose: (id) => void closeTab(id) });
 `toggleSoftWrap` already calls `editor.setSoftWrap`. Ensure `updatePreview` uses the passed
 text (unchanged). Remove the old `setPath`/`currentPath` definitions (replaced by tabs).
 
-- [ ] **Step 3: Update the menu listener** — the `listen("menu", …)` switch keeps the same
+- [x] **Step 3: Update the menu listener** — the `listen("menu", …)` switch keeps the same
 cases; they now call the tab-aware `newDoc` / `doOpen` / `doSave` / `openHelp`. The
 `file.save`/`file.save_as` cases call `doSave(false)` / `doSave(true)` as before.
 
-- [ ] **Step 4: Update the initial-file + explorer wiring** — `initExplorer((path) => void doOpenPath(path))` is unchanged. Replace the old `getInitialFile().then(...)` body with:
+- [x] **Step 4: Update the initial-file + explorer wiring** — `initExplorer((path) => void doOpenPath(path))` is unchanged. Replace the old `getInitialFile().then(...)` body with:
 
 ```ts
 getInitialFile().then((r) => {
@@ -596,7 +596,10 @@ Run: `npm run tauri dev` and verify:
   - `⌘W` closes; closing a dirty tab prompts confirm; the neighbour tab activates.
   - Help opens as its own tab; word count + preview track the active tab.
 
-- [ ] **Step 6: Commit**
+  Type-check, native launch, and a focused tab-strip browser harness are verified.
+  CodeMirror cursor/undo and native dialog interactions remain in `docs/review.md`.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main.ts
@@ -614,7 +617,7 @@ git commit -m "feat: multi-document tabs (open/switch/close, per-tab dirty)"
 - Persist the open tab paths + which one is active; restore on launch (skip files that no
   longer exist). Untitled/Help tabs (no path) are not restored.
 
-- [ ] **Step 1: Add tab-session fields to `UIState` in `src/state.ts`** — extend the type + defaults:
+- [x] **Step 1: Add tab-session fields to `UIState` in `src/state.ts`** — extend the type + defaults:
 
 ```ts
   openPaths: string[];
@@ -628,14 +631,14 @@ Add to `DEFAULTS`:
   activePath: null,
 ```
 
-- [ ] **Step 2: Update the three default-shape assertions in `src/__tests__/state.test.ts`** to include `openPaths: []` and `activePath: null`.
+- [x] **Step 2: Update the three default-shape assertions in `src/__tests__/state.test.ts`** to include `openPaths: []` and `activePath: null`.
 
-- [ ] **Step 3: Run state tests**
+- [x] **Step 3: Run state tests**
 
 Run: `npm run test -- state`
 Expected: PASS.
 
-- [ ] **Step 4: Persist tabs from `main.ts`** — in the existing store `subscribe(...)` that mirrors shell state into `ui`, also mirror tab paths:
+- [x] **Step 4: Persist tabs from `main.ts`** — in the existing store `subscribe(...)` that mirrors shell state into `ui`, also mirror tab paths:
 
 ```ts
 subscribe(() => {
@@ -654,7 +657,7 @@ subscribe(() => {
 });
 ```
 
-- [ ] **Step 5: Restore tabs on launch** — after the shell is mounted and before
+- [x] **Step 5: Restore tabs on launch** — after the shell is mounted and before
 `getInitialFile()`, add:
 
 ```ts
@@ -676,7 +679,10 @@ restoreTabs();
 - [ ] **Step 6: Verify** — `npm run tauri dev`: open a few files, quit, relaunch → the same
 tabs reopen with the same active tab; a deleted file is silently skipped.
 
-- [ ] **Step 7: Commit**
+  Persistence shape and restore sequencing are automated; relaunch behavior remains
+  in the native GUI checklist.
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/state.ts src/__tests__/state.test.ts src/main.ts
@@ -690,7 +696,7 @@ git commit -m "feat: persist and restore open tabs across launches"
 **Files:**
 - Modify: `docs/review.md`, `docs/tasks.md`
 
-- [ ] **Step 1: Run all automated tests**
+- [x] **Step 1: Run all automated tests**
 
 Run: `npm run test && (cd src-tauri && cargo test)`
 Expected: all green (tabops ×5 + paths ×2 + icons ×3 + treeops ×3 + state ×4 + preview ×5 frontend; Rust unchanged from Phase 2).
@@ -704,9 +710,12 @@ Expected: all green (tabops ×5 + paths ×2 + icons ×3 + treeops ×3 + state ×
   - Quit/relaunch restores open tabs + active tab; vanished files skipped.
   - M1/Phase-1/2 still work: view modes, soft wrap, explorer, file management.
 
-- [ ] **Step 3: Update `docs/tasks.md`** — mark Phase 3 done; set Phase 4 (Sub window + per-window view modes) as next.
+  Automated, browser-harness, and native-launch evidence is recorded. The remaining
+  hands-on checks are explicit in `docs/review.md`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Update `docs/tasks.md`** — mark Phase 3 done; set Phase 4 (Sub window + per-window view modes) as next.
+
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/review.md docs/tasks.md

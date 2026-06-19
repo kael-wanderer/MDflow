@@ -13,13 +13,15 @@
   directory tree, file-type icons, click-to-open, and shell session persistence.
 - Shell Phase 2 is implemented: inline create/rename, Trash-backed delete, duplicate,
   Copy Path, Reveal in Finder, context menus, and refresh-on-focus.
-- Shell Phases 3-4 remain: tabs, then the Sub window and per-window view modes.
+- Shell Phase 3 is implemented: multiple tabs, per-document editor state and undo,
+  dirty tracking, confirmed close, and session restoration.
+- Shell Phase 4 remains: the Sub window and per-window view modes.
 - M2 auto-update follows the shell sub-project.
 
 ## Next step (the immediate task)
 
-Run the Shell Phase 2 native GUI checklist in `docs/review.md`, then have Claude Code
-write the Phase 3 tabs implementation plan for Codex to execute.
+Run the Shell Phase 3 native GUI checklist in `docs/review.md`, then have Claude Code
+write the Phase 4 Sub-window implementation plan for Codex to execute.
 
 ## Code Tasks
 
@@ -75,9 +77,23 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 [x] Automated tests, production build, Rust checks, and native launch
 [~] Native GUI smoke checklist in `docs/review.md`
 
+### Phase 3 - Tabs
+
+[x] Pure tab-list operations with tests
+[x] Tabs and active-tab metadata in the central store
+[x] Per-document CodeMirror state, cursor, and undo isolation
+[x] Accessible, horizontally scrolling tab strip
+[x] Open/focus existing files from Explorer and File menu
+[x] Dirty indicators, Save clearing, and Save-As naming
+[x] Close button and `⌘W` with dirty confirmation and neighbour activation
+[x] Safe tab path handling across Explorer rename/delete
+[x] Persist and restore open file tabs and active path
+[x] Preserve one-document/one-tab ownership during Save As
+[x] Automated tests, production build, Rust checks, browser harness, and native launch
+[~] Native GUI smoke checklist in `docs/review.md`
+
 ### Remaining phases
 
-[ ] Phase 3 - Tabs
 [ ] Phase 4 - Sub window and per-window view modes
 
 ### Workflow
@@ -97,3 +113,4 @@ raises material questions, ideas, and concerns during execution.
 [~] M1 manual smoke test (checklist in `docs/review.md`)
 [x] Shell Phase 1 native GUI smoke test (user quick-verified — works)
 [~] Shell Phase 2 native GUI smoke test (checklist in `docs/review.md`)
+[~] Shell Phase 3 native GUI smoke test (checklist in `docs/review.md`)
