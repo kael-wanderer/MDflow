@@ -762,3 +762,84 @@ body.resizing-explorer .resize-handle::after {
 .wt-btn:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,0.05); }
 .wt-btn.active { color: var(--text-strong); background: rgba(255,255,255,0.10); }
 .wt-icon { border: 1px solid var(--border); border-radius: 7px; }
+
+/* ---------- Command palette ---------- */
+
+.palette {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+
+.palette.hidden {
+  display: none;
+}
+
+.palette-box {
+  width: min(620px, 90vw);
+  overflow: hidden;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.palette-input {
+  width: 100%;
+  padding: 14px 16px;
+  color: var(--text-strong);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  outline: none;
+}
+
+.palette-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-bottom: 6px;
+}
+
+.palette-heading {
+  padding: 9px 16px 4px;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.palette-row.active {
+  color: var(--text-strong);
+  background: var(--selection);
+}
+
+.palette-kind {
+  width: 12px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.palette-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
