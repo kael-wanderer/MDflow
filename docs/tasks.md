@@ -58,13 +58,17 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 [x] Click Explorer file to open in the existing editor and preview
 [x] Persist folder, Explorer visibility, and Explorer width
 [x] Automated tests, production build, Rust tests, and compile-check
-[~] Native GUI smoke checklist in `docs/review.md`
+[x] Native GUI smoke checklist in `docs/review.md` (user quick-verified — works)
 
 ### Remaining phases
 
-[ ] Phase 2 - Explorer file management
+[~] Phase 2 - Explorer file management  ← plan being written
 [ ] Phase 3 - Tabs
 [ ] Phase 4 - Sub window and per-window view modes
+
+### Workflow
+
+Claude leads design/process + verification; Codex implements plan tasks (Gemini fallback).
 
 ## Documentation Tasks
 
@@ -76,4 +80,4 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 ## Testing Tasks
 
 [~] M1 manual smoke test (checklist in `docs/review.md`)
-[~] Shell Phase 1 native GUI smoke test (checklist in `docs/review.md`)
+[x] Shell Phase 1 native GUI smoke test (user quick-verified — works)
