@@ -1,14 +1,14 @@
 import { listDir } from "./filesys";
-import type { TabMeta } from "./tabops";
 import { findNode, setChildren, type TreeNode } from "./treeops";
+import type { WindowState } from "./windowops";
 
 export type ShellState = {
   folder: string | null;
   tree: TreeNode | null;
   explorerVisible: boolean;
   explorerWidth: number;
-  tabs: TabMeta[];
-  activeTabId: string | null;
+  windows: WindowState[];
+  activeWindowId: string;
 };
 
 let state: ShellState = {
@@ -16,8 +16,8 @@ let state: ShellState = {
   tree: null,
   explorerVisible: true,
   explorerWidth: 240,
-  tabs: [],
-  activeTabId: null,
+  windows: [{ id: "main", tabs: [], activeTabId: null, mode: "split" }],
+  activeWindowId: "main",
 };
 
 const listeners = new Set<() => void>();
@@ -61,3 +61,20 @@ export async function refreshDir(dirPath: string): Promise<void> {
   });
   setState({ tree: setChildren(tree, dirPath, children) });
 }
+
+export function getWindow(id: string): WindowState | undefined {
+  return state.windows.find((w) => w.id === id);
+}
+
+export function mainWindow(): WindowState {
+  return state.windows[0];
+}
+
+export function activeWindow(): WindowState {
+  return getWindow(state.activeWindowId) ?? state.windows[0];
+}
+
+export function patchWindow(id: string, patch: Partial<WindowState>): void {
+  setState({ windows: state.windows.map((w) => (w.id === id ? { ...w, ...patch } : w)) });
+}
+

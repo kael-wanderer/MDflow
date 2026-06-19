@@ -142,6 +142,31 @@ window:
 - [ ] Disabled `⊞` (Sub window) and `✦` (AI) show as placeholders.
 - [ ] Tabs, explorer, file management, save/soft-wrap all still work.
 
+## Shell Phase 4b checks
+
+### Verified
+
+- [x] Pure window ownership helper `findTabByPath` locates which window holds a file.
+- [x] Store state modified from flat `tabs` to `windows[]` array supporting Sub window.
+- [x] DOM and CSS rewritten to support per-window layout and active status.
+- [x] Reusable `WindowView` component created to own each window's tab strip, toolbar, editor and preview panes.
+- [x] Main and Sub window support independent Editor/Read/Split modes and active states.
+- [x] Resizable splitter allows dragging to distribute space between Main and Sub windows.
+- [x] "Open in Sub Window" context menu item moves files between windows enforcing document ownership.
+- [x] Keyboard shortcuts (`⌘E/P/B`, `⌘W`) target the active window.
+- [x] Persisted state restores windows, active window, modes, and open/active tab paths on launch.
+- [x] Production build, Vitest unit tests, Cargo tests, and `cargo check` compile and pass.
+
+### Native GUI checklist
+
+- [ ] Click the `⊞` button on the main window to open the Sub window. Drag the splitter to resize.
+- [ ] Open files in Main and Sub windows. Verify each window has independent tabs, active tab, and view mode (Editor/Read/Split).
+- [ ] Right-click a file in the explorer and choose "Open in Sub Window". Verify it opens in Sub (enabling Sub if off), and if it was already open in Main, it moves.
+- [ ] Click on each window to make it active. Confirm keyboard shortcuts like `⌘W` or `⌘B` act only on the active window.
+- [ ] Toggle line numbers `#` or soft wrap and verify it affects both windows.
+- [ ] Click the `⊞` button to close the Sub window. If any tab in Sub is dirty, verify it warns you. If accepted, verify all tabs from Sub move back to Main.
+- [ ] Relaunch the app and verify both windows, their active tabs, view modes, and active window are restored exactly.
+
 ## Notes
 
 - Updater plugin is **installed but dormant** (dependency + capability present, not

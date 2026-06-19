@@ -3,147 +3,177 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
-import { createEditor } from "./editor";
 import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
 import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
-import { renderMarkdown } from "./preview";
 import { initResize } from "./resize";
 import { loadState, saveState, type ViewMode } from "./state";
-import { getState, refreshDir, setState, subscribe } from "./store";
-import { initTabbar } from "./tabbar";
-import { findByPath, nextActiveAfterClose, type TabMeta } from "./tabops";
-import { applyViewMode, applyZoom } from "./views";
-import { initWindowToolbar } from "./windowtoolbar";
+import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
+import { nextActiveAfterClose, type TabMeta } from "./tabops";
+import { findTabByPath } from "./windowops";
+import { createWindowView, type WindowView } from "./windowview";
 import helpDoc from "../HELP.md?raw";
 
-const editorEl = document.getElementById("editor")!;
-const previewEl = document.getElementById("preview")!;
+const windowsHost = document.getElementById("windows")!;
 const statusPath = document.getElementById("status-path")!;
 const statusWords = document.getElementById("status-words")!;
 
-editorEl.replaceChildren();
-previewEl.replaceChildren();
-
 let ui = loadState();
-let tabSequence = 0;
-let previewTimer: number | undefined;
-let previewVersion = 0;
-
-const nextTabId = (): string => `t${++tabSequence}`;
+let tabSeq = 0;
+const nextId = () => `t${++tabSeq}`;
 
 function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
-function activeTab(): TabMeta | undefined {
-  const { tabs, activeTabId } = getState();
-  return tabs.find((tab) => tab.id === activeTabId);
-}
+const views = new Map<string, WindowView>();
 
-function setTabs(tabs: TabMeta[], activeTabId: string | null): void {
-  setState({ tabs, activeTabId });
-}
-
-function patchTab(id: string, patch: Partial<TabMeta>): void {
-  setState({
-    tabs: getState().tabs.map((tab) => (tab.id === id ? { ...tab, ...patch } : tab)),
-  });
-}
-
-async function updatePreview(text: string): Promise<void> {
-  const version = ++previewVersion;
-  previewEl.innerHTML = `<article class="doc">${renderMarkdown(text)}</article>`;
-  const wordCount = await invoke<number>("word_count", { text });
-  if (version !== previewVersion) return;
-  statusWords.textContent = `${wordCount} ${wordCount === 1 ? "word" : "words"}`;
-}
-
-function schedulePreview(text: string): void {
-  clearTimeout(previewTimer);
-  previewTimer = window.setTimeout(() => void updatePreview(text), 300);
-}
-
-function clearDocumentSurface(): void {
-  clearTimeout(previewTimer);
-  previewVersion += 1;
-  previewEl.replaceChildren();
-  setExplorerActivePath(null);
-  statusPath.textContent = "Untitled";
-  statusWords.textContent = "0 words";
-}
-
-function onDocChange(id: string, text: string): void {
-  const tab = getState().tabs.find((candidate) => candidate.id === id);
-  if (tab && !tab.dirty) patchTab(id, { dirty: true });
-  if (id === getState().activeTabId) schedulePreview(text);
-}
-
-const editor = createEditor(editorEl, onDocChange);
-
-const toolbar = initWindowToolbar({
-  onMode: (m) => setMode(m),
+const handlers = {
+  onActivateTab: (wid: string, tid: string) => activateTab(wid, tid),
+  onCloseTab: (wid: string, tid: string) => void closeTab(wid, tid),
+  onSetMode: (wid: string, m: ViewMode) => setMode(wid, m),
   onToggleLineNumbers: () => toggleLineNumbers(),
-});
+  onToggleSub: () => toggleSub(),
+  onFocusWindow: (wid: string) => {
+    if (getState().activeWindowId !== wid) {
+      setState({ activeWindowId: wid });
+      renderAll();
+    }
+  },
+  onDocChange: (wid: string, tid: string, text: string) => onDocChange(wid, tid, text),
+};
 
-function activate(id: string): void {
-  const tab = getState().tabs.find((candidate) => candidate.id === id);
-  if (!tab) return;
-
-  clearTimeout(previewTimer);
-  editor.switchTo(id);
-  setState({ activeTabId: id });
-  setExplorerActivePath(tab.path);
-  statusPath.textContent = tab.path ?? tab.name;
-  void updatePreview(editor.getText(id));
-  editor.focus();
+function makeView(windowId: string, isMain: boolean): WindowView {
+  const v = createWindowView(windowsHost, windowId, isMain, handlers);
+  v.setLineNumbersFlag(ui.lineNumbers);
+  v.editor.setSoftWrap(ui.softWrap);
+  v.editor.setLineNumbers(ui.lineNumbers);
+  views.set(windowId, v);
+  return v;
 }
 
-function openDoc(options: { path: string | null; name: string; text: string }): void {
-  if (options.path) {
-    const existing = findByPath(getState().tabs, options.path);
-    if (existing) {
-      activate(existing.id);
+function renderAll(): void {
+  for (const v of views.values()) v.render();
+  document.getElementById("windows")!.classList.toggle("has-sub", getState().windows.length > 1);
+}
+
+function activeView(): WindowView {
+  return views.get(getState().activeWindowId)!;
+}
+
+function activeMeta(): TabMeta | undefined {
+  const w = activeWindow();
+  return w.tabs.find((t) => t.id === w.activeTabId);
+}
+
+function activateTab(windowId: string, tabId: string): void {
+  setState({ activeWindowId: windowId });
+  patchWindow(windowId, { activeTabId: tabId });
+  const v = views.get(windowId)!;
+  v.editor.switchTo(tabId);
+  const text = v.editor.getText(tabId);
+  v.renderPreview(text);
+  if (windowId === getState().activeWindowId) {
+    updateStatus();
+  }
+  renderAll();
+  v.focus();
+}
+
+function openInWindow(windowId: string, opts: { path: string | null; name: string; text: string }): void {
+  if (opts.path) {
+    const found = findTabByPath(getState().windows, opts.path);
+    if (found) {
+      activateTab(found.windowId, found.tab.id);
       return;
     }
   }
-
-  const id = nextTabId();
-  const tab: TabMeta = {
-    id,
-    path: options.path,
-    name: options.name,
-    dirty: false,
-  };
-  editor.openState(id, options.text);
-  setTabs([...getState().tabs, tab], id);
-  activate(id);
+  const id = nextId();
+  const w = getWindow(windowId)!;
+  patchWindow(windowId, {
+    tabs: [...w.tabs, { id, path: opts.path, name: opts.name, dirty: false }],
+    activeTabId: id,
+  });
+  views.get(windowId)!.editor.openState(id, opts.text);
+  activateTab(windowId, id);
 }
 
-async function closeTab(id: string): Promise<void> {
-  const { tabs, activeTabId } = getState();
-  const tab = tabs.find((candidate) => candidate.id === id);
-  if (!tab) return;
+async function closeTab(windowId: string, tabId: string): Promise<boolean> {
+  const w = getWindow(windowId)!;
+  const t = w.tabs.find((x) => x.id === tabId);
+  if (!t) return true;
 
-  if (tab.dirty) {
-    const approved = await confirm(`Discard unsaved changes to "${tab.name}"?`, {
+  if (t.dirty) {
+    const approved = await confirm(`Discard unsaved changes to "${t.name}"?`, {
       title: "Close tab",
       kind: "warning",
     });
-    if (!approved) return;
+    if (!approved) return false;
   }
 
-  const wasActive = id === activeTabId;
-  const next = nextActiveAfterClose(tabs, id, activeTabId);
-  editor.closeState(id);
-  setTabs(
-    tabs.filter((candidate) => candidate.id !== id),
-    next,
+  const next = nextActiveAfterClose(w.tabs, tabId, w.activeTabId);
+  views.get(windowId)!.editor.closeState(tabId);
+  patchWindow(windowId, {
+    tabs: w.tabs.filter((x) => x.id !== tabId),
+    activeTabId: next,
+  });
+
+  if (next) {
+    activateTab(windowId, next);
+  } else {
+    views.get(windowId)!.renderPreview("");
+    if (windowId === getState().activeWindowId) {
+      clearDocumentSurface();
+    } else {
+      renderAll();
+    }
+  }
+  return true;
+}
+
+function onDocChange(windowId: string, tabId: string, text: string): void {
+  const w = getWindow(windowId)!;
+  const t = w.tabs.find((x) => x.id === tabId);
+  if (t && !t.dirty) {
+    patchWindow(windowId, {
+      tabs: w.tabs.map((x) => (x.id === tabId ? { ...x, dirty: true } : x)),
+    });
+  }
+  if (windowId === getState().activeWindowId && tabId === w.activeTabId) {
+    schedulePreview(windowId, text);
+  }
+}
+
+const timers = new Map<string, number>();
+function schedulePreview(windowId: string, text: string): void {
+  clearTimeout(timers.get(windowId));
+  timers.set(
+    windowId,
+    window.setTimeout(async () => {
+      views.get(windowId)!.renderPreview(text);
+      if (windowId === getState().activeWindowId) {
+        const n = await invoke<number>("word_count", { text });
+        statusWords.textContent = `${n} ${n === 1 ? "word" : "words"}`;
+      }
+    }, 300)
   );
+}
 
-  if (wasActive) {
-    if (next) activate(next);
-    else clearDocumentSurface();
-  }
+function clearDocumentSurface(): void {
+  clearTimeout(timers.get(getState().activeWindowId));
+  statusPath.textContent = "Untitled";
+  statusWords.textContent = "0 words";
+  setExplorerActivePath(null);
+  renderAll();
+}
+
+function updateStatus(): void {
+  const t = activeMeta();
+  statusPath.textContent = t?.path ?? t?.name ?? "Untitled";
+  const text = t ? activeView().editor.getText(t.id) : "";
+  invoke<number>("word_count", { text }).then((n) => {
+    statusWords.textContent = `${n} ${n === 1 ? "word" : "words"}`;
+  });
+  setExplorerActivePath(t?.path ?? null);
 }
 
 async function showOpenError(error: unknown): Promise<void> {
@@ -152,15 +182,9 @@ async function showOpenError(error: unknown): Promise<void> {
 }
 
 async function doOpenPath(path: string): Promise<void> {
-  const existing = findByPath(getState().tabs, path);
-  if (existing) {
-    activate(existing.id);
-    return;
-  }
-
   try {
     const contents = await invoke<string>("read_file", { path });
-    openDoc({ path, name: basename(path), text: contents });
+    openInWindow("main", { path, name: basename(path), text: contents });
   } catch (error) {
     await showOpenError(error);
   }
@@ -170,7 +194,11 @@ async function doOpen(): Promise<void> {
   try {
     const result = await openFile();
     if (result) {
-      openDoc({ path: result.path, name: basename(result.path), text: result.contents });
+      openInWindow(getState().activeWindowId, {
+        path: result.path,
+        name: basename(result.path),
+        text: result.contents,
+      });
     }
   } catch (error) {
     await showOpenError(error);
@@ -178,37 +206,40 @@ async function doOpen(): Promise<void> {
 }
 
 function newDoc(): void {
-  openDoc({ path: null, name: "Untitled", text: "" });
+  openInWindow(getState().activeWindowId, { path: null, name: "Untitled", text: "" });
 }
 
 async function doSave(saveAs = false): Promise<void> {
-  const tab = activeTab();
-  if (!tab) return;
+  const t = activeMeta();
+  if (!t) return;
+  const view = activeView();
 
   try {
-    let target = saveAs ? null : tab.path;
+    let target = saveAs ? null : t.path;
     if (!target) {
       target = await pickSavePath();
       if (!target) return;
 
-      const existing = findByPath(getState().tabs, target);
-      if (existing && existing.id !== tab.id) {
+      const found = findTabByPath(getState().windows, target);
+      if (found) {
         await message("That file is already open in another tab.", {
           title: "Save As",
           kind: "warning",
         });
-        activate(existing.id);
+        activateTab(found.windowId, found.tab.id);
         return;
       }
     }
 
-    await writeFile(target, editor.getText(tab.id));
-    patchTab(tab.id, {
-      path: target,
-      name: basename(target),
-      dirty: false,
+    const text = view.editor.getText(t.id);
+    await writeFile(target, text);
+    patchWindow(getState().activeWindowId, {
+      tabs: activeWindow().tabs.map((x) =>
+        x.id === t.id ? { ...x, path: target, name: basename(target), dirty: false } : x
+      ),
     });
-    statusPath.textContent = target;
+    updateStatus();
+    renderAll();
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
     await message(text, { title: "Save file", kind: "error" });
@@ -216,46 +247,132 @@ async function doSave(saveAs = false): Promise<void> {
 }
 
 function openHelp(): void {
-  openDoc({ path: null, name: "MDflow Help", text: helpDoc });
+  openInWindow(getState().activeWindowId, { path: null, name: "MDflow Help", text: helpDoc });
 }
 
 function handleExplorerPathChange(from: string, to: string | null): void {
   const separatorMatches = (path: string): boolean =>
     path === from || path.startsWith(`${from}/`) || path.startsWith(`${from}\\`);
 
-  const tabs = getState().tabs.map((tab) => {
-    if (!tab.path || !separatorMatches(tab.path)) return tab;
-    if (to === null) {
-      return { ...tab, path: null, dirty: true };
-    }
-    const path = `${to}${tab.path.slice(from.length)}`;
-    return { ...tab, path, name: basename(path) };
+  const updatedWindows = getState().windows.map((w) => {
+    const tabs = w.tabs.map((tab) => {
+      if (!tab.path || !separatorMatches(tab.path)) return tab;
+      if (to === null) {
+        return { ...tab, path: null, dirty: true };
+      }
+      const path = `${to}${tab.path.slice(from.length)}`;
+      return { ...tab, path, name: basename(path) };
+    });
+    return { ...w, tabs };
   });
-  setState({ tabs });
+  setState({ windows: updatedWindows });
 
-  const current = activeTab();
+  const current = activeMeta();
   statusPath.textContent = current?.path ?? current?.name ?? "Untitled";
+  renderAll();
 }
 
-function setMode(mode: ViewMode): void {
-  ui = { ...ui, viewMode: mode };
-  applyViewMode(mode);
-  saveState(ui);
-  toolbar.update(ui.viewMode, ui.lineNumbers);
+function setMode(windowId: string, mode: ViewMode): void {
+  patchWindow(windowId, { mode });
+  views.get(windowId)!.render();
 }
 
 function toggleLineNumbers(): void {
   ui = { ...ui, lineNumbers: !ui.lineNumbers };
-  editor.setLineNumbers(ui.lineNumbers);
+  for (const v of views.values()) {
+    v.editor.setLineNumbers(ui.lineNumbers);
+    v.setLineNumbersFlag(ui.lineNumbers);
+  }
   saveState(ui);
-  toolbar.update(ui.viewMode, ui.lineNumbers);
+  renderAll();
 }
 
 function toggleSoftWrap(): void {
   ui = { ...ui, softWrap: !ui.softWrap };
-  editor.setSoftWrap(ui.softWrap);
+  for (const v of views.values()) {
+    v.editor.setSoftWrap(ui.softWrap);
+  }
   saveState(ui);
+  void invoke("set_soft_wrap", { on: ui.softWrap });
 }
+
+async function toggleSub(): Promise<void> {
+  const s = getState();
+  if (s.windows.length > 1) {
+    // close sub: move its tabs back to main (confirm dirty)
+    const sub = getWindow("sub")!;
+    for (const t of sub.tabs) {
+      if (t.dirty && !(await confirm(`Discard unsaved changes to "${t.name}"?`, { title: "Close Sub window", kind: "warning" }))) return;
+    }
+    const subView = views.get("sub")!;
+    const main = mainWindow();
+    const moved: TabMeta[] = [];
+    for (const t of sub.tabs) {
+      const id = nextId();
+      moved.push({ ...t, id });
+      views.get("main")!.editor.openState(id, subView.editor.getText(t.id));
+    }
+    subView.destroy();
+    views.delete("sub");
+    setState({
+      windows: [{ ...main, tabs: [...main.tabs, ...moved] }],
+      activeWindowId: "main",
+    });
+    removeSplitter();
+    renderAll();
+    if (mainWindow().activeTabId) {
+      activateTab("main", mainWindow().activeTabId!);
+    } else if (moved.length > 0) {
+      activateTab("main", moved[0].id);
+    }
+  } else {
+    setState({ windows: [...s.windows, { id: "sub", tabs: [], activeTabId: null, mode: "split" }], activeWindowId: "sub" });
+    addSplitter();
+    makeView("sub", false);
+    renderAll();
+  }
+}
+
+function addSplitter(): void {
+  if (document.getElementById("window-splitter")) return;
+  const splitter = document.createElement("div");
+  splitter.id = "window-splitter";
+  // insert between the two .window elements
+  const mainEl = windowsHost.querySelector<HTMLElement>('.window[data-window-id="main"]')!;
+  mainEl.after(splitter);
+  let dragging = false;
+  const onMove = (e: MouseEvent) => {
+    if (!dragging) return;
+    const rect = windowsHost.getBoundingClientRect();
+    const ratio = Math.max(0.2, Math.min(0.8, (e.clientX - rect.left) / rect.width));
+    const main = windowsHost.querySelector<HTMLElement>('.window[data-window-id="main"]')!;
+    const sub = windowsHost.querySelector<HTMLElement>('.window[data-window-id="sub"]')!;
+    main.style.flex = `${ratio} 1 0`;
+    sub.style.flex = `${1 - ratio} 1 0`;
+  };
+  const onUp = () => { dragging = false; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+  splitter.addEventListener("mousedown", (e) => { e.preventDefault(); dragging = true; document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp); });
+}
+
+function removeSplitter(): void {
+  document.getElementById("window-splitter")?.remove();
+  windowsHost.querySelectorAll<HTMLElement>(".window").forEach((el) => (el.style.flex = ""));
+}
+
+async function openInSub(path: string): Promise<void> {
+  if (getState().windows.length < 2) await toggleSub();
+  // move if already open in main
+  const found = findTabByPath(getState().windows, path);
+  if (found && found.windowId === "main") {
+    const closed = await closeTab("main", found.tab.id);
+    if (!closed) return;
+  }
+  const contents = await invoke<string>("read_file", { path });
+  openInWindow("sub", { path, name: basename(path), text: contents });
+}
+(window as any).mdflowOpenInSub = (p: string) => void openInSub(p);
+
+
 
 setState({
   folder: ui.folder,
@@ -268,24 +385,28 @@ document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
 initActivityBar();
 initResize((explorerWidth) => setState({ explorerWidth }));
 initExplorer((path) => void doOpenPath(path), handleExplorerPathChange);
-initTabbar({
-  onActivate: activate,
-  onClose: (id) => void closeTab(id),
-});
+
+makeView("main", true);
+patchWindow("main", { mode: ui.viewMode });
+for (const v of views.values()) {
+  v.editor.setSoftWrap(ui.softWrap);
+  v.editor.setLineNumbers(ui.lineNumbers);
+}
+renderAll();
 
 subscribe(() => {
-  const shell = getState();
-  const openPaths = shell.tabs
-    .map((tab) => tab.path)
-    .filter((path): path is string => path !== null);
-  const current = shell.tabs.find((tab) => tab.id === shell.activeTabId);
+  const s = getState();
   ui = {
     ...ui,
-    folder: shell.folder,
-    explorerVisible: shell.explorerVisible,
-    explorerWidth: shell.explorerWidth,
-    openPaths,
-    activePath: current?.path ?? null,
+    folder: s.folder,
+    explorerVisible: s.explorerVisible,
+    explorerWidth: s.explorerWidth,
+    windows: s.windows.map((w) => ({
+      openPaths: w.tabs.map((t) => t.path).filter((p): p is string => !!p),
+      activePath: w.tabs.find((t) => t.id === w.activeTabId)?.path ?? null,
+      mode: w.mode,
+    })),
+    activeWindowIndex: s.windows.findIndex((w) => w.id === s.activeWindowId),
   };
   saveState(ui);
 });
@@ -296,6 +417,7 @@ window.addEventListener("focus", () => {
 });
 
 listen<string>("menu", (event) => {
+  const wid = getState().activeWindowId;
   switch (event.payload) {
     case "file.new":
       return newDoc();
@@ -306,15 +428,15 @@ listen<string>("menu", (event) => {
     case "file.save_as":
       return void doSave(true);
     case "file.close": {
-      const id = getState().activeTabId;
-      return id ? void closeTab(id) : undefined;
+      const w = activeWindow();
+      return w.activeTabId ? void closeTab(w.id, w.activeTabId) : undefined;
     }
     case "view.split":
-      return setMode("split");
+      return setMode(wid, "split");
     case "view.editor":
-      return setMode("editor");
+      return setMode(wid, "editor");
     case "view.read":
-      return setMode("preview");
+      return setMode(wid, "preview");
     case "view.softwrap":
       return toggleSoftWrap();
     case "help.guide":
@@ -322,11 +444,18 @@ listen<string>("menu", (event) => {
   }
 });
 
-applyViewMode(ui.viewMode);
+window.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "w") {
+    e.preventDefault();
+    const w = activeWindow();
+    if (w.activeTabId) void closeTab(w.id, w.activeTabId);
+  }
+});
+
+function applyZoom(zoom: number): void {
+  document.getElementById("app")?.style.setProperty("--zoom", String(zoom));
+}
 applyZoom(ui.zoom);
-editor.setSoftWrap(ui.softWrap);
-editor.setLineNumbers(ui.lineNumbers);
-toolbar.update(ui.viewMode, ui.lineNumbers);
 void invoke("set_soft_wrap", { on: ui.softWrap });
 
 if (ui.folder) {
@@ -335,31 +464,42 @@ if (ui.folder) {
   });
 }
 
-async function restoreTabs(): Promise<void> {
-  const paths = [...ui.openPaths];
-  const savedActivePath = ui.activePath;
-
-  for (const path of paths) {
-    try {
-      const contents = await invoke<string>("read_file", { path });
-      openDoc({ path, name: basename(path), text: contents });
-    } catch {
-      // A session file may have moved or been deleted while the app was closed.
+async function restoreWindows(): Promise<void> {
+  const saved = ui.windows;
+  if (saved[1]) {
+    setState({ windows: [...getState().windows, { id: "sub", tabs: [], activeTabId: null, mode: saved[1].mode }] });
+    addSplitter();
+    makeView("sub", false);
+  }
+  patchWindow("main", { mode: saved[0]?.mode ?? "split" });
+  for (let i = 0; i < saved.length; i++) {
+    const windowId = i === 0 ? "main" : "sub";
+    for (const path of saved[i].openPaths) {
+      try {
+        const contents = await invoke<string>("read_file", { path });
+        openInWindow(windowId, { path, name: basename(path), text: contents });
+      } catch {
+        /* vanished */
+      }
+    }
+    if (saved[i].activePath) {
+      const found = findTabByPath(getState().windows, saved[i].activePath!);
+      if (found && found.windowId === windowId) {
+        activateTab(windowId, found.tab.id);
+      }
     }
   }
-
-  if (savedActivePath) {
-    const savedActive = findByPath(getState().tabs, savedActivePath);
-    if (savedActive) activate(savedActive.id);
+  const ai = ui.activeWindowIndex === 1 ? "sub" : "main";
+  if (getWindow(ai)) {
+    setState({ activeWindowId: ai });
   }
-}
 
-async function restoreDocuments(): Promise<void> {
-  await restoreTabs();
   const result = await getInitialFile();
   if (result) {
-    openDoc({ path: result.path, name: basename(result.path), text: result.contents });
+    openInWindow(getState().activeWindowId, { path: result.path, name: basename(result.path), text: result.contents });
   }
+
+  renderAll();
 }
 
-void restoreDocuments();
+void restoreWindows();

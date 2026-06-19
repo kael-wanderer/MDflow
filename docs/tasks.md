@@ -95,7 +95,7 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 ### Phase 4 - Sub window and per-window view modes
 
 [x] Phase 4a - Per-window Toolbar + Line Numbers
-[ ] Phase 4b - Sub window
+[x] Phase 4b - Sub window
 
 ### Workflow
 
