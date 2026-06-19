@@ -52,7 +52,7 @@ package.json          # MODIFY: add @tauri-apps/plugin-clipboard-manager, @tauri
 - Produces: `trash` crate available in Rust; `tauri_plugin_opener` registered; opener +
   clipboard JS plugins installed; capability permissions for both.
 
-- [ ] **Step 1: Add the Rust + JS deps**
+- [x] **Step 1: Add the Rust + JS deps**
 
 ```bash
 cd src-tauri && cargo add trash && cd ..
@@ -60,7 +60,7 @@ npm run tauri add opener
 npm install @tauri-apps/plugin-clipboard-manager
 ```
 
-- [ ] **Step 2: Register the opener plugin in `src-tauri/src/lib.rs`** — add to the builder chain after the dialog plugin:
+- [x] **Step 2: Register the opener plugin in `src-tauri/src/lib.rs`** — add to the builder chain after the dialog plugin:
 
 ```rust
         .plugin(tauri_plugin_opener::init())
@@ -69,20 +69,20 @@ npm install @tauri-apps/plugin-clipboard-manager
 (`npm run tauri add opener` already added the Cargo dependency and the `opener:default`
 permission; confirm `opener:default` is present in `capabilities/default.json`.)
 
-- [ ] **Step 3: Add the clipboard permission to `src-tauri/capabilities/default.json`** — add to the `permissions` array:
+- [x] **Step 3: Add the clipboard permission to `src-tauri/capabilities/default.json`** — add to the `permissions` array:
 
 ```json
     "clipboard-manager:allow-write-text"
 ```
 
-- [ ] **Step 4: Verify it builds**
+- [x] **Step 4: Verify it builds**
 
 Run: `cd src-tauri && cargo check`
 Expected: builds clean.
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri/Cargo.toml src-tauri/Cargo.lock package.json package-lock.json src-tauri/src/lib.rs src-tauri/capabilities/default.json
@@ -103,7 +103,7 @@ git commit -m "chore: add trash crate, opener + clipboard plugins"
   - `rename_path(from: String, to: String) -> Result<(), String>` — errors if `to` exists.
   - `delete_to_trash(path: String) -> Result<(), String>` — moves to OS Trash.
 
-- [ ] **Step 1: Write the failing test** — add to `src-tauri/src/files.rs`:
+- [x] **Step 1: Write the failing test** — add to `src-tauri/src/files.rs`:
 
 ```rust
 #[cfg(test)]
@@ -137,12 +137,12 @@ mod crud_tests {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `cd src-tauri && cargo test crud`
 Expected: FAIL — `create_file_at` etc. not found.
 
-- [ ] **Step 3: Implement in `src-tauri/src/files.rs`**
+- [x] **Step 3: Implement in `src-tauri/src/files.rs`**
 
 ```rust
 use std::path::Path;
@@ -183,7 +183,7 @@ pub fn delete_to_trash(path: String) -> Result<(), String> {
 }
 ```
 
-- [ ] **Step 4: Register in `src-tauri/src/lib.rs`** — add to `generate_handler!`:
+- [x] **Step 4: Register in `src-tauri/src/lib.rs`** — add to `generate_handler!`:
 
 ```rust
             files::create_file,
@@ -192,12 +192,12 @@ pub fn delete_to_trash(path: String) -> Result<(), String> {
             files::delete_to_trash,
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd src-tauri && cargo test crud`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src-tauri/src/files.rs src-tauri/src/lib.rs
@@ -219,7 +219,7 @@ git commit -m "feat: create/rename/delete-to-trash commands"
   - `duplicate_path(path: String) -> Result<String, String>` — copies the file/dir and
     returns the new path.
 
-- [ ] **Step 1: Write the failing test** — add to `src-tauri/src/files.rs`:
+- [x] **Step 1: Write the failing test** — add to `src-tauri/src/files.rs`:
 
 ```rust
 #[cfg(test)]
@@ -246,12 +246,12 @@ mod duplicate_tests {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `cd src-tauri && cargo test duplicate`
 Expected: FAIL — `duplicate_target` not found.
 
-- [ ] **Step 3: Implement in `src-tauri/src/files.rs`**
+- [x] **Step 3: Implement in `src-tauri/src/files.rs`**
 
 ```rust
 pub fn duplicate_target(dir: &str, stem: &str, ext: &str, exists: &dyn Fn(&str) -> bool) -> String {
@@ -300,14 +300,14 @@ fn copy_dir_recursive(from: &str, to: &str) -> std::io::Result<()> {
 }
 ```
 
-- [ ] **Step 4: Register in `src-tauri/src/lib.rs`** — add `files::duplicate_path,` to `generate_handler!`.
+- [x] **Step 4: Register in `src-tauri/src/lib.rs`** — add `files::duplicate_path,` to `generate_handler!`.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd src-tauri && cargo test duplicate`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src-tauri/src/files.rs src-tauri/src/lib.rs
@@ -326,7 +326,7 @@ git commit -m "feat: duplicate_path with pure copy-name logic"
   - `parentPath(path: string): string` — the containing directory (`/a/b/c.md` → `/a/b`).
   - `joinPath(dir: string, name: string): string` — `/a/b` + `c.md` → `/a/b/c.md`.
 
-- [ ] **Step 1: Write the failing test** — `src/__tests__/paths.test.ts`:
+- [x] **Step 1: Write the failing test** — `src/__tests__/paths.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
@@ -344,12 +344,12 @@ describe("paths", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `npm run test -- paths`
 Expected: FAIL — cannot find `../paths`.
 
-- [ ] **Step 3: Implement `src/paths.ts`**
+- [x] **Step 3: Implement `src/paths.ts`**
 
 ```ts
 export function parentPath(path: string): string {
@@ -363,12 +363,12 @@ export function joinPath(dir: string, name: string): string {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npm run test -- paths`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/paths.ts src/__tests__/paths.test.ts
@@ -390,7 +390,7 @@ git commit -m "feat: pure path helpers + tests"
     `duplicatePath(path): Promise<string>`, `revealInFinder(path)`, `copyPath(path)` —
     all `Promise<void>` except `duplicatePath`.
 
-- [ ] **Step 1: Append to `src/filesys.ts`**
+- [x] **Step 1: Append to `src/filesys.ts`**
 
 ```ts
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -419,12 +419,12 @@ export function copyPath(path: string): Promise<void> {
 }
 ```
 
-- [ ] **Step 2: Type-check**
+- [x] **Step 2: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/filesys.ts
@@ -444,7 +444,7 @@ git commit -m "feat: IPC wrappers for file management + reveal + copy path"
 - Produces: `refreshDir(dirPath: string): Promise<void>` — re-lists `dirPath` and updates
   that node's children in the tree (no-op if the dir isn't loaded/visible in the tree).
 
-- [ ] **Step 1: Append to `src/store.ts`**
+- [x] **Step 1: Append to `src/store.ts`**
 
 ```ts
 import { setChildren, findNode, type TreeNode } from "./treeops";
@@ -467,12 +467,12 @@ export async function refreshDir(dirPath: string): Promise<void> {
 (Note: `setChildren` on the root path updates the root's children; `findNode` returns the
 root when `path === root.path`, so the `isRoot` guard covers the top level.)
 
-- [ ] **Step 2: Type-check**
+- [x] **Step 2: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/store.ts
@@ -493,7 +493,7 @@ git commit -m "feat: refreshDir store action (re-list a directory)"
   - `showContextMenu(x: number, y: number, items: MenuItem[]): void` — renders a floating
     menu at (x,y); dismisses on outside click, Escape, or after an item runs.
 
-- [ ] **Step 1: Implement `src/contextmenu.ts`**
+- [x] **Step 1: Implement `src/contextmenu.ts`**
 
 ```ts
 export type MenuItem = { label: string; action: () => void } | "separator";
@@ -544,7 +544,7 @@ export function showContextMenu(x: number, y: number, items: MenuItem[]): void {
 }
 ```
 
-- [ ] **Step 2: Add menu CSS to `src/styles.css`**
+- [x] **Step 2: Add menu CSS to `src/styles.css`**
 
 ```css
 /* ---------- Context menu ---------- */
@@ -562,12 +562,12 @@ export function showContextMenu(x: number, y: number, items: MenuItem[]): void {
 .ctx-sep { height: 1px; margin: 4px 6px; background: var(--border-soft); }
 ```
 
-- [ ] **Step 3: Type-check**
+- [x] **Step 3: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/contextmenu.ts src/styles.css
@@ -592,7 +592,7 @@ git commit -m "feat: generic right-click context menu"
     `refreshDir(parentPath(path))`.
   - Errors surface via `alert`-style message (`message()` from the dialog plugin).
 
-- [ ] **Step 1: Add the inline-input helper to `src/explorer.ts`** (imports at top):
+- [x] **Step 1: Add the inline-input helper to `src/explorer.ts`** (imports at top):
 
 ```ts
 import { message } from "@tauri-apps/plugin-dialog";
@@ -652,9 +652,9 @@ export function startRename(path: string, currentName: string): void {
 }
 ```
 
-- [ ] **Step 2: Tag rows with their path** — in `rowEl(...)` (from Phase 1), add `row.dataset.path = node.path;` right after the row element is created, so `startRename` can find the row.
+- [x] **Step 2: Tag rows with their path** — in `rowEl(...)` (from Phase 1), add `row.dataset.path = node.path;` right after the row element is created, so `startRename` can find the row.
 
-- [ ] **Step 3: Add input CSS to `src/styles.css`**
+- [x] **Step 3: Add input CSS to `src/styles.css`**
 
 ```css
 .tree-input {
@@ -664,12 +664,12 @@ export function startRename(path: string, currentName: string): void {
 }
 ```
 
-- [ ] **Step 4: Type-check**
+- [x] **Step 4: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/explorer.ts src/styles.css
@@ -689,7 +689,7 @@ git commit -m "feat: inline new-file/folder and rename inputs"
 - Produces: right-clicking a tree row opens the context menu with the full action set;
   the empty area / folder header offers New File / New Folder at the root.
 
-- [ ] **Step 1: Add the row context menu in `src/explorer.ts`** — import `confirm` and `showContextMenu`:
+- [x] **Step 1: Add the row context menu in `src/explorer.ts`** — import `confirm` and `showContextMenu`:
 
 ```ts
 import { confirm } from "@tauri-apps/plugin-dialog";
@@ -717,7 +717,7 @@ In `rowEl(node, depth)`, after the click handler, add a contextmenu handler:
   });
 ```
 
-- [ ] **Step 2: Add the delete-with-confirm helper to `src/explorer.ts`**
+- [x] **Step 2: Add the delete-with-confirm helper to `src/explorer.ts`**
 
 ```ts
 async function deleteNode(path: string, name: string): Promise<void> {
@@ -732,7 +732,7 @@ async function deleteNode(path: string, name: string): Promise<void> {
 }
 ```
 
-- [ ] **Step 3: Add a root context menu** — in `initExplorer`, attach to the tree container and folder header so right-clicking empty space offers New File/New Folder at the folder root:
+- [x] **Step 3: Add a root context menu** — in `initExplorer`, attach to the tree container and folder header so right-clicking empty space offers New File/New Folder at the folder root:
 
 ```ts
   const rootMenu = (e: MouseEvent) => {
@@ -748,12 +748,12 @@ async function deleteNode(path: string, name: string): Promise<void> {
   document.getElementById("explorer-tree")!.addEventListener("contextmenu", rootMenu);
 ```
 
-- [ ] **Step 4: Type-check**
+- [x] **Step 4: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/explorer.ts
@@ -771,7 +771,7 @@ git commit -m "feat: explorer context menu (new/rename/duplicate/delete/copy/rev
 - Consumes: `refreshDir` and the current folder; refreshes the root when the window
   regains focus (catches external changes).
 
-- [ ] **Step 1: Refresh the tree on window focus** — add to `src/main.ts`:
+- [x] **Step 1: Refresh the tree on window focus** — add to `src/main.ts`:
 
 ```ts
 import { refreshDir } from "./store";
@@ -781,7 +781,7 @@ window.addEventListener("focus", () => {
 });
 ```
 
-- [ ] **Step 2: Run all automated tests**
+- [x] **Step 2: Run all automated tests**
 
 Run: `npm run test && (cd src-tauri && cargo test)`
 Expected: all green (paths ×2 added; Rust crud + duplicate added).
@@ -795,9 +795,12 @@ Expected: all green (paths ×2 added; Rust crud + duplicate added).
   - Right-click empty explorer area → New File/Folder at the folder root.
   - Edit a file externally, refocus the window → tree reflects new/removed files.
 
-- [ ] **Step 4: Update `docs/tasks.md`** — mark Phase 2 done; set Phase 3 as next.
+  Automated and launch checks are recorded. Native menu/dialog interactions remain
+  as an explicit checklist in `docs/review.md`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Update `docs/tasks.md`** — mark Phase 2 done; set Phase 3 as next.
+
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main.ts docs/review.md docs/tasks.md

@@ -2,10 +2,12 @@
 
 Date: 2026-06-19
 
-## M1 automated checks
+## Automated checks
 
-- `npm run test` → **15 passed** across preview, state, tree operations, and icons.
-- `cd src-tauri && cargo test` → **2 passed** (`count_words`, `list_dir`).
+- `npm run test` → **17 passed** across preview, state, tree operations, icons, and
+  path helpers.
+- `cd src-tauri && cargo test` → **5 passed** across word count, directory listing,
+  create/rename validation, duplicate naming, and real file/directory duplication.
 - `npm run build` (tsc + vite) → clean.
 - `cargo check` → clean.
 - `npm run tauri dev` → app compiles and launches with no panic.
@@ -54,6 +56,35 @@ window:
 - [ ] Existing M1 commands still work after opening from Explorer: save, Split,
   Editor, Read, and Soft Wrap.
 - [ ] Quit and relaunch restores folder, Explorer visibility, and Explorer width.
+
+## Shell Phase 2 checks
+
+### Verified
+
+- [x] Native create-file, create-folder, rename, Trash, and duplicate commands compile.
+- [x] Create and rename reject existing destinations.
+- [x] Duplicate naming selects `copy`, `copy 2`, then `copy 3`.
+- [x] Real file and recursive directory duplication pass Rust tests, including dotted
+  directory names.
+- [x] Opener and clipboard plugins are registered with the required capabilities.
+- [x] Explorer action errors are caught and shown as non-crashing messages.
+- [x] Renaming/deleting an open path updates or clears the editor's save path.
+- [x] Refresh-on-focus preserves expanded loaded folders.
+- [x] Production build, frontend tests, Rust tests, `cargo check`, and Tauri launch pass.
+
+### Native GUI checklist
+
+- [ ] Right-click a file or folder and confirm all actions appear.
+- [ ] New File and New Folder create entries through the inline input.
+- [ ] Rename updates the tree; renaming an open file also updates the status path and
+  subsequent Save target.
+- [ ] Duplicate creates `name copy`, then numbered copies when repeated.
+- [ ] Delete asks for confirmation, moves the entry to Trash, and refreshes the tree.
+- [ ] Copy Path writes the exact path to the clipboard.
+- [ ] Reveal in Finder selects the entry in Finder.
+- [ ] Right-click Explorer empty space or its header to create at the folder root.
+- [ ] Add or remove a file externally, refocus MDflow, and confirm the tree refreshes
+  without collapsing expanded folders.
 
 ## Notes
 
