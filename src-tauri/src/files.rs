@@ -61,6 +61,49 @@ pub fn rename_at(from: &str, to: &str) -> Result<(), String> {
     fs::rename(from, to).map_err(|error| error.to_string())
 }
 
+pub fn duplicate_target(
+    dir: &str,
+    stem: &str,
+    ext: &str,
+    exists: &dyn Fn(&str) -> bool,
+) -> String {
+    let suffix = if ext.is_empty() {
+        String::new()
+    } else {
+        format!(".{ext}")
+    };
+
+    let candidate = Path::new(dir).join(format!("{stem} copy{suffix}"));
+    let candidate = candidate.to_string_lossy().into_owned();
+    if !exists(&candidate) {
+        return candidate;
+    }
+
+    let mut index = 2;
+    loop {
+        let candidate = Path::new(dir).join(format!("{stem} copy {index}{suffix}"));
+        let candidate = candidate.to_string_lossy().into_owned();
+        if !exists(&candidate) {
+            return candidate;
+        }
+        index += 1;
+    }
+}
+
+fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let destination = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&entry.path(), &destination)?;
+        } else {
+            fs::copy(entry.path(), destination)?;
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -99,6 +142,37 @@ pub fn rename_path(from: String, to: String) -> Result<(), String> {
 #[tauri::command]
 pub fn delete_to_trash(path: String) -> Result<(), String> {
     trash::delete(&path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn duplicate_path(path: String) -> Result<String, String> {
+    let source = Path::new(&path);
+    let directory = source
+        .parent()
+        .and_then(Path::to_str)
+        .ok_or("Invalid path")?;
+    let stem = source
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("copy");
+    let extension = if source.is_dir() {
+        ""
+    } else {
+        source
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+    };
+    let target = duplicate_target(directory, stem, extension, &|candidate| {
+        Path::new(candidate).exists()
+    });
+
+    if source.is_dir() {
+        copy_dir_recursive(source, Path::new(&target)).map_err(|error| error.to_string())?;
+    } else {
+        fs::copy(source, &target).map_err(|error| error.to_string())?;
+    }
+    Ok(target)
 }
 
 #[cfg(test)]
@@ -174,5 +248,38 @@ mod crud_tests {
         assert!(rename_at(renamed.to_str().unwrap(), directory.to_str().unwrap()).is_err());
 
         let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
+#[cfg(test)]
+mod duplicate_tests {
+    use super::duplicate_target;
+    use std::collections::HashSet;
+
+    #[test]
+    fn picks_first_free_copy_name() {
+        let mut taken: HashSet<String> = HashSet::new();
+
+        assert_eq!(
+            duplicate_target("/d", "a", "md", &|path| taken.contains(path)),
+            "/d/a copy.md"
+        );
+
+        taken.insert("/d/a copy.md".into());
+        assert_eq!(
+            duplicate_target("/d", "a", "md", &|path| taken.contains(path)),
+            "/d/a copy 2.md"
+        );
+
+        taken.insert("/d/a copy 2.md".into());
+        assert_eq!(
+            duplicate_target("/d", "a", "md", &|path| taken.contains(path)),
+            "/d/a copy 3.md"
+        );
+
+        assert_eq!(
+            duplicate_target("/d", "notes", "", &|path| taken.contains(path)),
+            "/d/notes copy"
+        );
     }
 }
