@@ -61,12 +61,7 @@ pub fn rename_at(from: &str, to: &str) -> Result<(), String> {
     fs::rename(from, to).map_err(|error| error.to_string())
 }
 
-pub fn duplicate_target(
-    dir: &str,
-    stem: &str,
-    ext: &str,
-    exists: &dyn Fn(&str) -> bool,
-) -> String {
+pub fn duplicate_target(dir: &str, stem: &str, ext: &str, exists: &dyn Fn(&str) -> bool) -> String {
     let suffix = if ext.is_empty() {
         String::new()
     } else {
@@ -151,11 +146,15 @@ pub fn duplicate_path(path: String) -> Result<String, String> {
         .parent()
         .and_then(Path::to_str)
         .ok_or("Invalid path")?;
-    let stem = source
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("copy");
-    let extension = if source.is_dir() {
+    let is_directory = source.is_dir();
+    let stem = if is_directory {
+        source.file_name()
+    } else {
+        source.file_stem()
+    }
+    .and_then(|value| value.to_str())
+    .unwrap_or("copy");
+    let extension = if is_directory {
         ""
     } else {
         source
@@ -167,7 +166,7 @@ pub fn duplicate_path(path: String) -> Result<String, String> {
         Path::new(candidate).exists()
     });
 
-    if source.is_dir() {
+    if is_directory {
         copy_dir_recursive(source, Path::new(&target)).map_err(|error| error.to_string())?;
     } else {
         fs::copy(source, &target).map_err(|error| error.to_string())?;
