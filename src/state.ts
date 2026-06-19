@@ -8,6 +8,7 @@ export type UIState = {
   explorerWidth: number;
   openPaths: string[];
   activePath: string | null;
+  lineNumbers: boolean;
 };
 
 const KEY = "mdflow.ui";
@@ -20,6 +21,7 @@ const DEFAULTS: UIState = {
   explorerWidth: 240,
   openPaths: [],
   activePath: null,
+  lineNumbers: true,
 };
 
 export function loadState(): UIState {

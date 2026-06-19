@@ -14,6 +14,7 @@ describe("state", () => {
       explorerWidth: 240,
       openPaths: [],
       activePath: null,
+      lineNumbers: true,
     });
   });
 
@@ -27,6 +28,7 @@ describe("state", () => {
       explorerWidth: 312,
       openPaths: ["/notes/a.md", "/notes/b.md"],
       activePath: "/notes/b.md",
+      lineNumbers: false,
     };
     saveState(state);
     expect(loadState()).toEqual(state);
@@ -43,6 +45,7 @@ describe("state", () => {
       explorerWidth: 240,
       openPaths: [],
       activePath: null,
+      lineNumbers: true,
     });
   });
 
@@ -57,6 +60,7 @@ describe("state", () => {
       explorerWidth: 240,
       openPaths: [],
       activePath: null,
+      lineNumbers: true,
     });
   });
 });
