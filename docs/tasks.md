@@ -15,13 +15,13 @@
   Copy Path, Reveal in Finder, context menus, and refresh-on-focus.
 - Shell Phase 3 is implemented: multiple tabs, per-document editor state and undo,
   dirty tracking, confirmed close, and session restoration.
-- Shell Phase 4 remains: the Sub window and per-window view modes.
+- Shell Phase 4a is implemented: per-window toolbar and line numbers toggle.
+- Shell Phase 4b remains: the Sub-window.
 - M2 auto-update follows the shell sub-project.
 
 ## Next step (the immediate task)
 
-Run the Shell Phase 3 native GUI checklist in `docs/review.md`, then have Claude Code
-write the Phase 4 Sub-window implementation plan for Codex to execute.
+Run the Shell Phase 4a native GUI checklist in `docs/review.md`, then implement Phase 4b (Sub window).
 
 ## Code Tasks
 
@@ -92,9 +92,10 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 [x] Automated tests, production build, Rust checks, browser harness, and native launch
 [~] Native GUI smoke checklist in `docs/review.md`
 
-### Remaining phases
+### Phase 4 - Sub window and per-window view modes
 
-[ ] Phase 4 - Sub window and per-window view modes
+[x] Phase 4a - Per-window Toolbar + Line Numbers
+[ ] Phase 4b - Sub window
 
 ### Workflow
 
