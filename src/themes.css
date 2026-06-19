@@ -1,0 +1,93 @@
+/* MDflow theme palettes. Each is a fresh CSS-variable set. */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-elev: #f4f4f6;
+  --bg-editor: #ffffff;
+  --bg-preview: #fafafa;
+  --code-bg: #f0f0f3;
+  --border: #e2e2e8;
+  --border-soft: #ededf1;
+  --text: #2a2d34;
+  --text-strong: #1a1c22;
+  --muted: #6a7080;
+  --faint: #aab0bd;
+  --accent: #b9762a;
+  --accent-press: #cf8638;
+  --selection: rgba(185, 118, 42, 0.16);
+  --tok-keyword: #a3308f;
+  --tok-string: #2f7d32;
+  --tok-func: #1f5fb0;
+  --tok-comment: #9aa0ab;
+}
+
+[data-theme="catppuccin-mocha"] {
+  color-scheme: dark;
+  --bg: #1e1e2e;
+  --bg-elev: #181825;
+  --bg-editor: #1e1e2e;
+  --bg-preview: #181825;
+  --code-bg: #313244;
+  --border: #313244;
+  --border-soft: #292a3a;
+  --text: #cdd6f4;
+  --text-strong: #f5f5ff;
+  --muted: #a6adc8;
+  --faint: #6c7086;
+  --accent: #cba6f7;
+  --accent-press: #ddb6ff;
+  --selection: rgba(203, 166, 247, 0.2);
+  --tok-keyword: #cba6f7;
+  --tok-string: #a6e3a1;
+  --tok-func: #89b4fa;
+  --tok-comment: #6c7086;
+}
+
+[data-theme="everforest-dark"] {
+  color-scheme: dark;
+  --bg: #2d353b;
+  --bg-elev: #343f44;
+  --bg-editor: #2d353b;
+  --bg-preview: #343f44;
+  --code-bg: #3d484d;
+  --border: #3d484d;
+  --border-soft: #374247;
+  --text: #d3c6aa;
+  --text-strong: #f0e9d2;
+  --muted: #9da9a0;
+  --faint: #859289;
+  --accent: #e69875;
+  --accent-press: #f0a585;
+  --selection: rgba(230, 152, 117, 0.18);
+  --tok-keyword: #d699b6;
+  --tok-string: #a7c080;
+  --tok-func: #7fbbb3;
+  --tok-comment: #859289;
+}
+
+[data-theme="nord"] {
+  color-scheme: dark;
+  --bg: #2e3440;
+  --bg-elev: #3b4252;
+  --bg-editor: #2e3440;
+  --bg-preview: #3b4252;
+  --code-bg: #434c5e;
+  --border: #434c5e;
+  --border-soft: #3b4252;
+  --text: #d8dee9;
+  --text-strong: #eceff4;
+  --muted: #aeb8c8;
+  --faint: #616e88;
+  --accent: #88c0d0;
+  --accent-press: #8fbcbb;
+  --selection: rgba(136, 192, 208, 0.2);
+  --tok-keyword: #81a1c1;
+  --tok-string: #a3be8c;
+  --tok-func: #88c0d0;
+  --tok-comment: #616e88;
+}

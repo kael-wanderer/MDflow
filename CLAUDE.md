@@ -8,7 +8,7 @@
 A fast, lightweight markdown editor built with Tauri 2 + Rust. **Clean-room rewrite**
 — independent, MIT-licensed. Same eventual feature set as the Kaelio editor, but
 written from scratch with a modular architecture and refined UI. License: MIT.
-Identifier: `com.kael.mdflow`. Current status: pre-code (spec done, M1 plan next).
+Identifier: `com.kael.mdflow`. Current status: M1 + shell Phase 5 implemented.
 
 **Always read `docs/spec.md` and `docs/tasks.md` before starting work.**
 
@@ -56,21 +56,30 @@ thin `main.ts`. One responsibility per file.
 
 ```
 src/
-  main.ts      thin bootstrap + wiring + hotkeys + 300ms preview debounce
+  main.ts      bootstrap + document workflow + palette command registry
   editor.ts    CodeMirror 6 (md highlight, soft-wrap) — createEditor()
   preview.ts   markdown-it render pipeline (pure) — renderMarkdown()
-  views.ts     view-mode switching + zoom — applyViewMode(), applyZoom()
-  files.ts     IPC open/save + native dialogs — openFile(), saveFile()
+  windowview.ts per-window tabs, toolbar, editor, preview, and status
+  explorer.ts  lazy folder tree + file management
+  fuzzy.ts     subsequence fuzzy match + ranking — fuzzyMatch(), rankItems()
+  palette.ts   ⌘K/⌘P command/file overlay — createPalette()
+  settings.ts  settings.json model — parseSettings(), applySettings()
+  themes.css   light/dark/catppuccin-mocha/everforest-dark/nord palettes
+  files.ts     IPC open/save + native file dialogs
+  filesys.ts   Explorer/settings/recursive-walk IPC wrappers
   state.ts     persisted UI state (localStorage) — loadState(), saveState()
-  styles.css   fresh refined dark theme (CSS variables)
+  styles.css   shell layout and component styling (CSS variables)
 src-tauri/src/
   lib.rs       Tauri builder: command registry + plugins (dialog, updater)
-  files.rs     read_file, save_file, get_initial_file, word_count commands
+  files.rs     file IO/management, recursive quick-open walk, settings file
 ```
 
 Data flow: edit → 300ms debounce → `renderMarkdown` → preview pane + word count.
 `Cmd+S` → `saveFile` → IPC `save_file`. `Cmd+O` → dialog → IPC `read_file` → editor.
 View mode + zoom persist to `localStorage` (`mdflow.ui`).
+
+Settings live at `<app config dir>/settings.json`. The Gear button opens the file as
+a normal tab; saving it applies theme and per-zone typography immediately.
 
 Updater plugin is installed but **dormant** in M1 — M2 adds the signed release feed
 (`latest.json` + pubkey) and the in-app update prompt.

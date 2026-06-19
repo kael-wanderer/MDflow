@@ -44,7 +44,7 @@ export function createWindowView(
       <div class="window-toolbar">
         <div class="wt-group">
           <button class="wt-btn" data-mode="editor" type="button" title="Editor (⌘E)">${glyphs.editor}</button>
-          <button class="wt-btn" data-mode="preview" type="button" title="Read (⌘P)">${glyphs.read}</button>
+          <button class="wt-btn" data-mode="preview" type="button" title="Read">${glyphs.read}</button>
           <button class="wt-btn" data-mode="split" type="button" title="Split (⌘B)">${glyphs.split}</button>
         </div>
         <button class="wt-btn wt-icon wt-lines" type="button" title="Line numbers">${glyphs.lineNumbers}</button>

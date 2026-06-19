@@ -1,5 +1,5 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { markdown } from "@codemirror/lang-markdown";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
@@ -10,6 +10,7 @@ import {
   keymap,
   lineNumbers,
 } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
 
 export type EditorHandle = {
   openState(id: string, text: string): void;
@@ -26,8 +27,8 @@ const theme = EditorView.theme(
   {
     "&": { height: "100%", backgroundColor: "transparent", color: "var(--text)" },
     ".cm-scroller": {
-      fontFamily: "var(--font-mono)",
-      fontSize: "calc(13.5px * var(--zoom, 1))",
+      fontFamily: "var(--win-font, var(--font-mono))",
+      fontSize: "calc(var(--win-size, 15px) * var(--zoom, 1))",
       lineHeight: "1.65",
       padding: "var(--pane-pad) 0",
     },
@@ -49,6 +50,20 @@ const theme = EditorView.theme(
   { dark: true },
 );
 
+const mdHighlight = HighlightStyle.define([
+  { tag: tags.heading, color: "var(--tok-func)", fontWeight: "bold" },
+  { tag: [tags.keyword, tags.modifier], color: "var(--tok-keyword)" },
+  { tag: [tags.string, tags.link, tags.url], color: "var(--tok-string)" },
+  {
+    tag: [tags.comment, tags.quote],
+    color: "var(--tok-comment)",
+    fontStyle: "italic",
+  },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.strong, fontWeight: "bold" },
+  { tag: tags.monospace, color: "var(--tok-string)" },
+]);
+
 const wrap = new Compartment();
 const gutter = new Compartment();
 
@@ -68,7 +83,7 @@ export function createEditor(
     highlightActiveLine(),
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     markdown({ codeLanguages: languages }),
-    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    syntaxHighlighting(mdHighlight, { fallback: true }),
     wrap.of(softWrap ? EditorView.lineWrapping : []),
     theme,
     EditorView.updateListener.of((update) => {

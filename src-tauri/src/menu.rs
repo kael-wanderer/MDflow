@@ -68,9 +68,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let editor = MenuItemBuilder::with_id("view.editor", "Editor")
         .accelerator("CmdOrCtrl+E")
         .build(app)?;
-    let read = MenuItemBuilder::with_id("view.read", "Read")
-        .accelerator("CmdOrCtrl+P")
-        .build(app)?;
+    let read = MenuItemBuilder::with_id("view.read", "Read").build(app)?;
     let soft = CheckMenuItemBuilder::with_id("view.softwrap", "Soft Wrap")
         .checked(true)
         .build(app)?;

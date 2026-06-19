@@ -19,6 +19,8 @@
 - Shell Phase 4b is implemented: Sub window, per-window tabs/view modes, and splitter.
 - Shell Phase 4c is implemented: icon toolbar, per-window status lines, colored file
   icons, Explorer header actions, and File ▸ Open Folder.
+- Shell Phase 5 is implemented: command/file palette, Search/Gear activity controls,
+  settings.json, themes, per-zone typography, and restore-session control.
 - M2 auto-update follows the shell sub-project.
 
 ## Next step (the immediate task)
@@ -99,6 +101,16 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 [x] Phase 4a - Per-window Toolbar + Line Numbers
 [x] Phase 4b - Sub window
 [x] Phase 4c - UI polish
+
+### Phase 5 - Top bar and settings
+
+[x] Recursive quick-open file walk
+[x] Fuzzy command/file palette (`⌘K` / `⌘P`)
+[x] Explorer → Search → Gear activity bar
+[x] App-config `settings.json` opened and saved as a normal tab
+[x] Six theme choices and themeable editor syntax
+[x] Per-zone font/size and restore-session setting
+[x] Automated tests, production build, and native launch
 
 ### Workflow
 

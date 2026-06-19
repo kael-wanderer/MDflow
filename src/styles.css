@@ -1,3 +1,5 @@
+@import "./themes.css";
+
 /* MDflow — refined dark theme. Fresh, clean-room CSS. */
 
 :root {
@@ -108,8 +110,8 @@ body {
 .doc {
   max-width: 70ch;
   padding: var(--pane-pad) max(var(--pane-pad), 5%) 64px;
-  font-family: var(--font-serif);
-  font-size: calc(var(--base-size) * var(--zoom));
+  font-family: var(--win-font, var(--font-serif));
+  font-size: calc(var(--win-size, var(--base-size)) * var(--zoom));
   line-height: 1.72;
   color: var(--text);
 }
@@ -351,8 +353,12 @@ body.explorer-hidden #explorer-resize {
   align-items: center;
   gap: 4px;
   padding: 8px 0;
-  background: #161921;
+  background: var(--bg-elev);
   border-right: 1px solid var(--border);
+}
+
+#activitybar .ab-settings {
+  margin-top: auto;
 }
 
 .ab-btn {
@@ -392,6 +398,8 @@ body.explorer-hidden #explorer-resize {
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  font-family: var(--explorer-font, var(--font-ui));
+  font-size: var(--explorer-size, 13px);
   background: var(--bg-elev);
   border-right: 1px solid var(--border-soft);
 }
@@ -506,7 +514,7 @@ body.no-folder .explorer-empty {
   min-height: 28px;
   padding: 2px 10px 2px calc(9px + var(--depth, 0) * 14px);
   color: var(--text);
-  font-size: 14px;
+  font-size: inherit;
   line-height: 1.35;
   white-space: nowrap;
   cursor: default;
@@ -758,3 +766,84 @@ body.resizing-explorer .resize-handle::after {
 .wt-btn:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,0.05); }
 .wt-btn.active { color: var(--text-strong); background: rgba(255,255,255,0.10); }
 .wt-icon { border: 1px solid var(--border); border-radius: 7px; }
+
+/* ---------- Command palette ---------- */
+
+.palette {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+
+.palette.hidden {
+  display: none;
+}
+
+.palette-box {
+  width: min(620px, 90vw);
+  overflow: hidden;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.palette-input {
+  width: 100%;
+  padding: 14px 16px;
+  color: var(--text-strong);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  outline: none;
+}
+
+.palette-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-bottom: 6px;
+}
+
+.palette-heading {
+  padding: 9px 16px 4px;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.palette-row.active {
+  color: var(--text-strong);
+  background: var(--selection);
+}
+
+.palette-kind {
+  width: 12px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.palette-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

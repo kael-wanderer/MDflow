@@ -5,8 +5,19 @@ import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
 import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
 import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
-import { pickFolder } from "./filesys";
+import {
+  getSettingsFile,
+  listFilesRecursive,
+  pickFolder,
+} from "./filesys";
+import { createPalette, type PaletteItem } from "./palette";
+import { joinPath } from "./paths";
 import { initResize } from "./resize";
+import {
+  applySettings,
+  DEFAULT_SETTINGS_JSON,
+  parseSettings,
+} from "./settings";
 import { loadState, saveState, type ViewMode } from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
 import { nextActiveAfterClose, type TabMeta } from "./tabops";
@@ -16,7 +27,12 @@ import helpDoc from "../HELP.md?raw";
 
 const windowsHost = document.getElementById("windows")!;
 
-let ui = loadState();
+const startupUi = loadState();
+let ui = { ...startupUi };
+let currentSettings = parseSettings("{}");
+let settingsPath = "";
+let fileList: string[] = [];
+let indexedFolder: string | null = null;
 let tabSeq = 0;
 const nextId = () => `t${++tabSeq}`;
 
@@ -25,6 +41,79 @@ function basename(path: string): string {
 }
 
 const views = new Map<string, WindowView>();
+
+async function loadSettings(): Promise<void> {
+  try {
+    const file = await getSettingsFile(DEFAULT_SETTINGS_JSON);
+    settingsPath = file.path;
+    currentSettings = parseSettings(file.contents);
+  } catch {
+    currentSettings = parseSettings("{}");
+  }
+  applySettings(currentSettings);
+}
+
+async function refreshFileList(): Promise<void> {
+  const folder = getState().folder;
+  fileList = folder ? await listFilesRecursive(folder).catch(() => []) : [];
+}
+
+function openSettings(): void {
+  if (settingsPath) void doOpenPath(settingsPath);
+}
+
+function commandItems(): PaletteItem[] {
+  const command = (
+    id: string,
+    label: string,
+    run: () => void,
+  ): PaletteItem => ({ id, label, kind: "command", run });
+  const activeWindowId = (): string => getState().activeWindowId;
+
+  return [
+    command("new", "New File", newDoc),
+    command("open", "Open File…", () => void doOpen()),
+    command("openFolder", "Open Folder…", () => {
+      void pickFolder().then(async (folder) => {
+        if (!folder) return;
+        await openFolder(folder);
+        await refreshFileList();
+      });
+    }),
+    command("save", "Save", () => void doSave(false)),
+    command("saveAs", "Save As…", () => void doSave(true)),
+    command("close", "Close Tab", () => {
+      const windowState = activeWindow();
+      if (windowState.activeTabId) {
+        void closeTab(windowState.id, windowState.activeTabId);
+      }
+    }),
+    command("split", "View: Split", () => setMode(activeWindowId(), "split")),
+    command("editor", "View: Editor", () => setMode(activeWindowId(), "editor")),
+    command("read", "View: Read", () => setMode(activeWindowId(), "preview")),
+    command("softwrap", "Toggle Soft Wrap", toggleSoftWrap),
+    command("lines", "Toggle Line Numbers", toggleLineNumbers),
+    command("sub", "Toggle Sub Window", () => void toggleSub()),
+    command("explorer", "Toggle Explorer", () => {
+      document.getElementById("ab-explorer")?.click();
+    }),
+    command("settings", "Open Settings", openSettings),
+    command("help", "MDflow Help", openHelp),
+  ];
+}
+
+function fileItems(): PaletteItem[] {
+  const folder = getState().folder;
+  if (!folder) return [];
+  return fileList.map((relativePath) => ({
+    id: `file:${relativePath}`,
+    label: relativePath,
+    kind: "file",
+    run: () => void doOpenPath(joinPath(folder, relativePath)),
+  }));
+}
+
+const palette = createPalette(() => [...fileItems(), ...commandItems()]);
 
 const handlers = {
   onActivateTab: (wid: string, tid: string) => activateTab(wid, tid),
@@ -225,6 +314,11 @@ async function doSave(saveAs = false): Promise<void> {
 
     const text = view.editor.getText(t.id);
     await writeFile(target, text);
+    if (target === settingsPath) {
+      currentSettings = parseSettings(text);
+      applySettings(currentSettings);
+      requestWindowMeasure();
+    }
     patchWindow(getState().activeWindowId, {
       tabs: activeWindow().tabs.map((x) =>
         x.id === t.id ? { ...x, path: target, name: basename(target), dirty: false } : x
@@ -323,6 +417,7 @@ async function toggleSub(): Promise<void> {
     setState({ windows: [...s.windows, { id: "sub", tabs: [], activeTabId: null, mode: "split" }], activeWindowId: "sub" });
     addSplitter();
     makeView("sub", false);
+    applySettings(currentSettings);
     renderAll();
     requestWindowMeasure();
   }
@@ -370,14 +465,18 @@ async function openInSub(path: string): Promise<void> {
 
 
 setState({
-  folder: ui.folder,
+  folder: null,
   explorerVisible: ui.explorerVisible,
   explorerWidth: ui.explorerWidth,
 });
 document.documentElement.style.setProperty("--explorer-w", `${ui.explorerWidth}px`);
 document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
 
-initActivityBar(requestWindowMeasure);
+initActivityBar(
+  requestWindowMeasure,
+  () => palette.open(),
+  openSettings,
+);
 initResize((explorerWidth) => setState({ explorerWidth }));
 initExplorer((path) => void doOpenPath(path), handleExplorerPathChange);
 
@@ -391,6 +490,10 @@ renderAll();
 
 subscribe(() => {
   const s = getState();
+  if (s.folder !== indexedFolder) {
+    indexedFolder = s.folder;
+    void refreshFileList();
+  }
   ui = {
     ...ui,
     folder: s.folder,
@@ -408,7 +511,10 @@ subscribe(() => {
 
 window.addEventListener("focus", () => {
   const folder = getState().folder;
-  if (folder) void refreshDir(folder).catch(() => {});
+  if (folder) {
+    void refreshDir(folder).catch(() => {});
+    void refreshFileList();
+  }
 });
 
 listen<string>("menu", (event) => {
@@ -419,8 +525,10 @@ listen<string>("menu", (event) => {
     case "file.open":
       return void doOpen();
     case "file.open_folder":
-      return void pickFolder().then((directory) => {
-        if (directory) void openFolder(directory);
+      return void pickFolder().then(async (directory) => {
+        if (!directory) return;
+        await openFolder(directory);
+        await refreshFileList();
       });
     case "file.save":
       return void doSave(false);
@@ -444,6 +552,15 @@ listen<string>("menu", (event) => {
 });
 
 window.addEventListener("keydown", (e) => {
+  if (
+    (e.metaKey || e.ctrlKey) &&
+    (e.key.toLowerCase() === "k" ||
+      (e.key.toLowerCase() === "p" && !e.shiftKey))
+  ) {
+    e.preventDefault();
+    palette.open();
+    return;
+  }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "w") {
     e.preventDefault();
     const w = activeWindow();
@@ -457,18 +574,13 @@ function applyZoom(zoom: number): void {
 applyZoom(ui.zoom);
 void invoke("set_soft_wrap", { on: ui.softWrap });
 
-if (ui.folder) {
-  void openFolder(ui.folder).catch(() => {
-    setState({ folder: null, tree: null });
-  });
-}
-
 async function restoreWindows(): Promise<void> {
-  const saved = ui.windows;
+  const saved = startupUi.windows;
   if (saved[1]) {
     setState({ windows: [...getState().windows, { id: "sub", tabs: [], activeTabId: null, mode: saved[1].mode }] });
     addSplitter();
     makeView("sub", false);
+    applySettings(currentSettings);
   }
   patchWindow("main", { mode: saved[0]?.mode ?? "split" });
   for (let i = 0; i < saved.length; i++) {
@@ -488,7 +600,7 @@ async function restoreWindows(): Promise<void> {
       }
     }
   }
-  const ai = ui.activeWindowIndex === 1 ? "sub" : "main";
+  const ai = startupUi.activeWindowIndex === 1 ? "sub" : "main";
   if (getWindow(ai)) {
     setState({ activeWindowId: ai });
   }
@@ -501,4 +613,30 @@ async function restoreWindows(): Promise<void> {
   renderAll();
 }
 
-void restoreWindows();
+async function boot(): Promise<void> {
+  await loadSettings();
+
+  if (currentSettings.restoreSession) {
+    if (startupUi.folder) {
+      try {
+        await openFolder(startupUi.folder);
+      } catch {
+        setState({ folder: null, tree: null });
+      }
+    }
+    await refreshFileList();
+    await restoreWindows();
+  } else {
+    const result = await getInitialFile();
+    if (result) {
+      openInWindow(getState().activeWindowId, {
+        path: result.path,
+        name: basename(result.path),
+        text: result.contents,
+      });
+    }
+    renderAll();
+  }
+}
+
+void boot();
