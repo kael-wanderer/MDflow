@@ -68,7 +68,7 @@ function createRow(node: TreeNode, depth: number): HTMLElement {
   row.className = `tree-row${node.path === activePath ? " active" : ""}`;
   row.style.setProperty("--depth", String(depth));
   row.setAttribute("role", "treeitem");
-  row.setAttribute("aria-expanded", node.isDir ? String(node.expanded) : "");
+  if (node.isDir) row.setAttribute("aria-expanded", String(node.expanded));
 
   const caret = document.createElement("span");
   caret.className = "tree-caret";

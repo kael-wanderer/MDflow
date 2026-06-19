@@ -1,8 +1,22 @@
 export type ViewMode = "split" | "editor" | "preview";
-export type UIState = { viewMode: ViewMode; zoom: number; softWrap: boolean };
+export type UIState = {
+  viewMode: ViewMode;
+  zoom: number;
+  softWrap: boolean;
+  folder: string | null;
+  explorerVisible: boolean;
+  explorerWidth: number;
+};
 
 const KEY = "mdflow.ui";
-const DEFAULTS: UIState = { viewMode: "split", zoom: 1, softWrap: true };
+const DEFAULTS: UIState = {
+  viewMode: "split",
+  zoom: 1,
+  softWrap: true,
+  folder: null,
+  explorerVisible: true,
+  explorerWidth: 240,
+};
 
 export function loadState(): UIState {
   try {
