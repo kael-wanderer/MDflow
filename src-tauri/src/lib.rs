@@ -1,4 +1,5 @@
 mod ai;
+mod export;
 mod files;
 mod menu;
 mod pty;
@@ -39,8 +40,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             ai::ai_run,
+            export::export_pdf,
+            export::export_docx,
+            export::export_html,
             files::read_file,
             files::save_file,
+            files::save_bytes,
             files::get_initial_file,
             files::word_count,
             files::list_dir,

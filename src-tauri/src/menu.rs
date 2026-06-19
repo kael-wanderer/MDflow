@@ -40,6 +40,23 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let close = MenuItemBuilder::with_id("file.close", "Close Tab")
         .accelerator("CmdOrCtrl+W")
         .build(app)?;
+    let export_pdf = MenuItemBuilder::with_id("export.pdf", "PDF…").build(app)?;
+    let export_docx =
+        MenuItemBuilder::with_id("export.docx", "Word (DOCX)…").build(app)?;
+    let export_html = MenuItemBuilder::with_id("export.html", "HTML…").build(app)?;
+    let export_png =
+        MenuItemBuilder::with_id("export.png", "Image (PNG)…").build(app)?;
+    let export_jpg =
+        MenuItemBuilder::with_id("export.jpg", "Image (JPG)…").build(app)?;
+    let export = SubmenuBuilder::new(app, "Export")
+        .items(&[
+            &export_pdf,
+            &export_docx,
+            &export_html,
+            &export_png,
+            &export_jpg,
+        ])
+        .build()?;
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&new)
         .separator()
@@ -48,6 +65,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .separator()
         .item(&save)
         .item(&save_as)
+        .item(&export)
         .separator()
         .item(&close)
         .build()?;

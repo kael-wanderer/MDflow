@@ -198,6 +198,11 @@ pub fn save_file(path: String, contents: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn save_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    fs::write(&path, bytes).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn get_initial_file() -> Option<String> {
     std::env::args().nth(1).filter(|p| Path::new(p).is_file())
 }

@@ -11,7 +11,13 @@ import {
 import { createAIPanel, type AIPanel } from "./ai/panel";
 import { showContextMenu } from "./contextmenu";
 import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
-import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
+import {
+  getInitialFile,
+  openFile,
+  pickExportPath,
+  pickSavePath,
+  writeFile,
+} from "./files";
 import {
   getAISettingsFile,
   getSettingsFile,
@@ -385,6 +391,59 @@ async function doSave(saveAs = false): Promise<void> {
   }
 }
 
+async function exportDoc(
+  kind: "pdf" | "docx" | "html",
+): Promise<void> {
+  const tab = activeMeta();
+  if (!tab) return;
+  const markdown = activeView().editor.getText(tab.id);
+  const out = await pickExportPath(kind);
+  if (!out) return;
+  const command =
+    kind === "pdf"
+      ? "export_pdf"
+      : kind === "docx"
+        ? "export_docx"
+        : "export_html";
+  try {
+    await invoke(command, { markdown, out });
+  } catch (error) {
+    await message(
+      error instanceof Error ? error.message : String(error),
+      { title: "Export", kind: "error" },
+    );
+  }
+}
+
+async function exportImage(kind: "png" | "jpg"): Promise<void> {
+  const pane = document.querySelector<HTMLElement>(
+    `.window[data-window-id="${getState().activeWindowId}"] .pane-preview .doc`,
+  );
+  if (!pane) return;
+  const out = await pickExportPath(kind);
+  if (!out) return;
+  try {
+    const { toCanvas } = await import("./capture");
+    const canvas = await toCanvas(pane);
+    const mime = kind === "png" ? "image/png" : "image/jpeg";
+    const dataUrl = canvas.toDataURL(mime, 0.95);
+    const encoded = dataUrl.split(",")[1];
+    if (!encoded) throw new Error("Could not encode preview image");
+    const bytes = Uint8Array.from(atob(encoded), (character) =>
+      character.charCodeAt(0),
+    );
+    await invoke("save_bytes", {
+      path: out,
+      bytes: Array.from(bytes),
+    });
+  } catch (error) {
+    await message(
+      error instanceof Error ? error.message : String(error),
+      { title: "Export image", kind: "error" },
+    );
+  }
+}
+
 function openHelp(): void {
   openInWindow(getState().activeWindowId, { path: null, name: "MDflow Help", text: helpDoc });
 }
@@ -674,6 +733,16 @@ listen<string>("menu", (event) => {
       const w = activeWindow();
       return w.activeTabId ? void closeTab(w.id, w.activeTabId) : undefined;
     }
+    case "export.pdf":
+      return void exportDoc("pdf");
+    case "export.docx":
+      return void exportDoc("docx");
+    case "export.html":
+      return void exportDoc("html");
+    case "export.png":
+      return void exportImage("png");
+    case "export.jpg":
+      return void exportImage("jpg");
     case "view.split":
       return setMode(wid, "split");
     case "view.editor":

@@ -21,6 +21,14 @@ export async function pickSavePath(): Promise<string | null> {
   return save({ filters: FILTERS });
 }
 
+export function pickExportPath(ext: string): Promise<string | null> {
+  return save({
+    filters: [
+      { name: ext.toUpperCase(), extensions: [ext] },
+    ],
+  }).then((path) => path ?? null);
+}
+
 export function writeFile(path: string, contents: string): Promise<void> {
   return invoke("save_file", { path, contents });
 }
