@@ -107,36 +107,7 @@ body.view-preview .pane-editor {
   display: none;
 }
 
-/* ---------- Editor (static mock + future CodeMirror host) ---------- */
-
-.cm-mock {
-  display: flex;
-  font-family: var(--font-mono);
-  font-size: calc(13.5px * var(--zoom));
-  line-height: 1.65;
-}
-
-.cm-mock .gutter {
-  display: flex;
-  flex-direction: column;
-  padding: var(--pane-pad) 0;
-  text-align: right;
-  color: var(--faint);
-  user-select: none;
-}
-
-.cm-mock .gutter span {
-  padding: 0 16px 0 18px;
-}
-
-.cm-mock .code {
-  flex: 1;
-  margin: 0;
-  padding: var(--pane-pad) var(--pane-pad) var(--pane-pad) 0;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
+/* Editor host (#editor) is styled by CodeMirror's theme in editor.ts. */
 
 /* ---------- Preview (typeset, serif) ---------- */
 
@@ -245,18 +216,44 @@ body.view-preview .pane-editor {
   padding: 0;
 }
 
-.hljs-keyword {
+.hljs-keyword,
+.hljs-built_in,
+.hljs-type,
+.hljs-tag .hljs-name,
+.hljs-selector-tag {
   color: var(--tok-keyword);
 }
-.hljs-string {
+.hljs-string,
+.hljs-regexp,
+.hljs-meta .hljs-string,
+.hljs-attr,
+.hljs-selector-attr {
   color: var(--tok-string);
 }
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-section,
 .hljs-func {
   color: var(--tok-func);
 }
-.hljs-comment {
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: var(--accent);
+}
+.hljs-comment,
+.hljs-quote {
   color: var(--tok-comment);
   font-style: italic;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 650;
 }
 
 .doc table {

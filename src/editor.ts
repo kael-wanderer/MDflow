@@ -21,7 +21,8 @@ const theme = EditorView.theme(
       lineHeight: "1.65",
       padding: "var(--pane-pad) 0",
     },
-    ".cm-content": { caretColor: "var(--accent)" },
+    ".cm-content": { caretColor: "var(--accent)", paddingRight: "var(--pane-pad)" },
+    ".cm-lineNumbers .cm-gutterElement": { paddingLeft: "8px", paddingRight: "12px" },
     "&.cm-focused .cm-cursor": { borderLeftColor: "var(--accent)" },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
       backgroundColor: "var(--selection)",
@@ -30,6 +31,7 @@ const theme = EditorView.theme(
       backgroundColor: "transparent",
       color: "var(--faint)",
       border: "none",
+      paddingLeft: "12px",
     },
     ".cm-activeLine": { backgroundColor: "rgba(255,255,255,0.025)" },
     ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--muted)" },
