@@ -7,7 +7,7 @@ import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
 import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
 import { initResize } from "./resize";
 import { loadState, saveState, type ViewMode } from "./state";
-import { getState, refreshDir, setState, subscribe, getWindow, activeWindow, patchWindow } from "./store";
+import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
 import { nextActiveAfterClose, type TabMeta } from "./tabops";
 import { findTabByPath } from "./windowops";
 import { createWindowView, type WindowView } from "./windowview";
@@ -45,6 +45,8 @@ const handlers = {
 function makeView(windowId: string, isMain: boolean): WindowView {
   const v = createWindowView(windowsHost, windowId, isMain, handlers);
   v.setLineNumbersFlag(ui.lineNumbers);
+  v.editor.setSoftWrap(ui.softWrap);
+  v.editor.setLineNumbers(ui.lineNumbers);
   views.set(windowId, v);
   return v;
 }
@@ -293,7 +295,69 @@ function toggleSoftWrap(): void {
   void invoke("set_soft_wrap", { on: ui.softWrap });
 }
 
-function toggleSub(): void {}
+async function toggleSub(): Promise<void> {
+  const s = getState();
+  if (s.windows.length > 1) {
+    // close sub: move its tabs back to main (confirm dirty)
+    const sub = getWindow("sub")!;
+    for (const t of sub.tabs) {
+      if (t.dirty && !(await confirm(`Discard unsaved changes to "${t.name}"?`, { title: "Close Sub window", kind: "warning" }))) return;
+    }
+    const subView = views.get("sub")!;
+    const main = mainWindow();
+    const moved: TabMeta[] = [];
+    for (const t of sub.tabs) {
+      const id = nextId();
+      moved.push({ ...t, id });
+      views.get("main")!.editor.openState(id, subView.editor.getText(t.id));
+    }
+    subView.destroy();
+    views.delete("sub");
+    setState({
+      windows: [{ ...main, tabs: [...main.tabs, ...moved] }],
+      activeWindowId: "main",
+    });
+    removeSplitter();
+    renderAll();
+    if (mainWindow().activeTabId) {
+      activateTab("main", mainWindow().activeTabId!);
+    } else if (moved.length > 0) {
+      activateTab("main", moved[0].id);
+    }
+  } else {
+    setState({ windows: [...s.windows, { id: "sub", tabs: [], activeTabId: null, mode: "split" }], activeWindowId: "sub" });
+    addSplitter();
+    makeView("sub", false);
+    renderAll();
+  }
+}
+
+function addSplitter(): void {
+  if (document.getElementById("window-splitter")) return;
+  const splitter = document.createElement("div");
+  splitter.id = "window-splitter";
+  // insert between the two .window elements
+  const mainEl = windowsHost.querySelector<HTMLElement>('.window[data-window-id="main"]')!;
+  mainEl.after(splitter);
+  let dragging = false;
+  const onMove = (e: MouseEvent) => {
+    if (!dragging) return;
+    const rect = windowsHost.getBoundingClientRect();
+    const ratio = Math.max(0.2, Math.min(0.8, (e.clientX - rect.left) / rect.width));
+    const main = windowsHost.querySelector<HTMLElement>('.window[data-window-id="main"]')!;
+    const sub = windowsHost.querySelector<HTMLElement>('.window[data-window-id="sub"]')!;
+    main.style.flex = `${ratio} 1 0`;
+    sub.style.flex = `${1 - ratio} 1 0`;
+  };
+  const onUp = () => { dragging = false; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+  splitter.addEventListener("mousedown", (e) => { e.preventDefault(); dragging = true; document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp); });
+}
+
+function removeSplitter(): void {
+  document.getElementById("window-splitter")?.remove();
+  windowsHost.querySelectorAll<HTMLElement>(".window").forEach((el) => (el.style.flex = ""));
+}
+
 
 setState({
   folder: ui.folder,
