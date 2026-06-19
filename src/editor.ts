@@ -17,6 +17,9 @@ export type EditorHandle = {
   switchTo(id: string): void;
   closeState(id: string): void;
   getText(id: string): string;
+  getSelection(): { from: number; to: number; text: string };
+  replaceRange(from: number, to: number, text: string): void;
+  setText(text: string): void;
   setSoftWrap(on: boolean): void;
   setLineNumbers(on: boolean): void;
   requestMeasure(): void;
@@ -131,6 +134,22 @@ export function createEditor(
     getText(id) {
       if (id === activeId) return view.state.doc.toString();
       return states.get(id)?.doc.toString() ?? "";
+    },
+    getSelection() {
+      const selection = view.state.selection.main;
+      return {
+        from: selection.from,
+        to: selection.to,
+        text: view.state.sliceDoc(selection.from, selection.to),
+      };
+    },
+    replaceRange(from, to, text) {
+      view.dispatch({ changes: { from, to, insert: text } });
+    },
+    setText(text) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: text },
+      });
     },
     setSoftWrap(on) {
       softWrap = on;
