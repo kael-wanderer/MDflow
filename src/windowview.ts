@@ -1,6 +1,7 @@
 import { createEditor, type EditorHandle } from "./editor";
 import { glyphs } from "./glyphs";
 import { renderMarkdown } from "./preview";
+import { enhancePreview } from "./render-extras";
 import { getWindow, getState } from "./store";
 import type { ViewMode } from "./state";
 
@@ -125,6 +126,7 @@ export function createWindowView(
 
   function renderPreview(text: string): void {
     previewPane.innerHTML = `<article class="doc">${renderMarkdown(text)}</article>`;
+    enhancePreview(previewPane);
     const count = countWords(text);
     wsWords.textContent = `${count} ${count === 1 ? "word" : "words"}`;
   }

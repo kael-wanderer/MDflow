@@ -754,6 +754,46 @@ body.no-folder .explorer-empty {
   padding: 6px;
 }
 
+.mermaid-rendered {
+  margin: 1.25em 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.mermaid-rendered svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-error {
+  padding: 10px;
+  color: #e99;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  background: rgba(220, 80, 80, 0.1);
+  border-radius: 6px;
+}
+
+.pdf-document {
+  padding: 18px;
+}
+
+.pdf-page {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto 12px;
+  background: white;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+.pdf-loading {
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+}
+
 .resize-handle::after {
   position: absolute;
   inset: 0 1px;
