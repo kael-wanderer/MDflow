@@ -193,6 +193,11 @@ pub fn read_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+    fs::read(&path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn save_file(path: String, contents: String) -> Result<(), String> {
     fs::write(&path, contents).map_err(|e| e.to_string())
 }

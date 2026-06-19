@@ -1,4 +1,4 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 export async function renderPdf(
@@ -8,8 +8,9 @@ export async function renderPdf(
   host.innerHTML = '<div class="pdf-loading">Loading PDF…</div>';
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  const bytes = await invoke<number[]>("read_file_bytes", { path });
   const document = await pdfjs.getDocument({
-    url: convertFileSrc(path),
+    data: new Uint8Array(bytes),
   }).promise;
   host.innerHTML = "";
   const container = window.document.createElement("div");

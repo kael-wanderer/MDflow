@@ -44,6 +44,7 @@ pub fn run() {
             export::export_docx,
             export::export_html,
             files::read_file,
+            files::read_file_bytes,
             files::save_file,
             files::save_bytes,
             files::get_initial_file,
