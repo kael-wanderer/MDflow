@@ -4,8 +4,8 @@ Date: 2026-06-19
 
 ## Automated checks
 
-- `npm run test` → **22 passed** across preview, state, tree operations, icons, path
-  helpers, and tab operations.
+- `npm run test` → **26 passed** across preview, state, tree operations, icons, path
+  helpers, tab/window operations, and word counting.
 - `cd src-tauri && cargo test` → **5 passed** across word count, directory listing,
   create/rename validation, duplicate naming, and real file/directory duplication.
 - `npm run build` (tsc + vite) → clean.
@@ -166,6 +166,37 @@ window:
 - [ ] Toggle line numbers `#` or soft wrap and verify it affects both windows.
 - [ ] Click the `⊞` button to close the Sub window. If any tab in Sub is dirty, verify it warns you. If accepted, verify all tabs from Sub move back to Main.
 - [ ] Relaunch the app and verify both windows, their active tabs, view modes, and active window are restored exactly.
+
+## Shell Phase 4c checks
+
+### Verified
+
+- [x] Activity bar renders only the Explorer toggle; the inert Settings gear is gone.
+- [x] Editor/Read/Split render as one icon segmented control with active-state styling.
+- [x] Browser interaction confirms Read hides the editor and Split restores both panes.
+- [x] Line-numbers icon toggles CodeMirror gutters off and back on.
+- [x] Main opens Sub and the Sub close icon collapses back to one window.
+- [x] Main and Sub each render an independent bottom status line aligned at the splitter.
+- [x] Explorer header renders New File, New Folder, Collapse All, and Expand All icons;
+  the old text Open action is gone.
+- [x] `setAllExpanded` covers loaded directory nodes with unit tests.
+- [x] JS word counting covers empty, singular, and mixed-whitespace input with unit tests.
+- [x] File-type classes and colors compile for Markdown, text, JSON, HTML, PDF, and
+  generic files; directories render only their caret.
+- [x] File ▸ Open Folder… and `⌘⇧O` compile into the native menu.
+- [x] Production build, 26 Vitest tests, 5 Cargo tests, `cargo check`, and native
+  Tauri launch pass.
+
+### Native GUI checklist
+
+- [ ] Open a folder and confirm file icons are colored by type while folders show only
+  `▸`/`▾`.
+- [ ] Use the Explorer header icons to create a file/folder and collapse/expand loaded
+  directories.
+- [ ] Use File ▸ Open Folder… and `⌘⇧O` to open a folder.
+- [ ] Edit documents in Main and Sub and confirm each status line tracks its own path
+  and live word count.
+- [ ] Close a dirty Sub window and confirm the existing warning/tab-migration flow.
 
 ## Notes
 

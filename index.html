@@ -19,25 +19,18 @@
             aria-label="Toggle Explorer"
             aria-pressed="true"
           >
-            ▤
-          </button>
-          <button
-            class="ab-btn ab-settings"
-            id="ab-settings"
-            title="Settings"
-            type="button"
-            aria-label="Settings"
-          >
-            ⚙
           </button>
         </nav>
 
         <aside id="explorer" aria-label="Explorer">
           <header class="explorer-header">
             <span id="explorer-folder-name">No folder</span>
-            <button id="explorer-open" class="explorer-action" title="Open Folder" type="button">
-              Open
-            </button>
+            <div class="explorer-actions">
+              <button id="ex-new-file" class="ex-icon" type="button" title="New File"></button>
+              <button id="ex-new-folder" class="ex-icon" type="button" title="New Folder"></button>
+              <button id="ex-collapse" class="ex-icon" type="button" title="Collapse All"></button>
+              <button id="ex-expand" class="ex-icon" type="button" title="Expand All"></button>
+            </div>
           </header>
           <div id="explorer-tree" class="explorer-tree" role="tree"></div>
           <div id="explorer-empty" class="explorer-empty">
@@ -53,10 +46,6 @@
         </section>
       </div>
 
-      <footer class="statusbar">
-        <span id="status-path" class="status-path">Untitled</span>
-        <span id="status-words" class="status-words">0 words</span>
-      </footer>
     </div>
   </body>
 </html>

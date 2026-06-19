@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { findNode, setChildren, toggleExpanded, type TreeNode } from "../treeops";
+import {
+  findNode,
+  setAllExpanded,
+  setChildren,
+  toggleExpanded,
+  type TreeNode,
+} from "../treeops";
 
 const leaf = (name: string, isDir = false): TreeNode => ({
   name,
@@ -35,5 +41,48 @@ describe("treeops", () => {
     const next = toggleExpanded(root, "/root/docs");
     expect(findNode(next, "/root/docs")?.expanded).toBe(true);
     expect(findNode(toggleExpanded(next, "/root/docs"), "/root/docs")?.expanded).toBe(false);
+  });
+});
+
+describe("setAllExpanded", () => {
+  it("sets expanded on all loaded dir nodes", () => {
+    const tree: TreeNode = {
+      name: "root",
+      path: "/r",
+      isDir: true,
+      expanded: true,
+      children: [
+        {
+          name: "a",
+          path: "/r/a",
+          isDir: true,
+          expanded: false,
+          children: [
+            {
+              name: "x.md",
+              path: "/r/a/x.md",
+              isDir: false,
+              expanded: false,
+              children: null,
+            },
+          ],
+        },
+        {
+          name: "b",
+          path: "/r/b",
+          isDir: true,
+          expanded: true,
+          children: null,
+        },
+      ],
+    };
+
+    const collapsed = setAllExpanded(tree, false);
+    expect(collapsed.children![0].expanded).toBe(false);
+    expect(collapsed.children![1].expanded).toBe(false);
+
+    const expanded = setAllExpanded(tree, true);
+    expect(expanded.children![0].expanded).toBe(true);
+    expect(expanded.children![1].expanded).toBe(true);
   });
 });

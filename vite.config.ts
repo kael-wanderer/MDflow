@@ -13,6 +13,23 @@ export default defineConfig(async () => ({
     include: ["src/__tests__/**/*.test.ts"],
   },
 
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("@codemirror/commands/")) return "editor-commands";
+          if (id.includes("@codemirror/lang-markdown/")) return "editor-markdown";
+          if (id.includes("@codemirror/language/")) return "editor-language";
+          if (id.includes("@codemirror/state/")) return "editor-state";
+          if (id.includes("@codemirror/view/")) return "editor-view";
+          if (id.includes("markdown-it") || id.includes("highlight.js")) return "markdown";
+          if (id.includes("@tauri-apps")) return "tauri";
+        },
+      },
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

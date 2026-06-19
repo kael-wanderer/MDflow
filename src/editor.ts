@@ -18,6 +18,7 @@ export type EditorHandle = {
   getText(id: string): string;
   setSoftWrap(on: boolean): void;
   setLineNumbers(on: boolean): void;
+  requestMeasure(): void;
   focus(): void;
 };
 
@@ -123,6 +124,9 @@ export function createEditor(
     setLineNumbers(on) {
       lineNums = on;
       reapplyToggles();
+    },
+    requestMeasure() {
+      view.requestMeasure();
     },
     focus() {
       view.focus();

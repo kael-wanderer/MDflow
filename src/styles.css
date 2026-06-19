@@ -29,7 +29,6 @@
   --font-serif: "Iowan Old Style", "Charter", Charter, "Palatino Linotype", Georgia, serif;
 
   --base-size: 15px;
-  --status-h: 28px;
   --pane-pad: 28px;
 }
 
@@ -54,13 +53,19 @@ body {
 #app {
   --zoom: 1;
   display: grid;
-  grid-template-rows: 1fr var(--status-h);
+  grid-template-rows: 1fr;
   height: 100vh;
   overflow: hidden;
 }
 
 /* ---------- Windows & Panes ---------- */
-#editorarea { display: flex; min-width: 0; min-height: 0; flex: 1; }
+#editorarea {
+  grid-area: editor;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
 .windows { display: flex; flex: 1; min-width: 0; }
 .window {
   display: flex; flex-direction: column; flex: 1 1 0; min-width: 0;
@@ -87,6 +92,10 @@ body {
 /* per-window view mode */
 .window-mode-editor .pane-preview, .window-mode-editor .seam { display: none; }
 .window-mode-preview .pane-editor, .window-mode-preview .seam { display: none; }
+.window-mode-preview .doc {
+  width: 100%;
+  max-width: none;
+}
 
 /* active-window cue (only meaningful when Sub is open) */
 .windows.has-sub .window:not(.active) .editor-header { opacity: 0.85; }
@@ -261,30 +270,32 @@ body {
   font-weight: 600;
 }
 
-/* ---------- Status bar ---------- */
+/* ---------- Per-window status ---------- */
 
-.statusbar {
+.window-status {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  gap: 12px;
+  height: 24px;
+  padding: 0 12px;
+  flex-shrink: 0;
   background: var(--bg-elev);
   border-top: 1px solid var(--border);
   font-size: 12px;
   color: var(--muted);
 }
 
-.status-path {
+.ws-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.status-words {
+.ws-words {
   color: var(--faint);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
-  padding-left: 16px;
 }
 
 /* ---------- Scrollbars ---------- */
@@ -317,12 +328,14 @@ body {
 
 .workbench {
   display: grid;
+  grid-template-areas: "activity explorer resize editor";
   grid-template-columns: 48px var(--explorer-w, 240px) 4px minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
 
 body.explorer-hidden .workbench {
+  grid-template-areas: "activity explorer resize editor";
   grid-template-columns: 48px 0 0 minmax(0, 1fr);
 }
 
@@ -332,6 +345,7 @@ body.explorer-hidden #explorer-resize {
 }
 
 #activitybar {
+  grid-area: activity;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -341,22 +355,22 @@ body.explorer-hidden #explorer-resize {
   border-right: 1px solid var(--border);
 }
 
-#activitybar .ab-settings {
-  margin-top: auto;
-}
-
 .ab-btn {
   width: 40px;
   height: 40px;
   padding: 0;
   color: var(--muted);
   font: inherit;
-  font-size: 18px;
   line-height: 1;
   background: transparent;
   border: 0;
   border-radius: 7px;
   cursor: default;
+}
+
+.ab-btn svg {
+  width: 26px;
+  height: 26px;
 }
 
 .ab-btn:hover {
@@ -370,10 +384,10 @@ body.explorer-hidden #explorer-resize {
 
 .ab-btn.active {
   color: var(--text-strong);
-  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 #explorer {
+  grid-area: explorer;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -397,25 +411,41 @@ body.explorer-hidden #explorer-resize {
 }
 
 #explorer-folder-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.explorer-action {
+.explorer-actions {
+  display: flex;
+  gap: 2px;
   flex-shrink: 0;
   margin-left: 8px;
-  padding: 4px 0;
-  color: var(--accent);
-  font: inherit;
-  font-size: 11px;
-  background: none;
+}
+
+.ex-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  color: var(--muted);
+  background: transparent;
   border: 0;
+  border-radius: 5px;
   cursor: default;
 }
 
-.explorer-action:hover {
-  color: var(--accent-press);
+.ex-icon:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ex-icon svg {
+  width: 15px;
+  height: 15px;
 }
 
 .explorer-tree {
@@ -472,11 +502,11 @@ body.no-folder .explorer-empty {
 .tree-row {
   display: flex;
   align-items: center;
-  gap: 5px;
-  min-height: 24px;
+  gap: 3px;
+  min-height: 28px;
   padding: 2px 10px 2px calc(9px + var(--depth, 0) * 14px);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.35;
   white-space: nowrap;
   cursor: default;
@@ -491,18 +521,27 @@ body.no-folder .explorer-empty {
 }
 
 .tree-caret {
-  flex: 0 0 12px;
+  flex: 0 0 10px;
   color: var(--faint);
+  font-size: 14px;
   text-align: center;
 }
 
 .tree-icon {
-  flex: 0 0 17px;
+  flex: 0 0 28px;
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   text-align: center;
 }
+
+.tree-icon.type-md { color: #6c9ad1; }
+.tree-icon.type-txt { color: #a9b2c0; }
+.tree-icon.type-json { color: #d6c64b; }
+.tree-icon.type-html { color: #e0823d; }
+.tree-icon.type-pdf { color: #e0544e; }
+.tree-icon.type-file { color: var(--faint); }
 
 .tree-name {
   overflow: hidden;
@@ -523,6 +562,7 @@ body.no-folder .explorer-empty {
 }
 
 .resize-handle {
+  grid-area: resize;
   position: relative;
   width: 4px;
   margin-left: -2px;
@@ -698,17 +738,23 @@ body.resizing-explorer .resize-handle::after {
 
 
 .window-toolbar {
-  display: flex; align-items: center; gap: 2px;
+  display: flex; align-items: center; gap: 6px;
   padding: 0 8px; flex-shrink: 0;
 }
-.wt-btn {
-  height: 24px; padding: 0 9px;
-  font: inherit; font-size: 12.5px; color: var(--muted);
-  background: transparent; border: 0; border-radius: 6px; cursor: default;
+.wt-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
 }
+.wt-group .wt-btn { border-radius: 0; }
+.wt-group .wt-btn + .wt-btn { border-left: 1px solid var(--border); }
+.wt-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 24px;
+  color: var(--muted); background: transparent; border: 0; cursor: default;
+}
+.wt-btn svg { width: 15px; height: 15px; }
 .wt-btn:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,0.05); }
-.wt-btn.active { color: var(--text-strong); background: rgba(255,255,255,0.08); }
-.wt-btn:disabled { opacity: 0.35; }
-.wt-icon { padding: 0 7px; font-size: 14px; }
-.wt-sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border-soft); }
-
+.wt-btn.active { color: var(--text-strong); background: rgba(255,255,255,0.10); }
+.wt-icon { border: 1px solid var(--border); border-radius: 7px; }

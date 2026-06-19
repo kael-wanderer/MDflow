@@ -5,6 +5,7 @@ import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
 import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
 import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
+import { pickFolder } from "./filesys";
 import { initResize } from "./resize";
 import { loadState, saveState, type ViewMode } from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
@@ -14,8 +15,6 @@ import { createWindowView, type WindowView } from "./windowview";
 import helpDoc from "../HELP.md?raw";
 
 const windowsHost = document.getElementById("windows")!;
-const statusPath = document.getElementById("status-path")!;
-const statusWords = document.getElementById("status-words")!;
 
 let ui = loadState();
 let tabSeq = 0;
@@ -56,6 +55,12 @@ function renderAll(): void {
   document.getElementById("windows")!.classList.toggle("has-sub", getState().windows.length > 1);
 }
 
+function requestWindowMeasure(): void {
+  requestAnimationFrame(() => {
+    for (const view of views.values()) view.requestMeasure();
+  });
+}
+
 function activeView(): WindowView {
   return views.get(getState().activeWindowId)!;
 }
@@ -72,9 +77,7 @@ function activateTab(windowId: string, tabId: string): void {
   v.editor.switchTo(tabId);
   const text = v.editor.getText(tabId);
   v.renderPreview(text);
-  if (windowId === getState().activeWindowId) {
-    updateStatus();
-  }
+  syncExplorerActivePath();
   renderAll();
   v.focus();
 }
@@ -148,31 +151,20 @@ function schedulePreview(windowId: string, text: string): void {
   clearTimeout(timers.get(windowId));
   timers.set(
     windowId,
-    window.setTimeout(async () => {
+    window.setTimeout(() => {
       views.get(windowId)!.renderPreview(text);
-      if (windowId === getState().activeWindowId) {
-        const n = await invoke<number>("word_count", { text });
-        statusWords.textContent = `${n} ${n === 1 ? "word" : "words"}`;
-      }
     }, 300)
   );
 }
 
 function clearDocumentSurface(): void {
   clearTimeout(timers.get(getState().activeWindowId));
-  statusPath.textContent = "Untitled";
-  statusWords.textContent = "0 words";
   setExplorerActivePath(null);
   renderAll();
 }
 
-function updateStatus(): void {
+function syncExplorerActivePath(): void {
   const t = activeMeta();
-  statusPath.textContent = t?.path ?? t?.name ?? "Untitled";
-  const text = t ? activeView().editor.getText(t.id) : "";
-  invoke<number>("word_count", { text }).then((n) => {
-    statusWords.textContent = `${n} ${n === 1 ? "word" : "words"}`;
-  });
   setExplorerActivePath(t?.path ?? null);
 }
 
@@ -238,7 +230,7 @@ async function doSave(saveAs = false): Promise<void> {
         x.id === t.id ? { ...x, path: target, name: basename(target), dirty: false } : x
       ),
     });
-    updateStatus();
+    syncExplorerActivePath();
     renderAll();
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
@@ -267,14 +259,15 @@ function handleExplorerPathChange(from: string, to: string | null): void {
   });
   setState({ windows: updatedWindows });
 
-  const current = activeMeta();
-  statusPath.textContent = current?.path ?? current?.name ?? "Untitled";
+  syncExplorerActivePath();
   renderAll();
 }
 
 function setMode(windowId: string, mode: ViewMode): void {
   patchWindow(windowId, { mode });
-  views.get(windowId)!.render();
+  const view = views.get(windowId)!;
+  view.render();
+  requestAnimationFrame(() => view.requestMeasure());
 }
 
 function toggleLineNumbers(): void {
@@ -320,6 +313,7 @@ async function toggleSub(): Promise<void> {
     });
     removeSplitter();
     renderAll();
+    requestWindowMeasure();
     if (mainWindow().activeTabId) {
       activateTab("main", mainWindow().activeTabId!);
     } else if (moved.length > 0) {
@@ -330,6 +324,7 @@ async function toggleSub(): Promise<void> {
     addSplitter();
     makeView("sub", false);
     renderAll();
+    requestWindowMeasure();
   }
 }
 
@@ -382,7 +377,7 @@ setState({
 document.documentElement.style.setProperty("--explorer-w", `${ui.explorerWidth}px`);
 document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
 
-initActivityBar();
+initActivityBar(requestWindowMeasure);
 initResize((explorerWidth) => setState({ explorerWidth }));
 initExplorer((path) => void doOpenPath(path), handleExplorerPathChange);
 
@@ -423,6 +418,10 @@ listen<string>("menu", (event) => {
       return newDoc();
     case "file.open":
       return void doOpen();
+    case "file.open_folder":
+      return void pickFolder().then((directory) => {
+        if (directory) void openFolder(directory);
+      });
     case "file.save":
       return void doSave(false);
     case "file.save_as":

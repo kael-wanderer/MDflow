@@ -1,7 +1,9 @@
 import { getState, setState } from "./store";
+import { glyphs } from "./glyphs";
 
-export function initActivityBar(): void {
+export function initActivityBar(onLayoutChange: () => void = () => {}): void {
   const explorerButton = document.getElementById("ab-explorer")!;
+  explorerButton.innerHTML = glyphs.explorer;
 
   const applyVisibility = (visible: boolean): void => {
     document.body.classList.toggle("explorer-hidden", !visible);
@@ -15,7 +17,6 @@ export function initActivityBar(): void {
     const explorerVisible = !getState().explorerVisible;
     setState({ explorerVisible });
     applyVisibility(explorerVisible);
+    onLayoutChange();
   });
-
-  // Settings is introduced in the top-bar sub-project.
 }
