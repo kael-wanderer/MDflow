@@ -123,6 +123,25 @@ window:
   are skipped.
 - [ ] Confirm Split, Editor, Read, Soft Wrap, and Explorer file management still work.
 
+## Shell Phase 4a checks
+
+### Verified
+
+- [x] UIState gains `lineNumbers: boolean` defaulting to `true` and persisting with the rest.
+- [x] State unit tests updated and passing.
+- [x] `#window-toolbar` markup added inside `#editor-header` wrapping `#tabbar`.
+- [x] CSS styling added for `.editor-header`, `.window-toolbar`, and `.wt-*` buttons.
+- [x] `src/windowtoolbar.ts` created to handle toolbar actions and updates.
+- [x] Toolbar wired in `src/main.ts` with `toggleLineNumbers` and `setMode`.
+- [x] Line numbers default, state, and toolbar active states restore and sync on startup.
+
+### Native GUI checklist
+
+- [ ] Toolbar Editor/Read/Split match the menu + keyboard; active button reflects mode.
+- [ ] Line-numbers `#` toggles and persists across relaunch.
+- [ ] Disabled `⊞` (Sub window) and `✦` (AI) show as placeholders.
+- [ ] Tabs, explorer, file management, save/soft-wrap all still work.
+
 ## Notes
 
 - Updater plugin is **installed but dormant** (dependency + capability present, not

@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 
 .DS_Store
+
+# Agent scratch files (Codex/Gemini working notes)
+findings.md
+progress.md
+task_plan.md
