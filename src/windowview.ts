@@ -19,6 +19,7 @@ export type WindowView = {
   editor: EditorHandle;
   render: () => void;
   renderPreview: (text: string) => void;
+  requestMeasure: () => void;
   focus: () => void;
   destroy: () => void;
   setLineNumbersFlag: (on: boolean) => void;
@@ -133,6 +134,7 @@ export function createWindowView(
     editor,
     render,
     renderPreview,
+    requestMeasure: () => editor.requestMeasure(),
     focus: () => editor.focus(),
     destroy: () => root.remove(),
     setLineNumbersFlag: (on: boolean) => {

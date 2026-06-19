@@ -1,6 +1,6 @@
 import { getState, setState } from "./store";
 
-export function initActivityBar(): void {
+export function initActivityBar(onLayoutChange: () => void = () => {}): void {
   const explorerButton = document.getElementById("ab-explorer")!;
 
   const applyVisibility = (visible: boolean): void => {
@@ -15,5 +15,6 @@ export function initActivityBar(): void {
     const explorerVisible = !getState().explorerVisible;
     setState({ explorerVisible });
     applyVisibility(explorerVisible);
+    onLayoutChange();
   });
 }

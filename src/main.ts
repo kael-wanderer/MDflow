@@ -55,6 +55,12 @@ function renderAll(): void {
   document.getElementById("windows")!.classList.toggle("has-sub", getState().windows.length > 1);
 }
 
+function requestWindowMeasure(): void {
+  requestAnimationFrame(() => {
+    for (const view of views.values()) view.requestMeasure();
+  });
+}
+
 function activeView(): WindowView {
   return views.get(getState().activeWindowId)!;
 }
@@ -305,6 +311,7 @@ async function toggleSub(): Promise<void> {
     });
     removeSplitter();
     renderAll();
+    requestWindowMeasure();
     if (mainWindow().activeTabId) {
       activateTab("main", mainWindow().activeTabId!);
     } else if (moved.length > 0) {
@@ -315,6 +322,7 @@ async function toggleSub(): Promise<void> {
     addSplitter();
     makeView("sub", false);
     renderAll();
+    requestWindowMeasure();
   }
 }
 
@@ -367,7 +375,7 @@ setState({
 document.documentElement.style.setProperty("--explorer-w", `${ui.explorerWidth}px`);
 document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
 
-initActivityBar();
+initActivityBar(requestWindowMeasure);
 initResize((explorerWidth) => setState({ explorerWidth }));
 initExplorer((path) => void doOpenPath(path), handleExplorerPathChange);
 
