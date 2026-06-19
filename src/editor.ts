@@ -106,7 +106,11 @@ export function createEditor(
     },
     closeState(id) {
       states.delete(id);
-      if (activeId === id) activeId = null;
+      if (activeId === id) {
+        activeId = null;
+        view.setState(EditorState.create({ doc: "", extensions: baseExtensions("") }));
+        reapplyToggles();
+      }
     },
     getText(id) {
       if (id === activeId) return view.state.doc.toString();
