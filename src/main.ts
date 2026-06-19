@@ -15,8 +15,6 @@ import { createWindowView, type WindowView } from "./windowview";
 import helpDoc from "../HELP.md?raw";
 
 const windowsHost = document.getElementById("windows")!;
-const statusPath = document.getElementById("status-path")!;
-const statusWords = document.getElementById("status-words")!;
 
 let ui = loadState();
 let tabSeq = 0;
@@ -73,9 +71,7 @@ function activateTab(windowId: string, tabId: string): void {
   v.editor.switchTo(tabId);
   const text = v.editor.getText(tabId);
   v.renderPreview(text);
-  if (windowId === getState().activeWindowId) {
-    updateStatus();
-  }
+  syncExplorerActivePath();
   renderAll();
   v.focus();
 }
@@ -149,31 +145,20 @@ function schedulePreview(windowId: string, text: string): void {
   clearTimeout(timers.get(windowId));
   timers.set(
     windowId,
-    window.setTimeout(async () => {
+    window.setTimeout(() => {
       views.get(windowId)!.renderPreview(text);
-      if (windowId === getState().activeWindowId) {
-        const n = await invoke<number>("word_count", { text });
-        statusWords.textContent = `${n} ${n === 1 ? "word" : "words"}`;
-      }
     }, 300)
   );
 }
 
 function clearDocumentSurface(): void {
   clearTimeout(timers.get(getState().activeWindowId));
-  statusPath.textContent = "Untitled";
-  statusWords.textContent = "0 words";
   setExplorerActivePath(null);
   renderAll();
 }
 
-function updateStatus(): void {
+function syncExplorerActivePath(): void {
   const t = activeMeta();
-  statusPath.textContent = t?.path ?? t?.name ?? "Untitled";
-  const text = t ? activeView().editor.getText(t.id) : "";
-  invoke<number>("word_count", { text }).then((n) => {
-    statusWords.textContent = `${n} ${n === 1 ? "word" : "words"}`;
-  });
   setExplorerActivePath(t?.path ?? null);
 }
 
@@ -239,7 +224,7 @@ async function doSave(saveAs = false): Promise<void> {
         x.id === t.id ? { ...x, path: target, name: basename(target), dirty: false } : x
       ),
     });
-    updateStatus();
+    syncExplorerActivePath();
     renderAll();
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
@@ -268,8 +253,7 @@ function handleExplorerPathChange(from: string, to: string | null): void {
   });
   setState({ windows: updatedWindows });
 
-  const current = activeMeta();
-  statusPath.textContent = current?.path ?? current?.name ?? "Untitled";
+  syncExplorerActivePath();
   renderAll();
 }
 

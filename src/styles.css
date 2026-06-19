@@ -29,7 +29,6 @@
   --font-serif: "Iowan Old Style", "Charter", Charter, "Palatino Linotype", Georgia, serif;
 
   --base-size: 15px;
-  --status-h: 28px;
   --pane-pad: 28px;
 }
 
@@ -54,7 +53,7 @@ body {
 #app {
   --zoom: 1;
   display: grid;
-  grid-template-rows: 1fr var(--status-h);
+  grid-template-rows: 1fr;
   height: 100vh;
   overflow: hidden;
 }
@@ -261,30 +260,32 @@ body {
   font-weight: 600;
 }
 
-/* ---------- Status bar ---------- */
+/* ---------- Per-window status ---------- */
 
-.statusbar {
+.window-status {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  gap: 12px;
+  height: 24px;
+  padding: 0 12px;
+  flex-shrink: 0;
   background: var(--bg-elev);
   border-top: 1px solid var(--border);
   font-size: 12px;
   color: var(--muted);
 }
 
-.status-path {
+.ws-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.status-words {
+.ws-words {
   color: var(--faint);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
-  padding-left: 16px;
 }
 
 /* ---------- Scrollbars ---------- */
@@ -718,16 +719,23 @@ body.resizing-explorer .resize-handle::after {
 
 
 .window-toolbar {
-  display: flex; align-items: center; gap: 2px;
+  display: flex; align-items: center; gap: 6px;
   padding: 0 8px; flex-shrink: 0;
 }
-.wt-btn {
-  height: 24px; padding: 0 9px;
-  font: inherit; font-size: 12.5px; color: var(--muted);
-  background: transparent; border: 0; border-radius: 6px; cursor: default;
+.wt-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
 }
+.wt-group .wt-btn { border-radius: 0; }
+.wt-group .wt-btn + .wt-btn { border-left: 1px solid var(--border); }
+.wt-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 24px;
+  color: var(--muted); background: transparent; border: 0; cursor: default;
+}
+.wt-btn svg { width: 15px; height: 15px; }
 .wt-btn:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,0.05); }
-.wt-btn.active { color: var(--text-strong); background: rgba(255,255,255,0.08); }
-.wt-btn:disabled { opacity: 0.35; }
-.wt-icon { padding: 0 7px; font-size: 14px; }
-.wt-sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border-soft); }
+.wt-btn.active { color: var(--text-strong); background: rgba(255,255,255,0.10); }
+.wt-icon { border: 1px solid var(--border); border-radius: 7px; }
