@@ -4,7 +4,10 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 export type OpenResult = { path: string; contents: string } | null;
 
 const FILTERS = [
-  { name: "Documents", extensions: ["md", "markdown", "txt", "pdf"] },
+  {
+    name: "Documents",
+    extensions: ["md", "markdown", "txt", "html", "htm", "pdf"],
+  },
 ];
 
 export async function openFile(): Promise<OpenResult> {

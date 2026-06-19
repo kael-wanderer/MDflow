@@ -199,7 +199,8 @@ function activateTab(windowId: string, tabId: string): void {
   const v = views.get(windowId)!;
   v.editor.switchTo(tabId);
   const text = v.editor.getText(tabId);
-  v.renderPreview(text);
+  const tab = getWindow(windowId)?.tabs.find((item) => item.id === tabId);
+  v.renderPreview(text, tab?.path ?? tab?.name);
   syncExplorerActivePath();
   renderAll();
   v.focus();
@@ -265,17 +266,26 @@ function onDocChange(windowId: string, tabId: string, text: string): void {
     });
   }
   if (windowId === getState().activeWindowId && tabId === w.activeTabId) {
-    schedulePreview(windowId, text);
+    schedulePreview(windowId, tabId, text);
   }
 }
 
 const timers = new Map<string, number>();
-function schedulePreview(windowId: string, text: string): void {
+function schedulePreview(
+  windowId: string,
+  tabId: string,
+  text: string,
+): void {
   clearTimeout(timers.get(windowId));
   timers.set(
     windowId,
     window.setTimeout(() => {
-      views.get(windowId)!.renderPreview(text);
+      const tab = getWindow(windowId)?.tabs.find(
+        (item) => item.id === tabId,
+      );
+      views
+        .get(windowId)!
+        .renderPreview(text, tab?.path ?? tab?.name);
     }, 300)
   );
 }
@@ -589,6 +599,7 @@ function buildAIPanel(): void {
       const selection = editor.getSelection();
       editor.replaceRange(selection.from, selection.to, text);
     },
+    onClose: () => setAIVisible(false),
   });
 }
 
@@ -599,13 +610,17 @@ function applyAIVisibility(): void {
   button.setAttribute("aria-pressed", String(ui.aiVisible));
 }
 
-function toggleAI(): void {
-  ui = { ...ui, aiVisible: !ui.aiVisible };
+function setAIVisible(aiVisible: boolean): void {
+  ui = { ...ui, aiVisible };
   applyAIVisibility();
-  if (ui.aiVisible && !aiPanel) buildAIPanel();
+  if (aiVisible && !aiPanel) buildAIPanel();
   saveState(ui);
   requestWindowMeasure();
   requestAnimationFrame(() => aiPanel?.resize());
+}
+
+function toggleAI(): void {
+  setAIVisible(!ui.aiVisible);
 }
 
 async function openInSub(path: string): Promise<void> {
@@ -757,6 +772,23 @@ listen<string>("menu", (event) => {
 });
 
 window.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey) {
+    if (e.key === "+" || e.key === "=") {
+      e.preventDefault();
+      activeView().adjustPreviewZoom(0.1);
+      return;
+    }
+    if (e.key === "-" || e.key === "_") {
+      e.preventDefault();
+      activeView().adjustPreviewZoom(-0.1);
+      return;
+    }
+    if (e.key === "0") {
+      e.preventDefault();
+      activeView().resetPreviewZoom();
+      return;
+    }
+  }
   if (
     (e.metaKey || e.ctrlKey) &&
     (e.key.toLowerCase() === "k" ||

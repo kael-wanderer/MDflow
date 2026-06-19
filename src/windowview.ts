@@ -1,4 +1,8 @@
 import { createEditor, type EditorHandle } from "./editor";
+import {
+  htmlWithPreviewZoom,
+  isHtmlFile,
+} from "./document-kind";
 import { glyphs } from "./glyphs";
 import { renderMarkdown } from "./preview";
 import { enhancePreview } from "./render-extras";
@@ -19,7 +23,9 @@ export type WindowView = {
   id: string;
   editor: EditorHandle;
   render: () => void;
-  renderPreview: (text: string) => void;
+  renderPreview: (text: string, pathOrName?: string | null) => void;
+  adjustPreviewZoom: (delta: number) => void;
+  resetPreviewZoom: () => void;
   requestMeasure: () => void;
   focus: () => void;
   destroy: () => void;
@@ -48,6 +54,11 @@ export function createWindowView(
           <button class="wt-btn" data-mode="preview" type="button" title="Read">${glyphs.read}</button>
           <button class="wt-btn" data-mode="split" type="button" title="Split (⌘B)">${glyphs.split}</button>
         </div>
+        <div class="wt-group preview-zoom-group">
+          <button class="wt-btn wt-preview-zoom" data-preview-zoom="out" type="button" title="Zoom preview out (⌘−)">−</button>
+          <button class="wt-btn wt-preview-reset" data-preview-zoom="reset" type="button" title="Reset preview zoom (⌘0)">100%</button>
+          <button class="wt-btn wt-preview-zoom" data-preview-zoom="in" type="button" title="Zoom preview in (⌘+)">+</button>
+        </div>
         <button class="wt-btn wt-icon wt-lines" type="button" title="Line numbers">${glyphs.lineNumbers}</button>
         ${
           isMain
@@ -74,6 +85,9 @@ export function createWindowView(
   const wsWords = root.querySelector<HTMLElement>(".ws-words")!;
 
   let lineNums = true;
+  let previewZoom = 1;
+  let previewText = "";
+  let previewPathOrName: string | null = null;
 
   root.addEventListener("mousedown", () => h.onFocusWindow(windowId));
 
@@ -124,18 +138,57 @@ export function createWindowView(
     }
   }
 
-  function renderPreview(text: string): void {
-    previewPane.innerHTML = `<article class="doc">${renderMarkdown(text)}</article>`;
-    enhancePreview(previewPane);
+  function renderPreview(
+    text: string,
+    pathOrName: string | null = null,
+  ): void {
+    previewText = text;
+    previewPathOrName = pathOrName;
+    previewPane.replaceChildren();
+    if (isHtmlFile(pathOrName)) {
+      const frame = document.createElement("iframe");
+      frame.className = "html-preview-frame";
+      frame.title = `Preview of ${pathOrName ?? "HTML document"}`;
+      frame.setAttribute("sandbox", "allow-forms allow-scripts");
+      frame.srcdoc = htmlWithPreviewZoom(text, previewZoom);
+      previewPane.appendChild(frame);
+    } else {
+      const article = document.createElement("article");
+      article.className = "doc";
+      article.style.zoom = String(previewZoom);
+      article.innerHTML = renderMarkdown(text);
+      previewPane.appendChild(article);
+      enhancePreview(previewPane);
+    }
     const count = countWords(text);
     wsWords.textContent = `${count} ${count === 1 ? "word" : "words"}`;
   }
+
+  function setPreviewZoom(next: number): void {
+    previewZoom = Math.max(0.25, Math.min(2, next));
+    root.querySelector<HTMLElement>(".wt-preview-reset")!.textContent =
+      `${Math.round(previewZoom * 100)}%`;
+    renderPreview(previewText, previewPathOrName);
+  }
+
+  root
+    .querySelectorAll<HTMLElement>("[data-preview-zoom]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.dataset.previewZoom;
+        if (action === "in") setPreviewZoom(previewZoom + 0.1);
+        else if (action === "out") setPreviewZoom(previewZoom - 0.1);
+        else setPreviewZoom(1);
+      });
+    });
 
   return {
     id: windowId,
     editor,
     render,
     renderPreview,
+    adjustPreviewZoom: (delta) => setPreviewZoom(previewZoom + delta),
+    resetPreviewZoom: () => setPreviewZoom(1),
     requestMeasure: () => editor.requestMeasure(),
     focus: () => editor.focus(),
     destroy: () => root.remove(),

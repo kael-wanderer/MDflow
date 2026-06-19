@@ -9,6 +9,7 @@ export type AIPanelDeps = {
   getDoc: () => { text: string; selection: string };
   onApply: (newText: string) => void;
   onInsert: (text: string) => void;
+  onClose: () => void;
 };
 
 export type AIPanel = {
@@ -22,6 +23,9 @@ export function createAIPanel(
 ): AIPanel {
   const body = panelElement.querySelector<HTMLElement>(".ai-body")!;
   const tabs = panelElement.querySelectorAll<HTMLElement>(".ai-tab");
+  panelElement
+    .querySelector<HTMLElement>(".ai-close")!
+    .addEventListener("click", deps.onClose);
   const history: ChatMessage[] = [];
   let activeTab: "chat" | "terminal" = "chat";
   let editMode = false;
