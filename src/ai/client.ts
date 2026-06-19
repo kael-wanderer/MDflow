@@ -61,46 +61,46 @@ async function streamCommand(
   const args = substitutePrompt(provider.run, prompt);
   const requestId = `ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const unlisteners: UnlistenFn[] = [];
+  let resolveStream: () => void = () => {};
+  let rejectStream: (error: unknown) => void = () => {};
+  const streamComplete = new Promise<void>((resolve, reject) => {
+    resolveStream = resolve;
+    rejectStream = reject;
+  });
+  const cleanUp = (): void => {
+    unlisteners.splice(0).forEach((unlisten) => unlisten());
+  };
 
   try {
-    await new Promise<void>(async (resolve, reject) => {
-      const cleanUp = (): void => {
-        unlisteners.splice(0).forEach((unlisten) => unlisten());
-      };
-      unlisteners.push(
-        await listen<{ requestId: string; chunk: string }>(
-          "ai-chunk",
-          (event) => {
-            if (event.payload.requestId === requestId) {
-              onChunk(event.payload.chunk);
-            }
-          },
-        ),
-        await listen<{ requestId: string }>("ai-done", (event) => {
+    unlisteners.push(
+      await listen<{ requestId: string; chunk: string }>(
+        "ai-chunk",
+        (event) => {
           if (event.payload.requestId === requestId) {
-            cleanUp();
-            resolve();
+            onChunk(event.payload.chunk);
           }
-        }),
-        await listen<{ requestId: string; message: string }>(
-          "ai-error",
-          (event) => {
-            if (event.payload.requestId === requestId) {
-              cleanUp();
-              reject(new Error(event.payload.message));
-            }
-          },
-        ),
-      );
-      try {
-        await invoke("ai_run", { requestId, args });
-      } catch (error) {
-        cleanUp();
-        reject(error);
-      }
-    });
+        },
+      ),
+    );
+    unlisteners.push(
+      await listen<{ requestId: string }>("ai-done", (event) => {
+        if (event.payload.requestId === requestId) resolveStream();
+      }),
+    );
+    unlisteners.push(
+      await listen<{ requestId: string; message: string }>(
+        "ai-error",
+        (event) => {
+          if (event.payload.requestId === requestId) {
+            rejectStream(new Error(event.payload.message));
+          }
+        },
+      ),
+    );
+    await invoke("ai_run", { requestId, args });
+    await streamComplete;
   } finally {
-    unlisteners.splice(0).forEach((unlisten) => unlisten());
+    cleanUp();
   }
 }
 
