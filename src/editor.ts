@@ -1,14 +1,23 @@
-import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from "@codemirror/view";
-import { EditorState, Compartment } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
-import { markdown } from "@codemirror/lang-markdown";
+import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
+import { markdown } from "@codemirror/lang-markdown";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
+import {
+  drawSelection,
+  EditorView,
+  highlightActiveLine,
+  keymap,
+  lineNumbers,
+} from "@codemirror/view";
 
 export type EditorHandle = {
-  getDoc(): string;
-  setDoc(text: string): void;
+  openState(id: string, text: string): void;
+  switchTo(id: string): void;
+  closeState(id: string): void;
+  getText(id: string): string;
   setSoftWrap(on: boolean): void;
+  setLineNumbers(on: boolean): void;
   focus(): void;
 };
 
@@ -36,39 +45,85 @@ const theme = EditorView.theme(
     ".cm-activeLine": { backgroundColor: "rgba(255,255,255,0.025)" },
     ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--muted)" },
   },
-  { dark: true }
+  { dark: true },
 );
 
-export function createEditor(parent: HTMLElement, onChange: (doc: string) => void): EditorHandle {
-  const wrap = new Compartment();
+const wrap = new Compartment();
+const gutter = new Compartment();
+
+export function createEditor(
+  parent: HTMLElement,
+  onChange: (id: string, text: string) => void,
+): EditorHandle {
+  const states = new Map<string, EditorState>();
+  let activeId: string | null = null;
+  let softWrap = true;
+  let lineNums = true;
+
+  const baseExtensions = (id: string): Extension[] => [
+    gutter.of(lineNums ? lineNumbers() : []),
+    history(),
+    drawSelection(),
+    highlightActiveLine(),
+    keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+    markdown({ codeLanguages: languages }),
+    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    wrap.of(softWrap ? EditorView.lineWrapping : []),
+    theme,
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) onChange(id, update.state.doc.toString());
+    }),
+  ];
 
   const view = new EditorView({
     parent,
-    state: EditorState.create({
-      doc: "",
-      extensions: [
-        lineNumbers(),
-        history(),
-        drawSelection(),
-        highlightActiveLine(),
-        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-        markdown({ codeLanguages: languages }),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        wrap.of(EditorView.lineWrapping),
-        theme,
-        EditorView.updateListener.of((u) => {
-          if (u.docChanged) onChange(u.state.doc.toString());
-        }),
-      ],
-    }),
+    state: EditorState.create({ doc: "", extensions: baseExtensions("") }),
   });
 
-  return {
-    getDoc: () => view.state.doc.toString(),
-    setDoc: (text) =>
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } }),
-    setSoftWrap: (on) =>
-      view.dispatch({ effects: wrap.reconfigure(on ? EditorView.lineWrapping : []) }),
-    focus: () => view.focus(),
+  const reapplyToggles = (): void => {
+    view.dispatch({
+      effects: [
+        wrap.reconfigure(softWrap ? EditorView.lineWrapping : []),
+        gutter.reconfigure(lineNums ? lineNumbers() : []),
+      ],
+    });
   };
+
+  const handle: EditorHandle = {
+    openState(id, text) {
+      states.set(id, EditorState.create({ doc: text, extensions: baseExtensions(id) }));
+      handle.switchTo(id);
+    },
+    switchTo(id) {
+      if (activeId && states.has(activeId)) {
+        states.set(activeId, view.state);
+      }
+      const target = states.get(id);
+      if (!target) return;
+      activeId = id;
+      view.setState(target);
+      reapplyToggles();
+    },
+    closeState(id) {
+      states.delete(id);
+      if (activeId === id) activeId = null;
+    },
+    getText(id) {
+      if (id === activeId) return view.state.doc.toString();
+      return states.get(id)?.doc.toString() ?? "";
+    },
+    setSoftWrap(on) {
+      softWrap = on;
+      reapplyToggles();
+    },
+    setLineNumbers(on) {
+      lineNums = on;
+      reapplyToggles();
+    },
+    focus() {
+      view.focus();
+    },
+  };
+
+  return handle;
 }
