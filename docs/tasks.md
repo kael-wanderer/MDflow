@@ -31,16 +31,18 @@ Requirements for the plan:
 Plan: `docs/superpowers/plans/2026-06-19-m1-lean-core.md`
 
 [x] Write M1 implementation plan (writing-plans)
-[~] Task 1 — Scaffold Tauri 2 + Vite + TS (MIT, THIRD-PARTY-NOTICES)  ← current position
-[ ] Task 2 — Full CLAUDE.md + README
-[ ] Task 3 — Static UI shell mockup → USER APPROVAL GATE
-[ ] Task 4 — state.ts (persisted UI state, TDD)
+[x] Task 1 — Scaffold Tauri 2 + Vite + TS (MIT, THIRD-PARTY-NOTICES)
+[x] Task 1b — App icon from images/logo.png (tauri icon)
+[x] Task 2 — Full CLAUDE.md + README
+[x] Task 3 — Static UI shell mockup → APPROVED (pivot: native-menu-only, no toolbar; amber kept; logo = app icon)
+[~] Task 4 — state.ts (persisted UI state, TDD)  ← current position
 [ ] Task 5 — preview.ts (markdown-it render, TDD)
 [ ] Task 6 — files.rs (Rust file IO + word_count, TDD)
-[ ] Task 7 — editor.ts (CodeMirror 6)
-[ ] Task 8 — files.ts (IPC open/save + dialogs)
+[ ] Task 7 — editor.ts (CodeMirror 6, soft-wrap toggleable)
+[ ] Task 8 — files.ts (IPC open/save + dialogs, + newFile/saveAs)
 [ ] Task 9 — views.ts (view-mode switching + zoom)
-[ ] Task 10 — main.ts (wiring, hotkeys, debounce)
+[ ] Task 9B — Native application menu (Rust menu.rs → menu events)
+[ ] Task 10 — main.ts (wiring via menu events, hotkeys, debounce)
 [ ] Task 11 — style pass on live app
 [ ] Task 12 — updater plugin (dormant)
 [ ] Task 13 — M1 manual smoke test

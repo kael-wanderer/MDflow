@@ -4,40 +4,81 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
-    <script type="module" src="/src/main.ts" defer></script>
+    <title>MDflow</title>
   </head>
 
-  <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
+  <body class="view-split">
+    <div id="app">
+      <main class="panes">
+        <!-- Editor pane (static mock; CodeMirror mounts here later) -->
+        <section class="pane pane-editor" id="editor">
+          <div class="cm-mock">
+            <div class="gutter" aria-hidden="true">
+              <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+              <span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+              <span>11</span><span>12</span><span>13</span><span>14</span>
+            </div>
+            <pre class="code"># Field Notes
 
-      <div class="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/src/assets/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img
-            src="/src/assets/tauri.svg"
-            class="logo tauri"
-            alt="Tauri logo"
-          />
-        </a>
-        <a href="https://www.typescriptlang.org/docs" target="_blank">
-          <img
-            src="/src/assets/typescript.svg"
-            class="logo typescript"
-            alt="typescript logo"
-          />
-        </a>
-      </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
+A markdown editor that gets **out of the way**. Write on the
+left, read on the right.
 
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-      <p id="greet-msg"></p>
-    </main>
+## What it does
+
+- Live preview, no save needed
+- `Cmd+B` / `Cmd+E` / `Cmd+P` to switch views
+- Opens `.md`, `.markdown`, `.txt`
+
+> Plain text outlives every app that edits it.
+
+[Read the docs](https://example.com)</pre>
+          </div>
+        </section>
+
+        <div class="seam" aria-hidden="true"></div>
+
+        <!-- Preview pane (static mock; renderMarkdown output later) -->
+        <section class="pane pane-preview" id="preview">
+          <article class="doc">
+            <h1>Field Notes</h1>
+            <p>A markdown editor that gets <strong>out of the way</strong>. Write on
+              the left, read on the right.</p>
+
+            <h2>What it does</h2>
+            <ul>
+              <li>Live preview, no save needed</li>
+              <li><code>Cmd+B</code> / <code>Cmd+E</code> / <code>Cmd+P</code> to switch views</li>
+              <li>Opens <code>.md</code>, <code>.markdown</code>, <code>.txt</code></li>
+            </ul>
+
+            <blockquote>Plain text outlives every app that edits it.</blockquote>
+
+            <h2>A quick example</h2>
+            <p>Fenced code is highlighted in the preview:</p>
+            <pre class="hljs"><code><span class="hljs-keyword">function</span> <span class="hljs-func">render</span>(src) {
+  <span class="hljs-keyword">return</span> md.<span class="hljs-func">render</span>(src); <span class="hljs-comment">// markdown-it</span>
+}</code></pre>
+
+            <table>
+              <thead>
+                <tr><th>Key</th><th>Action</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>⌘O</code></td><td>Open a file</td></tr>
+                <tr><td><code>⌘S</code></td><td>Save the file</td></tr>
+                <tr><td><code>⌘B</code></td><td>Split view</td></tr>
+              </tbody>
+            </table>
+
+            <p><a href="https://example.com">Read the docs</a> to learn more.</p>
+          </article>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="status-path" class="status-path">~/notes/field-notes.md</span>
+        <span id="status-words" class="status-words">184 words</span>
+      </footer>
+    </div>
   </body>
 </html>
