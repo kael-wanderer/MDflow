@@ -16,6 +16,4 @@ export function initActivityBar(): void {
     setState({ explorerVisible });
     applyVisibility(explorerVisible);
   });
-
-  // Settings is introduced in the top-bar sub-project.
 }
