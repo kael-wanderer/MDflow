@@ -1,4 +1,5 @@
 import { listDir } from "./filesys";
+import type { TabMeta } from "./tabops";
 import { findNode, setChildren, type TreeNode } from "./treeops";
 
 export type ShellState = {
@@ -6,6 +7,8 @@ export type ShellState = {
   tree: TreeNode | null;
   explorerVisible: boolean;
   explorerWidth: number;
+  tabs: TabMeta[];
+  activeTabId: string | null;
 };
 
 let state: ShellState = {
@@ -13,6 +16,8 @@ let state: ShellState = {
   tree: null,
   explorerVisible: true,
   explorerWidth: 240,
+  tabs: [],
+  activeTabId: null,
 };
 
 const listeners = new Set<() => void>();
