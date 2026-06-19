@@ -104,6 +104,26 @@ pub fn get_settings(
     })
 }
 
+#[tauri::command]
+pub fn get_ai_settings(
+    app: tauri::AppHandle,
+    default: String,
+) -> Result<SettingsFile, String> {
+    use tauri::Manager;
+
+    let dir: PathBuf = app.path().app_config_dir().map_err(|error| error.to_string())?;
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    let file = dir.join("ai.json");
+    if !file.exists() {
+        fs::write(&file, &default).map_err(|error| error.to_string())?;
+    }
+    let contents = fs::read_to_string(&file).map_err(|error| error.to_string())?;
+    Ok(SettingsFile {
+        path: file.to_string_lossy().into_owned(),
+        contents,
+    })
+}
+
 pub fn count_words(text: &str) -> usize {
     text.split_whitespace().count()
 }

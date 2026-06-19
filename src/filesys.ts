@@ -71,3 +71,9 @@ export function getSettingsFile(
 ): Promise<RawSettingsFile> {
   return invoke<RawSettingsFile>("get_settings", { default: defaultJson });
 }
+
+export function getAISettingsFile(
+  defaultJson: string,
+): Promise<RawSettingsFile> {
+  return invoke<RawSettingsFile>("get_ai_settings", { default: defaultJson });
+}
