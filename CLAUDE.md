@@ -40,4 +40,37 @@ and never paste from it. Do not add Kaelio as a submodule or copy its files in.
 
 ## Commands
 
-_TBD — added when the Tauri/Vite project is scaffolded (M1)._
+- `npm install` — install JS deps (run `npm approve-scripts esbuild fsevents`
+  once after install; their native postinstalls are gated by the script allowlist)
+- `npm run tauri dev` — run the desktop app in dev (hot reload)
+- `npm run tauri build` — build a release bundle
+- `npm run test` — run Vitest unit tests (pure functions only)
+- `npm run build` — type-check + Vite production build (no native shell)
+- `cd src-tauri && cargo test` — run Rust unit tests
+- `cd src-tauri && cargo check` — fast compile-check the backend
+
+## Architecture
+
+Tauri 2 + Rust native shell; plain-TypeScript frontend (no framework) wired by a
+thin `main.ts`. One responsibility per file.
+
+```
+src/
+  main.ts      thin bootstrap + wiring + hotkeys + 300ms preview debounce
+  editor.ts    CodeMirror 6 (md highlight, soft-wrap) — createEditor()
+  preview.ts   markdown-it render pipeline (pure) — renderMarkdown()
+  views.ts     view-mode switching + zoom — applyViewMode(), applyZoom()
+  files.ts     IPC open/save + native dialogs — openFile(), saveFile()
+  state.ts     persisted UI state (localStorage) — loadState(), saveState()
+  styles.css   fresh refined dark theme (CSS variables)
+src-tauri/src/
+  lib.rs       Tauri builder: command registry + plugins (dialog, updater)
+  files.rs     read_file, save_file, get_initial_file, word_count commands
+```
+
+Data flow: edit → 300ms debounce → `renderMarkdown` → preview pane + word count.
+`Cmd+S` → `saveFile` → IPC `save_file`. `Cmd+O` → dialog → IPC `read_file` → editor.
+View mode + zoom persist to `localStorage` (`mdflow.ui`).
+
+Updater plugin is installed but **dormant** in M1 — M2 adds the signed release feed
+(`latest.json` + pubkey) and the in-app update prompt.
