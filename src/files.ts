@@ -3,11 +3,16 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 
 export type OpenResult = { path: string; contents: string } | null;
 
-const FILTERS = [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }];
+const FILTERS = [
+  { name: "Documents", extensions: ["md", "markdown", "txt", "pdf"] },
+];
 
 export async function openFile(): Promise<OpenResult> {
   const path = await open({ multiple: false, filters: FILTERS });
   if (typeof path !== "string") return null;
+  if (path.toLowerCase().endsWith(".pdf")) {
+    return { path, contents: "" };
+  }
   const contents = await invoke<string>("read_file", { path });
   return { path, contents };
 }

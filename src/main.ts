@@ -20,6 +20,7 @@ import {
 } from "./filesys";
 import { createPalette, type PaletteItem } from "./palette";
 import { joinPath } from "./paths";
+import { renderPdf } from "./pdfview";
 import { initResize } from "./resize";
 import {
   applySettings,
@@ -290,6 +291,10 @@ async function showOpenError(error: unknown): Promise<void> {
 }
 
 async function doOpenPath(path: string): Promise<void> {
+  if (path.toLowerCase().endsWith(".pdf")) {
+    openPdf(path);
+    return;
+  }
   try {
     const contents = await invoke<string>("read_file", { path });
     openInWindow("main", { path, name: basename(path), text: contents });
@@ -302,6 +307,10 @@ async function doOpen(): Promise<void> {
   try {
     const result = await openFile();
     if (result) {
+      if (result.path.toLowerCase().endsWith(".pdf")) {
+        openPdf(result.path);
+        return;
+      }
       openInWindow(getState().activeWindowId, {
         path: result.path,
         name: basename(result.path),
@@ -311,6 +320,19 @@ async function doOpen(): Promise<void> {
   } catch (error) {
     await showOpenError(error);
   }
+}
+
+function openPdf(path: string): void {
+  const windowId = getState().activeWindowId;
+  const pane = document.querySelector<HTMLElement>(
+    `.window[data-window-id="${windowId}"] .pane-preview`,
+  );
+  setMode(windowId, "preview");
+  if (!pane) return;
+  void renderPdf(pane, path).catch((error) => {
+    pane.textContent =
+      error instanceof Error ? error.message : String(error);
+  });
 }
 
 function newDoc(): void {

@@ -3,7 +3,6 @@ import { streamChat } from "./client";
 import { buildMessages } from "./conversation";
 import { lineDiff } from "./diff";
 import type { ChatMessage } from "./providers";
-import { createTerminalView } from "./terminal";
 
 export type AIPanelDeps = {
   getSettings: () => AISettings;
@@ -26,7 +25,11 @@ export function createAIPanel(
   const history: ChatMessage[] = [];
   let activeTab: "chat" | "terminal" = "chat";
   let editMode = false;
-  let terminalView: ReturnType<typeof createTerminalView> | null = null;
+  let renderVersion = 0;
+  let terminalView: {
+    resize: () => void;
+    destroy: () => void;
+  } | null = null;
 
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -217,7 +220,7 @@ export function createAIPanel(
     });
   }
 
-  function renderTerminal(): void {
+  async function renderTerminal(version: number): Promise<void> {
     terminalView?.destroy();
     terminalView = null;
     const settings = deps.getSettings();
@@ -228,6 +231,8 @@ export function createAIPanel(
     body.innerHTML = '<div class="ai-terminal-host"></div>';
     const host = body.querySelector<HTMLElement>(".ai-terminal-host")!;
     if (entry) {
+      const { createTerminalView } = await import("./terminal");
+      if (activeTab !== "terminal" || version !== renderVersion) return;
       terminalView = createTerminalView(host, entry.run);
     } else {
       host.textContent =
@@ -236,8 +241,9 @@ export function createAIPanel(
   }
 
   function render(): void {
+    renderVersion += 1;
     if (activeTab === "chat") renderChat();
-    else renderTerminal();
+    else void renderTerminal(renderVersion);
   }
 
   render();
