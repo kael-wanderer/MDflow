@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 
 // @ts-expect-error process is a nodejs global
@@ -5,6 +6,12 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
+
+  test: {
+    environment: "node",
+    setupFiles: ["src/__tests__/setup.ts"],
+    include: ["src/__tests__/**/*.test.ts"],
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
