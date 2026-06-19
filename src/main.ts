@@ -3,9 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
+import {
+  DEFAULT_AI_SETTINGS_JSON,
+} from "./ai/aisettings";
+import { showContextMenu } from "./contextmenu";
 import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
 import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
 import {
+  getAISettingsFile,
   getSettingsFile,
   listFilesRecursive,
   pickFolder,
@@ -31,6 +36,7 @@ const startupUi = loadState();
 let ui = { ...startupUi };
 let currentSettings = parseSettings("{}");
 let settingsPath = "";
+let aiSettingsPath = "";
 let fileList: string[] = [];
 let indexedFolder: string | null = null;
 let tabSeq = 0;
@@ -53,6 +59,15 @@ async function loadSettings(): Promise<void> {
   applySettings(currentSettings);
 }
 
+async function loadAISettings(): Promise<void> {
+  try {
+    const file = await getAISettingsFile(DEFAULT_AI_SETTINGS_JSON);
+    aiSettingsPath = file.path;
+  } catch {
+    aiSettingsPath = "";
+  }
+}
+
 async function refreshFileList(): Promise<void> {
   const folder = getState().folder;
   fileList = folder ? await listFilesRecursive(folder).catch(() => []) : [];
@@ -60,6 +75,10 @@ async function refreshFileList(): Promise<void> {
 
 function openSettings(): void {
   if (settingsPath) void doOpenPath(settingsPath);
+}
+
+function openAISettings(): void {
+  if (aiSettingsPath) void doOpenPath(aiSettingsPath);
 }
 
 function commandItems(): PaletteItem[] {
@@ -319,6 +338,9 @@ async function doSave(saveAs = false): Promise<void> {
       applySettings(currentSettings);
       requestWindowMeasure();
     }
+    if (target === aiSettingsPath) {
+      await loadAISettings();
+    }
     patchWindow(getState().activeWindowId, {
       tabs: activeWindow().tabs.map((x) =>
         x.id === t.id ? { ...x, path: target, name: basename(target), dirty: false } : x
@@ -475,7 +497,12 @@ document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
 initActivityBar(
   requestWindowMeasure,
   () => palette.open(),
-  openSettings,
+  (x, y) => {
+    showContextMenu(x, y, [
+      { label: "Editor Settings", action: openSettings },
+      { label: "AI Settings", action: openAISettings },
+    ]);
+  },
 );
 initResize((explorerWidth) => setState({ explorerWidth }));
 initExplorer((path) => void doOpenPath(path), handleExplorerPathChange);
@@ -615,6 +642,7 @@ async function restoreWindows(): Promise<void> {
 
 async function boot(): Promise<void> {
   await loadSettings();
+  await loadAISettings();
 
   if (currentSettings.restoreSession) {
     if (startupUi.folder) {
