@@ -24,11 +24,11 @@ import {
 } from "./treeops";
 
 const ICON: Record<string, string> = {
-  md: "M",
+  md: "MD",
   txt: "T",
   json: "{}",
   html: "<>",
-  pdf: "P",
+  pdf: "PDF",
   file: "·",
 };
 
@@ -298,7 +298,11 @@ function createRow(node: TreeNode, depth: number): HTMLElement {
   name.className = "tree-name";
   name.textContent = node.name;
 
-  row.append(caret, icon, name);
+  if (node.isDir) {
+    row.append(caret, name);
+  } else {
+    row.append(caret, icon, name);
+  }
   row.addEventListener("click", (event) => {
     if ((event.target as HTMLElement).closest(".tree-input")) return;
     void handleRowClick(node);
