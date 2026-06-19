@@ -40,6 +40,27 @@ pub fn count_words(text: &str) -> usize {
     text.split_whitespace().count()
 }
 
+pub fn create_file_at(path: &str) -> Result<(), String> {
+    if Path::new(path).exists() {
+        return Err("A file or folder with that name already exists.".into());
+    }
+    fs::write(path, "").map_err(|error| error.to_string())
+}
+
+pub fn create_dir_at(path: &str) -> Result<(), String> {
+    if Path::new(path).exists() {
+        return Err("A file or folder with that name already exists.".into());
+    }
+    fs::create_dir(path).map_err(|error| error.to_string())
+}
+
+pub fn rename_at(from: &str, to: &str) -> Result<(), String> {
+    if Path::new(to).exists() {
+        return Err("A file or folder with that name already exists.".into());
+    }
+    fs::rename(from, to).map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -58,6 +79,26 @@ pub fn get_initial_file() -> Option<String> {
 #[tauri::command]
 pub fn word_count(text: String) -> usize {
     count_words(&text)
+}
+
+#[tauri::command]
+pub fn create_file(path: String) -> Result<(), String> {
+    create_file_at(&path)
+}
+
+#[tauri::command]
+pub fn create_dir(path: String) -> Result<(), String> {
+    create_dir_at(&path)
+}
+
+#[tauri::command]
+pub fn rename_path(from: String, to: String) -> Result<(), String> {
+    rename_at(&from, &to)
+}
+
+#[tauri::command]
+pub fn delete_to_trash(path: String) -> Result<(), String> {
+    trash::delete(&path).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
@@ -102,6 +143,36 @@ mod list_dir_tests {
                 ("b.md".into(), false),
             ]
         );
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
+#[cfg(test)]
+mod crud_tests {
+    use super::{create_dir_at, create_file_at, rename_at};
+    use std::fs;
+
+    #[test]
+    fn create_and_rename_reject_existing() {
+        let tmp = std::env::temp_dir().join("mdflow_crud_test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let file = tmp.join("a.md");
+        let file_str = file.to_str().unwrap();
+
+        create_file_at(file_str).unwrap();
+        assert!(file.exists());
+        assert!(create_file_at(file_str).is_err());
+
+        let directory = tmp.join("sub");
+        create_dir_at(directory.to_str().unwrap()).unwrap();
+        assert!(directory.is_dir());
+
+        let renamed = tmp.join("b.md");
+        rename_at(file_str, renamed.to_str().unwrap()).unwrap();
+        assert!(renamed.exists() && !file.exists());
+        assert!(rename_at(renamed.to_str().unwrap(), directory.to_str().unwrap()).is_err());
+
         let _ = fs::remove_dir_all(&tmp);
     }
 }
