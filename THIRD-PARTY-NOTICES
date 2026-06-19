@@ -1,0 +1,29 @@
+MDflow bundles the following third-party libraries. Each is distributed under
+its own permissive license, reproduced or referenced below.
+
+================================================================================
+Tauri (tauri, tauri-plugin-dialog, tauri-plugin-updater, tauri-plugin-opener)
+  License: MIT OR Apache-2.0
+  https://github.com/tauri-apps/tauri
+================================================================================
+CodeMirror 6
+  (codemirror, @codemirror/state, @codemirror/view, @codemirror/commands,
+   @codemirror/lang-markdown, @codemirror/language-data)
+  License: MIT
+  https://github.com/codemirror/dev
+================================================================================
+markdown-it
+  License: MIT
+  https://github.com/markdown-it/markdown-it
+================================================================================
+highlight.js
+  License: BSD-3-Clause
+  https://github.com/highlightjs/highlight.js
+================================================================================
+Vite
+  License: MIT
+  https://github.com/vitejs/vite
+================================================================================
+
+Full license texts are available in each package's distribution under
+node_modules/<package>/ and in the respective Cargo crate sources.

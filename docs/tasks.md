@@ -28,10 +28,22 @@ Requirements for the plan:
 
 ## Code Tasks
 
-[ ] Write M1 implementation plan (writing-plans)  ← current position
-[ ] Scaffold Tauri 2 + Vite + TS project (MIT LICENSE, THIRD-PARTY-NOTICES)
-[ ] Static UI shell mockup → user approval
-[ ] (rest of M1 tasks come from the plan)
+Plan: `docs/superpowers/plans/2026-06-19-m1-lean-core.md`
+
+[x] Write M1 implementation plan (writing-plans)
+[~] Task 1 — Scaffold Tauri 2 + Vite + TS (MIT, THIRD-PARTY-NOTICES)  ← current position
+[ ] Task 2 — Full CLAUDE.md + README
+[ ] Task 3 — Static UI shell mockup → USER APPROVAL GATE
+[ ] Task 4 — state.ts (persisted UI state, TDD)
+[ ] Task 5 — preview.ts (markdown-it render, TDD)
+[ ] Task 6 — files.rs (Rust file IO + word_count, TDD)
+[ ] Task 7 — editor.ts (CodeMirror 6)
+[ ] Task 8 — files.ts (IPC open/save + dialogs)
+[ ] Task 9 — views.ts (view-mode switching + zoom)
+[ ] Task 10 — main.ts (wiring, hotkeys, debounce)
+[ ] Task 11 — style pass on live app
+[ ] Task 12 — updater plugin (dormant)
+[ ] Task 13 — M1 manual smoke test
 
 ## Documentation Tasks
 
