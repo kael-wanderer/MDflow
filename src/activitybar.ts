@@ -5,6 +5,7 @@ export function initActivityBar(
   onLayoutChange: () => void = () => {},
   onSearch: () => void = () => {},
   onSettings: (x: number, y: number) => void = () => {},
+  onAI: () => void = () => {},
 ): void {
   const explorerButton = document.getElementById("ab-explorer")!;
   explorerButton.innerHTML = glyphs.explorer;
@@ -12,6 +13,10 @@ export function initActivityBar(
   const searchButton = document.getElementById("ab-search")!;
   searchButton.innerHTML = glyphs.search;
   searchButton.addEventListener("click", onSearch);
+
+  const aiButton = document.getElementById("ab-ai")!;
+  aiButton.innerHTML = glyphs.ai;
+  aiButton.addEventListener("click", onAI);
 
   const settingsButton = document.getElementById("ab-settings")!;
   settingsButton.innerHTML = glyphs.gear;

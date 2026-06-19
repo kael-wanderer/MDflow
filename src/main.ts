@@ -5,7 +5,10 @@ import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
 import {
   DEFAULT_AI_SETTINGS_JSON,
+  parseAISettings,
+  type AISettings,
 } from "./ai/aisettings";
+import { createAIPanel, type AIPanel } from "./ai/panel";
 import { showContextMenu } from "./contextmenu";
 import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
 import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
@@ -37,6 +40,8 @@ let ui = { ...startupUi };
 let currentSettings = parseSettings("{}");
 let settingsPath = "";
 let aiSettingsPath = "";
+let currentAISettings: AISettings = parseAISettings("{}");
+let aiPanel: AIPanel | null = null;
 let fileList: string[] = [];
 let indexedFolder: string | null = null;
 let tabSeq = 0;
@@ -63,8 +68,11 @@ async function loadAISettings(): Promise<void> {
   try {
     const file = await getAISettingsFile(DEFAULT_AI_SETTINGS_JSON);
     aiSettingsPath = file.path;
+    currentAISettings = parseAISettings(file.contents);
+    aiPanel?.render();
   } catch {
     aiSettingsPath = "";
+    currentAISettings = parseAISettings("{}");
   }
 }
 
@@ -339,7 +347,8 @@ async function doSave(saveAs = false): Promise<void> {
       requestWindowMeasure();
     }
     if (target === aiSettingsPath) {
-      await loadAISettings();
+      currentAISettings = parseAISettings(text);
+      aiPanel?.render();
     }
     patchWindow(getState().activeWindowId, {
       tabs: activeWindow().tabs.map((x) =>
@@ -471,6 +480,53 @@ function removeSplitter(): void {
   windowsHost.querySelectorAll<HTMLElement>(".window").forEach((el) => (el.style.flex = ""));
 }
 
+const aiPanelElement = document.getElementById("ai-panel")!;
+
+function buildAIPanel(): void {
+  aiPanel = createAIPanel(aiPanelElement, {
+    getSettings: () => currentAISettings,
+    getDoc: () => {
+      const view = activeView();
+      const tab = activeMeta();
+      const selection = view.editor.getSelection();
+      return {
+        text: tab ? view.editor.getText(tab.id) : "",
+        selection: selection.text,
+      };
+    },
+    onApply: (newText) => {
+      const editor = activeView().editor;
+      const selection = editor.getSelection();
+      if (selection.text) {
+        editor.replaceRange(selection.from, selection.to, newText);
+      } else {
+        editor.setText(newText);
+      }
+    },
+    onInsert: (text) => {
+      const editor = activeView().editor;
+      const selection = editor.getSelection();
+      editor.replaceRange(selection.from, selection.to, text);
+    },
+  });
+}
+
+function applyAIVisibility(): void {
+  document.body.classList.toggle("ai-hidden", !ui.aiVisible);
+  const button = document.getElementById("ab-ai")!;
+  button.classList.toggle("active", ui.aiVisible);
+  button.setAttribute("aria-pressed", String(ui.aiVisible));
+}
+
+function toggleAI(): void {
+  ui = { ...ui, aiVisible: !ui.aiVisible };
+  applyAIVisibility();
+  if (ui.aiVisible && !aiPanel) buildAIPanel();
+  saveState(ui);
+  requestWindowMeasure();
+  requestAnimationFrame(() => aiPanel?.resize());
+}
+
 async function openInSub(path: string): Promise<void> {
   if (getState().windows.length < 2) await toggleSub();
   // move if already open in main
@@ -493,6 +549,8 @@ setState({
 });
 document.documentElement.style.setProperty("--explorer-w", `${ui.explorerWidth}px`);
 document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
+document.documentElement.style.setProperty("--ai-w", `${ui.aiWidth}px`);
+applyAIVisibility();
 
 initActivityBar(
   requestWindowMeasure,
@@ -503,11 +561,40 @@ initActivityBar(
       { label: "AI Settings", action: openAISettings },
     ]);
   },
+  toggleAI,
 );
 initResize((explorerWidth) => setState({ explorerWidth }));
+const aiResize = document.getElementById("ai-resize")!;
+aiResize.addEventListener("mousedown", (event) => {
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = ui.aiWidth;
+  document.body.classList.add("resizing-ai");
+  const onMove = (moveEvent: MouseEvent): void => {
+    const width = Math.max(
+      240,
+      Math.min(560, startWidth + startX - moveEvent.clientX),
+    );
+    ui = { ...ui, aiWidth: width };
+    document.documentElement.style.setProperty("--ai-w", `${width}px`);
+    requestWindowMeasure();
+    aiPanel?.resize();
+  };
+  const onUp = (): void => {
+    document.body.classList.remove("resizing-ai");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    saveState(ui);
+    requestWindowMeasure();
+    aiPanel?.resize();
+  };
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+});
 initExplorer((path) => void doOpenPath(path), handleExplorerPathChange);
 
 makeView("main", true);
+if (ui.aiVisible) buildAIPanel();
 patchWindow("main", { mode: ui.viewMode });
 for (const v of views.values()) {
   v.editor.setSoftWrap(ui.softWrap);

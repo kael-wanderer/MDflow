@@ -6,6 +6,8 @@ export type UIState = {
   folder: string | null;
   explorerVisible: boolean;
   explorerWidth: number;
+  aiVisible: boolean;
+  aiWidth: number;
   windows: { openPaths: string[]; activePath: string | null; mode: ViewMode }[];
   activeWindowIndex: number;
   lineNumbers: boolean;
@@ -19,6 +21,8 @@ const DEFAULTS: UIState = {
   folder: null,
   explorerVisible: true,
   explorerWidth: 240,
+  aiVisible: false,
+  aiWidth: 320,
   windows: [{ openPaths: [], activePath: null, mode: "split" }],
   activeWindowIndex: 0,
   lineNumbers: true,
