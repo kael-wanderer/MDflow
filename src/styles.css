@@ -524,6 +524,19 @@ body.no-folder .explorer-empty {
   text-overflow: ellipsis;
 }
 
+.tree-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 13px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  outline: none;
+}
+
 .resize-handle {
   position: relative;
   width: 4px;
