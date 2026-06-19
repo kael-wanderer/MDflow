@@ -1,17 +1,16 @@
-# MDflow M1 — Review & Smoke Test
+# MDflow - Review & Smoke Test
 
-Date: 2026-06-19 · Branch: `m1-lean-core`
+Date: 2026-06-19
 
-## Automated (verified)
+## M1 automated checks
 
-- `npm run test` → **9 passed** (state persistence ×4, render pipeline ×5).
-- `cd src-tauri && cargo test` → **1 passed** (`count_words`).
+- `npm run test` → **15 passed** across preview, state, tree operations, and icons.
+- `cd src-tauri && cargo test` → **2 passed** (`count_words`, `list_dir`).
 - `npm run build` (tsc + vite) → clean.
 - `cargo check` → clean.
-- `npm run tauri dev` → app compiles and launches with **no panic** (caught and
-  fixed a dormant-updater startup panic during this pass).
+- `npm run tauri dev` → app compiles and launches with no panic.
 
-## Manual GUI checklist (verify in the running window)
+## M1 manual GUI checklist
 
 The app is launched via `npm run tauri dev`. Run through:
 
@@ -29,6 +28,32 @@ The app is launched via `npm run tauri dev`. Run through:
 - [ ] Preview does not execute raw HTML (e.g. a `<script>` in the markdown does nothing).
 - [ ] Help ▸ MDflow Help opens the bundled HELP.md in the editor + preview.
 - [ ] MDflow ▸ About shows the app name **and version** (0.1.0).
+
+## Shell Phase 1 checks
+
+### Verified
+
+- [x] Activity bar and explorer render beside the existing editor and preview.
+- [x] Explorer empty state renders when no folder is selected.
+- [x] Explorer button toggles the panel and its pressed state.
+- [x] Explorer width drags from 240px to 312px and restores after reload.
+- [x] Production build, frontend tests, Rust tests, and `cargo check` pass.
+- [x] Native Tauri development build compiles and launches.
+
+### Native GUI checklist
+
+The remaining checks require interaction with the native folder dialog and desktop
+window:
+
+- [ ] Open Folder loads a tree with directories first and case-insensitive sorting.
+- [ ] Expanding a folder lazy-loads one level; collapsing and re-expanding uses the
+  cached children.
+- [ ] Markdown, text, JSON, HTML, PDF, folder, and generic file icons render.
+- [ ] Clicking a text file replaces the current document and updates preview, path,
+  and word count.
+- [ ] Existing M1 commands still work after opening from Explorer: save, Split,
+  Editor, Read, and Soft Wrap.
+- [ ] Quit and relaunch restores folder, Explorer visibility, and Explorer width.
 
 ## Notes
 

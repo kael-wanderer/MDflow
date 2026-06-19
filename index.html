@@ -9,11 +9,53 @@
 
   <body class="view-split">
     <div id="app">
-      <main class="panes">
-        <section class="pane pane-editor" id="editor"></section>
-        <div class="seam" aria-hidden="true"></div>
-        <section class="pane pane-preview" id="preview"></section>
-      </main>
+      <div class="workbench">
+        <nav id="activitybar" aria-label="Primary">
+          <button
+            class="ab-btn ab-explorer active"
+            id="ab-explorer"
+            title="Explorer"
+            type="button"
+            aria-label="Toggle Explorer"
+            aria-pressed="true"
+          >
+            ▤
+          </button>
+          <button
+            class="ab-btn ab-settings"
+            id="ab-settings"
+            title="Settings"
+            type="button"
+            aria-label="Settings"
+          >
+            ⚙
+          </button>
+        </nav>
+
+        <aside id="explorer" aria-label="Explorer">
+          <header class="explorer-header">
+            <span id="explorer-folder-name">No folder</span>
+            <button id="explorer-open" class="explorer-action" title="Open Folder" type="button">
+              Open
+            </button>
+          </header>
+          <div id="explorer-tree" class="explorer-tree" role="tree"></div>
+          <div id="explorer-empty" class="explorer-empty">
+            <p>Open a folder to browse its files.</p>
+            <button id="explorer-empty-open" type="button">Open Folder</button>
+          </div>
+        </aside>
+
+        <div id="explorer-resize" class="resize-handle" aria-hidden="true"></div>
+
+        <section id="editorarea">
+          <main class="panes">
+            <section class="pane pane-editor" id="editor"></section>
+            <div class="seam" aria-hidden="true"></div>
+            <section class="pane pane-preview" id="preview"></section>
+          </main>
+        </section>
+      </div>
 
       <footer class="statusbar">
         <span id="status-path" class="status-path">Untitled</span>

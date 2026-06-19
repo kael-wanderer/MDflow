@@ -6,6 +6,10 @@ import { renderMarkdown } from "./preview";
 import { openFile, saveFile, getInitialFile } from "./files";
 import { applyViewMode, applyZoom } from "./views";
 import { loadState, saveState, type ViewMode } from "./state";
+import { initActivityBar } from "./activitybar";
+import { initExplorer, openFolder } from "./explorer";
+import { initResize } from "./resize";
+import { getState, setState, subscribe } from "./store";
 import helpDoc from "../HELP.md?raw";
 
 const editorEl = document.getElementById("editor")!;
@@ -21,6 +25,30 @@ let currentPath: string | null = null;
 let ui = loadState();
 
 const editor = createEditor(editorEl, schedulePreview);
+
+// Restore the shell before mounting its render modules.
+setState({
+  folder: ui.folder,
+  explorerVisible: ui.explorerVisible,
+  explorerWidth: ui.explorerWidth,
+});
+document.documentElement.style.setProperty("--explorer-w", `${ui.explorerWidth}px`);
+document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
+
+initActivityBar();
+initResize((explorerWidth) => setState({ explorerWidth }));
+initExplorer((path) => void doOpenPath(path));
+
+subscribe(() => {
+  const shell = getState();
+  ui = {
+    ...ui,
+    folder: shell.folder,
+    explorerVisible: shell.explorerVisible,
+    explorerWidth: shell.explorerWidth,
+  };
+  saveState(ui);
+});
 
 let timer: number | undefined;
 function schedulePreview(doc: string): void {
@@ -60,6 +88,13 @@ async function doOpen(): Promise<void> {
   updatePreview(r.contents);
 }
 
+async function doOpenPath(path: string): Promise<void> {
+  const contents = await invoke<string>("read_file", { path });
+  editor.setDoc(contents);
+  setPath(path);
+  updatePreview(contents);
+}
+
 async function doSave(saveAs = false): Promise<void> {
   const written = await saveFile(saveAs ? null : currentPath, editor.getDoc());
   if (written) setPath(written);
@@ -97,6 +132,12 @@ applyViewMode(ui.viewMode);
 applyZoom(ui.zoom);
 editor.setSoftWrap(ui.softWrap);
 invoke("set_soft_wrap", { on: ui.softWrap });
+
+if (ui.folder) {
+  openFolder(ui.folder).catch(() => {
+    setState({ folder: null, tree: null });
+  });
+}
 
 getInitialFile().then((r) => {
   if (!r) return;

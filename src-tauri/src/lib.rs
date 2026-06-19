@@ -37,6 +37,7 @@ pub fn run() {
             files::save_file,
             files::get_initial_file,
             files::word_count,
+            files::list_dir,
             set_soft_wrap,
         ])
         .run(tauri::generate_context!())
