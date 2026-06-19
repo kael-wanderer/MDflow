@@ -12,8 +12,8 @@ describe("state", () => {
       folder: null,
       explorerVisible: true,
       explorerWidth: 240,
-      openPaths: [],
-      activePath: null,
+      windows: [{ openPaths: [], activePath: null, mode: "split" }],
+      activeWindowIndex: 0,
       lineNumbers: true,
     });
   });
@@ -26,8 +26,11 @@ describe("state", () => {
       folder: "/notes",
       explorerVisible: false,
       explorerWidth: 312,
-      openPaths: ["/notes/a.md", "/notes/b.md"],
-      activePath: "/notes/b.md",
+      windows: [
+        { openPaths: ["/notes/a.md"], activePath: "/notes/a.md", mode: "editor" as const },
+        { openPaths: ["/notes/b.md"], activePath: "/notes/b.md", mode: "preview" as const },
+      ],
+      activeWindowIndex: 1,
       lineNumbers: false,
     };
     saveState(state);
@@ -43,8 +46,8 @@ describe("state", () => {
       folder: null,
       explorerVisible: true,
       explorerWidth: 240,
-      openPaths: [],
-      activePath: null,
+      windows: [{ openPaths: [], activePath: null, mode: "split" }],
+      activeWindowIndex: 0,
       lineNumbers: true,
     });
   });
@@ -58,8 +61,8 @@ describe("state", () => {
       folder: null,
       explorerVisible: true,
       explorerWidth: 240,
-      openPaths: [],
-      activePath: null,
+      windows: [{ openPaths: [], activePath: null, mode: "split" }],
+      activeWindowIndex: 0,
       lineNumbers: true,
     });
   });

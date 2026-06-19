@@ -395,19 +395,18 @@ for (const v of views.values()) {
 renderAll();
 
 subscribe(() => {
-  const shell = getState();
-  const main = shell.windows[0]; // always present
-  const openPaths = main.tabs
-    .map((tab) => tab.path)
-    .filter((path): path is string => path !== null);
-  const current = main.tabs.find((tab) => tab.id === main.activeTabId);
+  const s = getState();
   ui = {
     ...ui,
-    folder: shell.folder,
-    explorerVisible: shell.explorerVisible,
-    explorerWidth: shell.explorerWidth,
-    openPaths,
-    activePath: current?.path ?? null,
+    folder: s.folder,
+    explorerVisible: s.explorerVisible,
+    explorerWidth: s.explorerWidth,
+    windows: s.windows.map((w) => ({
+      openPaths: w.tabs.map((t) => t.path).filter((p): p is string => !!p),
+      activePath: w.tabs.find((t) => t.id === w.activeTabId)?.path ?? null,
+      mode: w.mode,
+    })),
+    activeWindowIndex: s.windows.findIndex((w) => w.id === s.activeWindowId),
   };
   saveState(ui);
 });
@@ -465,33 +464,42 @@ if (ui.folder) {
   });
 }
 
-async function restoreTabs(): Promise<void> {
-  const paths = [...ui.openPaths];
-  const savedActivePath = ui.activePath;
-
-  for (const path of paths) {
-    try {
-      const contents = await invoke<string>("read_file", { path });
-      openInWindow("main", { path, name: basename(path), text: contents });
-    } catch {
-      // A session file may have moved or been deleted while the app was closed.
+async function restoreWindows(): Promise<void> {
+  const saved = ui.windows;
+  if (saved[1]) {
+    setState({ windows: [...getState().windows, { id: "sub", tabs: [], activeTabId: null, mode: saved[1].mode }] });
+    addSplitter();
+    makeView("sub", false);
+  }
+  patchWindow("main", { mode: saved[0]?.mode ?? "split" });
+  for (let i = 0; i < saved.length; i++) {
+    const windowId = i === 0 ? "main" : "sub";
+    for (const path of saved[i].openPaths) {
+      try {
+        const contents = await invoke<string>("read_file", { path });
+        openInWindow(windowId, { path, name: basename(path), text: contents });
+      } catch {
+        /* vanished */
+      }
+    }
+    if (saved[i].activePath) {
+      const found = findTabByPath(getState().windows, saved[i].activePath!);
+      if (found && found.windowId === windowId) {
+        activateTab(windowId, found.tab.id);
+      }
     }
   }
-
-  if (savedActivePath) {
-    const found = findTabByPath(getState().windows, savedActivePath);
-    if (found && found.windowId === "main") {
-      activateTab("main", found.tab.id);
-    }
+  const ai = ui.activeWindowIndex === 1 ? "sub" : "main";
+  if (getWindow(ai)) {
+    setState({ activeWindowId: ai });
   }
-}
 
-async function restoreDocuments(): Promise<void> {
-  await restoreTabs();
   const result = await getInitialFile();
   if (result) {
-    openInWindow("main", { path: result.path, name: basename(result.path), text: result.contents });
+    openInWindow(getState().activeWindowId, { path: result.path, name: basename(result.path), text: result.contents });
   }
+
+  renderAll();
 }
 
-void restoreDocuments();
+void restoreWindows();
