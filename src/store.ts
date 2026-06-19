@@ -1,4 +1,5 @@
-import type { TreeNode } from "./treeops";
+import { listDir } from "./filesys";
+import { findNode, setChildren, type TreeNode } from "./treeops";
 
 export type ShellState = {
   folder: string | null;
@@ -30,4 +31,28 @@ export function subscribe(listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+export async function refreshDir(dirPath: string): Promise<void> {
+  const tree = state.tree;
+  if (!tree) return;
+
+  const isRoot = tree.path === dirPath;
+  if (!isRoot && findNode(tree, dirPath) === null) return;
+
+  const entries = await listDir(dirPath);
+  const children: TreeNode[] = entries.map((entry) => {
+    const existing = findNode(tree, entry.path);
+    if (existing && existing.isDir === entry.isDir) {
+      return { ...existing, name: entry.name, path: entry.path };
+    }
+    return {
+      name: entry.name,
+      path: entry.path,
+      isDir: entry.isDir,
+      expanded: false,
+      children: null,
+    };
+  });
+  setState({ tree: setChildren(tree, dirPath, children) });
 }

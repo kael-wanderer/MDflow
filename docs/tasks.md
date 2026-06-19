@@ -11,14 +11,15 @@
 - M1 lean core is implemented.
 - Shell Phase 1 is implemented: activity bar, collapsible/resizable Explorer, lazy
   directory tree, file-type icons, click-to-open, and shell session persistence.
-- Shell Phases 2-4 remain: Explorer CRUD, tabs, then the Sub window and per-window
-  view modes.
+- Shell Phase 2 is implemented: inline create/rename, Trash-backed delete, duplicate,
+  Copy Path, Reveal in Finder, context menus, and refresh-on-focus.
+- Shell Phases 3-4 remain: tabs, then the Sub window and per-window view modes.
 - M2 auto-update follows the shell sub-project.
 
 ## Next step (the immediate task)
 
-Run the Shell Phase 1 native GUI checklist in `docs/review.md`, then write and execute
-the Phase 2 Explorer file-management plan.
+Run the Shell Phase 2 native GUI checklist in `docs/review.md`, then have Claude Code
+write the Phase 3 tabs implementation plan for Codex to execute.
 
 ## Code Tasks
 
@@ -60,15 +61,29 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 [x] Automated tests, production build, Rust tests, and compile-check
 [x] Native GUI smoke checklist in `docs/review.md` (user quick-verified — works)
 
+### Phase 2 - Explorer file management
+
+[x] Native create/rename/delete-to-Trash/duplicate commands
+[x] Opener and clipboard plugins with capabilities
+[x] Separator-aware path helpers with tests
+[x] Context menus for rows and Explorer root
+[x] Inline New File, New Folder, and Rename
+[x] Duplicate, Copy Path, Reveal in Finder, and confirmed Trash deletion
+[x] Refresh after actions and on window focus
+[x] Preserve expanded folder state during refresh
+[x] Keep the current editor save path safe across rename/delete
+[x] Automated tests, production build, Rust checks, and native launch
+[~] Native GUI smoke checklist in `docs/review.md`
+
 ### Remaining phases
 
-[~] Phase 2 - Explorer file management  ← plan being written
 [ ] Phase 3 - Tabs
 [ ] Phase 4 - Sub window and per-window view modes
 
 ### Workflow
 
-Claude leads design/process + verification; Codex implements plan tasks (Gemini fallback).
+Claude Code leads design and planning. Codex implements the checked-in plans and
+raises material questions, ideas, and concerns during execution.
 
 ## Documentation Tasks
 
@@ -81,3 +96,4 @@ Claude leads design/process + verification; Codex implements plan tasks (Gemini 
 
 [~] M1 manual smoke test (checklist in `docs/review.md`)
 [x] Shell Phase 1 native GUI smoke test (user quick-verified — works)
+[~] Shell Phase 2 native GUI smoke test (checklist in `docs/review.md`)

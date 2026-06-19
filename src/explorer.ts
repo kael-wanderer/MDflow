@@ -1,7 +1,20 @@
+import { confirm, message } from "@tauri-apps/plugin-dialog";
+import { showContextMenu, type MenuItem } from "./contextmenu";
 import { fileIcon } from "./icons";
-import { listDir, pickFolder } from "./filesys";
-import { getState, setState, subscribe } from "./store";
-import { setChildren, toggleExpanded, type TreeNode } from "./treeops";
+import {
+  copyPath,
+  createDir,
+  createFile,
+  deletePath,
+  duplicatePath,
+  listDir,
+  pickFolder,
+  renamePath,
+  revealInFinder,
+} from "./filesys";
+import { joinPath, parentPath } from "./paths";
+import { getState, refreshDir, setState, subscribe } from "./store";
+import { findNode, setChildren, toggleExpanded, type TreeNode } from "./treeops";
 
 const ICON: Record<string, string> = {
   folder: "▱",
@@ -15,6 +28,7 @@ const ICON: Record<string, string> = {
 
 let activePath: string | null = null;
 let openFileCallback: (path: string) => void = () => {};
+let pathChangeCallback: (from: string, to: string | null) => void = () => {};
 
 function pathName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
@@ -63,10 +77,196 @@ async function handleRowClick(node: TreeNode): Promise<void> {
   render();
 }
 
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function showError(error: unknown): Promise<void> {
+  await message(errorText(error), { title: "Explorer", kind: "error" });
+}
+
+async function runAction(action: () => Promise<void>): Promise<void> {
+  try {
+    await action();
+  } catch (error) {
+    await showError(error);
+  }
+}
+
+function validateName(name: string): void {
+  if (name === "." || name === ".." || /[\\/]/.test(name) || name.includes("\0")) {
+    throw new Error("Enter a name without path separators.");
+  }
+}
+
+function promptInline(
+  anchor: HTMLElement,
+  initial: string,
+  onCommit: (value: string) => Promise<void>,
+): void {
+  const input = document.createElement("input");
+  input.className = "tree-input";
+  input.value = initial;
+  anchor.replaceChildren(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = async (commit: boolean): Promise<void> => {
+    if (done) return;
+    done = true;
+    const value = input.value.trim();
+    if (commit && value) {
+      try {
+        validateName(value);
+        await onCommit(value);
+      } catch (error) {
+        await showError(error);
+      }
+    }
+    render();
+  };
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void finish(true);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      void finish(false);
+    }
+  });
+  input.addEventListener("blur", () => void finish(true));
+}
+
+async function prepareCreate(parentDir: string, kind: "file" | "dir"): Promise<void> {
+  const currentTree = getState().tree;
+  if (!currentTree) return;
+
+  if (currentTree.path !== parentDir) {
+    const parent = findNode(currentTree, parentDir);
+    if (!parent?.isDir) return;
+
+    if (parent.children === null) {
+      const children = await entriesToNodes(parentDir);
+      const latestTree = getState().tree;
+      if (!latestTree) return;
+      setState({ tree: setChildren(latestTree, parentDir, children) });
+    } else if (!parent.expanded) {
+      setState({ tree: toggleExpanded(currentTree, parentDir) });
+    }
+  }
+
+  const treeElement = document.getElementById("explorer-tree")!;
+  const holder = document.createElement("div");
+  holder.className = "tree-row";
+
+  if (currentTree.path === parentDir) {
+    holder.style.setProperty("--depth", "0");
+    treeElement.prepend(holder);
+  } else {
+    const parentRow = Array.from(
+      treeElement.querySelectorAll<HTMLElement>(".tree-row[data-path]"),
+    ).find((row) => row.dataset.path === parentDir);
+    if (!parentRow) return;
+    const depth = Number.parseInt(parentRow.dataset.depth ?? "0", 10) + 1;
+    holder.style.setProperty("--depth", String(depth));
+    parentRow.after(holder);
+  }
+
+  promptInline(holder, "", async (name) => {
+    const target = joinPath(parentDir, name);
+    if (kind === "file") {
+      await createFile(target);
+    } else {
+      await createDir(target);
+    }
+    await refreshDir(parentDir);
+  });
+}
+
+export function startCreate(parentDir: string, kind: "file" | "dir"): void {
+  void runAction(() => prepareCreate(parentDir, kind));
+}
+
+export function startRename(path: string, currentName: string): void {
+  render();
+  const row = Array.from(document.querySelectorAll<HTMLElement>(".tree-row[data-path]")).find(
+    (candidate) => candidate.dataset.path === path,
+  );
+  const nameCell = row?.querySelector<HTMLElement>(".tree-name");
+  if (!nameCell) return;
+
+  promptInline(nameCell, currentName, async (name) => {
+    const nextPath = joinPath(parentPath(path), name);
+    if (nextPath === path) return;
+    await renamePath(path, nextPath);
+    if (activePath === path) {
+      activePath = nextPath;
+    } else if (activePath?.startsWith(`${path}/`) || activePath?.startsWith(`${path}\\`)) {
+      activePath = `${nextPath}${activePath.slice(path.length)}`;
+    }
+    pathChangeCallback(path, nextPath);
+    await refreshDir(parentPath(path));
+  });
+}
+
+async function deleteNode(path: string, name: string): Promise<void> {
+  const approved = await confirm(`Move "${name}" to the Trash?`, {
+    title: "Delete",
+    kind: "warning",
+  });
+  if (!approved) return;
+
+  await runAction(async () => {
+    await deletePath(path);
+    if (
+      activePath === path ||
+      activePath?.startsWith(`${path}/`) ||
+      activePath?.startsWith(`${path}\\`)
+    ) {
+      activePath = null;
+    }
+    pathChangeCallback(path, null);
+    await refreshDir(parentPath(path));
+  });
+}
+
+function rowMenu(node: TreeNode): MenuItem[] {
+  const directory = node.isDir ? node.path : parentPath(node.path);
+  return [
+    { label: "New File", action: () => startCreate(directory, "file") },
+    { label: "New Folder", action: () => startCreate(directory, "dir") },
+    "separator",
+    { label: "Rename", action: () => startRename(node.path, node.name) },
+    {
+      label: "Duplicate",
+      action: () => {
+        void runAction(async () => {
+          await duplicatePath(node.path);
+          await refreshDir(parentPath(node.path));
+        });
+      },
+    },
+    { label: "Delete", action: () => void deleteNode(node.path, node.name) },
+    "separator",
+    {
+      label: "Copy Path",
+      action: () => void runAction(() => copyPath(node.path)),
+    },
+    {
+      label: "Reveal in Finder",
+      action: () => void runAction(() => revealInFinder(node.path)),
+    },
+  ];
+}
+
 function createRow(node: TreeNode, depth: number): HTMLElement {
   const row = document.createElement("div");
   row.className = `tree-row${node.path === activePath ? " active" : ""}`;
   row.style.setProperty("--depth", String(depth));
+  row.dataset.path = node.path;
+  row.dataset.depth = String(depth);
   row.setAttribute("role", "treeitem");
   if (node.isDir) row.setAttribute("aria-expanded", String(node.expanded));
 
@@ -83,7 +283,14 @@ function createRow(node: TreeNode, depth: number): HTMLElement {
   name.textContent = node.name;
 
   row.append(caret, icon, name);
-  row.addEventListener("click", () => void handleRowClick(node));
+  row.addEventListener("click", (event) => {
+    if ((event.target as HTMLElement).closest(".tree-input")) return;
+    void handleRowClick(node);
+  });
+  row.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    showContextMenu(event.clientX, event.clientY, rowMenu(node));
+  });
   return row;
 }
 
@@ -108,8 +315,12 @@ function render(): void {
   }
 }
 
-export function initExplorer(onOpenFile: (path: string) => void): void {
+export function initExplorer(
+  onOpenFile: (path: string) => void,
+  onPathChange: (from: string, to: string | null) => void = () => {},
+): void {
   openFileCallback = onOpenFile;
+  pathChangeCallback = onPathChange;
 
   const chooseFolder = async (): Promise<void> => {
     const directory = await pickFolder();
@@ -122,6 +333,21 @@ export function initExplorer(onOpenFile: (path: string) => void): void {
   document.getElementById("explorer-empty-open")!.addEventListener("click", () => {
     void chooseFolder();
   });
+
+  const rootMenu = (event: MouseEvent): void => {
+    if ((event.target as HTMLElement).closest(".tree-row")) return;
+    const folder = getState().folder;
+    if (!folder) return;
+    event.preventDefault();
+    showContextMenu(event.clientX, event.clientY, [
+      { label: "New File", action: () => startCreate(folder, "file") },
+      { label: "New Folder", action: () => startCreate(folder, "dir") },
+    ]);
+  };
+  document.getElementById("explorer-tree")!.addEventListener("contextmenu", rootMenu);
+  document
+    .querySelector<HTMLElement>(".explorer-header")!
+    .addEventListener("contextmenu", rootMenu);
 
   subscribe(render);
   render();
