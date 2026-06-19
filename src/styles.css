@@ -501,8 +501,16 @@ body.no-folder .explorer-empty {
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 600;
   text-align: center;
 }
+
+.tree-icon.type-md { color: #6c9ad1; }
+.tree-icon.type-txt { color: #a9b2c0; }
+.tree-icon.type-json { color: #d6c64b; }
+.tree-icon.type-html { color: #e0823d; }
+.tree-icon.type-pdf { color: #e0544e; }
+.tree-icon.type-file { color: var(--faint); }
 
 .tree-name {
   overflow: hidden;
@@ -711,4 +719,3 @@ body.resizing-explorer .resize-handle::after {
 .wt-btn:disabled { opacity: 0.35; }
 .wt-icon { padding: 0 7px; font-size: 14px; }
 .wt-sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border-soft); }
-

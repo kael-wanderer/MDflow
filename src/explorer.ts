@@ -17,7 +17,6 @@ import { getState, refreshDir, setState, subscribe } from "./store";
 import { findNode, setChildren, toggleExpanded, type TreeNode } from "./treeops";
 
 const ICON: Record<string, string> = {
-  folder: "▱",
   md: "M",
   txt: "T",
   json: "{}",
@@ -282,7 +281,11 @@ function createRow(node: TreeNode, depth: number): HTMLElement {
 
   const icon = document.createElement("span");
   icon.className = "tree-icon";
-  icon.textContent = ICON[fileIcon(node.name, node.isDir)];
+  if (!node.isDir) {
+    const type = fileIcon(node.name, node.isDir);
+    icon.classList.add(`type-${type}`);
+    icon.textContent = ICON[type];
+  }
 
   const name = document.createElement("span");
   name.className = "tree-name";
