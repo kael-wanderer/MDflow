@@ -720,3 +720,28 @@ body.resizing-explorer .resize-handle::after {
     transition: none !important;
   }
 }
+
+/* ---------- Editor header (tabs + window toolbar) ---------- */
+#editorarea { flex-direction: column; }
+.editor-header {
+  display: flex; align-items: stretch; min-height: 36px; flex-shrink: 0;
+  background: var(--bg-elev); border-bottom: 1px solid var(--border);
+}
+.editor-header .tabbar { flex: 1; min-width: 0; border-bottom: 0; }
+.editor-header .tabbar.empty { display: flex; } /* keep header height when no tabs */
+
+.window-toolbar {
+  display: flex; align-items: center; gap: 2px;
+  padding: 0 8px; flex-shrink: 0;
+}
+.wt-btn {
+  height: 24px; padding: 0 9px;
+  font: inherit; font-size: 12.5px; color: var(--muted);
+  background: transparent; border: 0; border-radius: 6px; cursor: default;
+}
+.wt-btn:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,0.05); }
+.wt-btn.active { color: var(--text-strong); background: rgba(255,255,255,0.08); }
+.wt-btn:disabled { opacity: 0.35; }
+.wt-icon { padding: 0 7px; font-size: 14px; }
+.wt-sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border-soft); }
+
