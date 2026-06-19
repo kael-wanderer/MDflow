@@ -542,6 +542,15 @@ body.no-folder .explorer-empty {
   background: var(--accent);
 }
 
+body.resizing-explorer {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.resizing-explorer .resize-handle::after {
+  background: var(--accent);
+}
+
 #editorarea {
   display: flex;
   min-width: 0;
