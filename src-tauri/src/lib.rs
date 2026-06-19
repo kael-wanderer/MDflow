@@ -1,6 +1,7 @@
 mod ai;
 mod files;
 mod menu;
+mod pty;
 
 use tauri::Emitter;
 
@@ -20,6 +21,7 @@ pub fn run() {
         // M2 registers `tauri_plugin_updater` here and adds the `plugins.updater`
         // config (endpoints + pubkey).
         .plugin(tauri_plugin_dialog::init())
+        .manage(pty::PtyState::default())
         .setup(|app| {
             let m = menu::build(app.handle())?;
             app.set_menu(m)?;
@@ -50,6 +52,10 @@ pub fn run() {
             files::list_files_recursive,
             files::get_settings,
             files::get_ai_settings,
+            pty::pty_open,
+            pty::pty_write,
+            pty::pty_resize,
+            pty::pty_kill,
             set_soft_wrap,
         ])
         .run(tauri::generate_context!())
