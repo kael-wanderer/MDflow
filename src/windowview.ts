@@ -86,8 +86,10 @@ export function createWindowView(
 
   let lineNums = true;
   let previewZoom = 1;
+  let previewAutoFit = true;
   let previewText = "";
   let previewPathOrName: string | null = null;
+  let lastMode: ViewMode | null = null;
 
   root.addEventListener("mousedown", () => h.onFocusWindow(windowId));
 
@@ -98,6 +100,31 @@ export function createWindowView(
   root.querySelector(".wt-sub")?.addEventListener("click", () => h.onToggleSub());
   root.querySelector(".wt-subclose")?.addEventListener("click", () => h.onToggleSub());
 
+  const seam = root.querySelector<HTMLElement>(".seam")!;
+  seam.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    const panes = root.querySelector<HTMLElement>(".window-panes")!;
+    document.body.classList.add("resizing-panes");
+    const onMove = (moveEvent: MouseEvent): void => {
+      const rect = panes.getBoundingClientRect();
+      const ratio = Math.max(
+        0.2,
+        Math.min(0.8, (moveEvent.clientX - rect.left) / rect.width),
+      );
+      editorPane.style.flex = `0 0 ${ratio * 100}%`;
+      previewPane.style.flex = "1 1 0";
+      editor.requestMeasure();
+    };
+    const onUp = (): void => {
+      document.body.classList.remove("resizing-panes");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      editor.requestMeasure();
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+
   const editor = createEditor(editorPane, (tabId, text) => h.onDocChange(windowId, tabId, text));
 
   function render(): void {
@@ -106,6 +133,15 @@ export function createWindowView(
     // mode class
     root.classList.remove("window-mode-editor", "window-mode-preview", "window-mode-split");
     root.classList.add(`window-mode-${w.mode}`);
+    if (
+      lastMode !== null &&
+      lastMode !== w.mode &&
+      isHtmlFile(previewPathOrName)
+    ) {
+      previewAutoFit = true;
+      renderPreview(previewText, previewPathOrName);
+    }
+    lastMode = w.mode;
     root.classList.toggle("active", getState().activeWindowId === windowId);
     // toolbar active states
     root.querySelectorAll<HTMLElement>("[data-mode]").forEach((btn) =>
@@ -146,11 +182,13 @@ export function createWindowView(
     previewPathOrName = pathOrName;
     previewPane.replaceChildren();
     if (isHtmlFile(pathOrName)) {
+      const autoFit =
+        previewAutoFit && getWindow(windowId)?.mode === "split";
       const frame = document.createElement("iframe");
       frame.className = "html-preview-frame";
       frame.title = `Preview of ${pathOrName ?? "HTML document"}`;
       frame.setAttribute("sandbox", "allow-forms allow-scripts");
-      frame.srcdoc = htmlWithPreviewZoom(text, previewZoom);
+      frame.srcdoc = htmlWithPreviewZoom(text, previewZoom, autoFit);
       previewPane.appendChild(frame);
     } else {
       const article = document.createElement("article");
@@ -167,7 +205,11 @@ export function createWindowView(
   function setPreviewZoom(next: number): void {
     previewZoom = Math.max(0.25, Math.min(2, next));
     root.querySelector<HTMLElement>(".wt-preview-reset")!.textContent =
-      `${Math.round(previewZoom * 100)}%`;
+      previewAutoFit &&
+      isHtmlFile(previewPathOrName) &&
+      getWindow(windowId)?.mode === "split"
+        ? "Fit"
+        : `${Math.round(previewZoom * 100)}%`;
     renderPreview(previewText, previewPathOrName);
   }
 
@@ -176,9 +218,16 @@ export function createWindowView(
     .forEach((button) => {
       button.addEventListener("click", () => {
         const action = button.dataset.previewZoom;
-        if (action === "in") setPreviewZoom(previewZoom + 0.1);
-        else if (action === "out") setPreviewZoom(previewZoom - 0.1);
-        else setPreviewZoom(1);
+        if (action === "in") {
+          previewAutoFit = false;
+          setPreviewZoom(previewZoom + 0.1);
+        } else if (action === "out") {
+          previewAutoFit = false;
+          setPreviewZoom(previewZoom - 0.1);
+        } else {
+          previewAutoFit = true;
+          setPreviewZoom(1);
+        }
       });
     });
 
@@ -187,8 +236,14 @@ export function createWindowView(
     editor,
     render,
     renderPreview,
-    adjustPreviewZoom: (delta) => setPreviewZoom(previewZoom + delta),
-    resetPreviewZoom: () => setPreviewZoom(1),
+    adjustPreviewZoom: (delta) => {
+      previewAutoFit = false;
+      setPreviewZoom(previewZoom + delta);
+    },
+    resetPreviewZoom: () => {
+      previewAutoFit = true;
+      setPreviewZoom(1);
+    },
     requestMeasure: () => editor.requestMeasure(),
     focus: () => editor.focus(),
     destroy: () => root.remove(),

@@ -32,4 +32,14 @@ describe("htmlWithPreviewZoom", () => {
       /^<style data-mdflow-preview-zoom>/,
     );
   });
+
+  it("adds a self-contained fit script for split mode", () => {
+    const output = htmlWithPreviewZoom(
+      "<html><body><div id=\"frame\">Y</div></body></html>",
+      1,
+      true,
+    );
+    expect(output).toContain("data-mdflow-preview-fit");
+    expect(output).toContain("innerWidth / width");
+  });
 });

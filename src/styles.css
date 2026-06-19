@@ -109,7 +109,36 @@ body {
   background: #fff;
   border: 0;
 }
-.window .seam { width: 1px; background: var(--border); }
+.window .seam {
+  position: relative;
+  z-index: 3;
+  width: 5px;
+  margin: 0 -2px;
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.window .seam::after {
+  position: absolute;
+  inset: 0 2px;
+  content: "";
+  background: var(--border);
+}
+
+.window .seam:hover::after,
+body.resizing-panes .window .seam::after {
+  background: var(--accent);
+}
+
+body.resizing-panes {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.resizing-panes iframe {
+  pointer-events: none;
+}
 
 /* per-window view mode */
 .window-mode-editor .pane-preview, .window-mode-editor .seam { display: none; }
