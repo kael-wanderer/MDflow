@@ -8,7 +8,8 @@
 A fast, lightweight markdown editor built with Tauri 2 + Rust. **Clean-room rewrite**
 — independent, MIT-licensed. Same eventual feature set as the Kaelio editor, but
 written from scratch with a modular architecture and refined UI. License: MIT.
-Identifier: `com.kael.mdflow`. Current status: M1 + shell Phase 5 implemented.
+Identifier: `com.kael.mdflow`. Current status: M1 + shell Phase 5 + AI/render/export
+Phases 6–7 implemented.
 
 **Always read `docs/spec.md` and `docs/tasks.md` before starting work.**
 
@@ -57,8 +58,19 @@ thin `main.ts`. One responsibility per file.
 ```
 src/
   main.ts      bootstrap + document workflow + palette command registry
+  ai/
+    aisettings.ts AI provider/terminal settings model and parser
+    client.ts     HTTP SSE + native command streaming client
+    conversation.ts document/selection context builder
+    diff.ts       LCS line diff for edit review
+    panel.ts      Chat/Terminal panel and apply/insert actions
+    providers.ts  provider request/SSE/command helpers
+    terminal.ts   xterm view bound to the native PTY
+  capture.ts   preview-to-canvas image export
   editor.ts    CodeMirror 6 (md highlight, soft-wrap) — createEditor()
-  preview.ts   markdown-it render pipeline (pure) — renderMarkdown()
+  preview.ts   markdown-it + KaTeX render pipeline — renderMarkdown()
+  render-extras.ts lazy Mermaid enhancement
+  pdfview.ts   lazy PDF.js page renderer
   windowview.ts per-window tabs, toolbar, editor, preview, and status
   explorer.ts  lazy folder tree + file management
   fuzzy.ts     subsequence fuzzy match + ranking — fuzzyMatch(), rankItems()
@@ -71,15 +83,29 @@ src/
   styles.css   shell layout and component styling (CSS variables)
 src-tauri/src/
   lib.rs       Tauri builder: command registry + plugins (dialog, updater)
-  files.rs     file IO/management, recursive quick-open walk, settings file
+  ai.rs        command-provider process streaming
+  export.rs    Pandoc/Typst PDF, DOCX, and HTML export
+  files.rs     file IO/management, recursive walk, settings, byte IO
+  pty.rs       portable PTY lifecycle and terminal streaming
 ```
 
 Data flow: edit → 300ms debounce → `renderMarkdown` → preview pane + word count.
 `Cmd+S` → `saveFile` → IPC `save_file`. `Cmd+O` → dialog → IPC `read_file` → editor.
 View mode + zoom persist to `localStorage` (`mdflow.ui`).
 
-Settings live at `<app config dir>/settings.json`. The Gear button opens the file as
-a normal tab; saving it applies theme and per-zone typography immediately.
+Editor settings live at `<app config dir>/settings.json`; AI providers and terminals
+live at `<app config dir>/ai.json`. The Gear button opens either file as a normal
+tab, and saving applies the relevant configuration.
+
+PDF/DOCX/HTML export requires Pandoc and Typst:
+
+```bash
+brew install pandoc typst
+```
+
+Rich preview and terminal dependencies include Mermaid, KaTeX, PDF.js, xterm, and
+the Rust `portable-pty` crate. Heavy engines are loaded on demand so the startup
+bundle remains below the release chunk-warning threshold.
 
 Updater plugin is installed but **dormant** in M1 — M2 adds the signed release feed
 (`latest.json` + pubkey) and the in-app update prompt.
