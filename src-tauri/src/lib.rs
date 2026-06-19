@@ -13,7 +13,9 @@ fn set_soft_wrap(app: tauri::AppHandle, on: bool) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // Updater plugin is installed (dependency + capability) but dormant in M1.
+        // M2 registers `tauri_plugin_updater` here and adds the `plugins.updater`
+        // config (endpoints + pubkey).
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let m = menu::build(app.handle())?;
