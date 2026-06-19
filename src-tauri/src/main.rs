@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    mdflow_scaffold_lib::run()
+    mdflow_lib::run()
 }
