@@ -1,0 +1,336 @@
+/* MDflow — refined dark theme. Fresh, clean-room CSS. */
+
+:root {
+  --bg: #13151b;
+  --bg-elev: #191c24;
+  --bg-editor: #14161d;
+  --bg-preview: #171922;
+  --code-bg: #1d2029;
+
+  --border: #272b36;
+  --border-soft: #1f232d;
+
+  --text: #e8e4d9;
+  --text-strong: #f6f2e8;
+  --muted: #868c9b;
+  --faint: #565d6e;
+
+  --accent: #e0a356;
+  --accent-press: #f0b774;
+  --selection: rgba(224, 163, 86, 0.18);
+
+  --tok-keyword: #c98fb0;
+  --tok-string: #9fbf7f;
+  --tok-func: #7fa6d9;
+  --tok-comment: #5f6675;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-serif: "Iowan Old Style", "Charter", Charter, "Palatino Linotype", Georgia, serif;
+
+  --base-size: 15px;
+  --status-h: 28px;
+  --pane-pad: 28px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  --zoom: 1;
+  display: grid;
+  grid-template-rows: 1fr var(--status-h);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ---------- Panes ---------- */
+
+.panes {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  min-height: 0;
+}
+
+.seam {
+  background: var(--border);
+}
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.pane-editor {
+  background: var(--bg-editor);
+}
+
+.pane-preview {
+  background: var(--bg-preview);
+}
+
+/* view-mode layouts */
+body.view-split .pane-editor,
+body.view-split .pane-preview {
+  display: block;
+}
+
+body.view-editor .panes {
+  grid-template-columns: 1fr;
+}
+body.view-editor .seam,
+body.view-editor .pane-preview {
+  display: none;
+}
+
+body.view-preview .panes {
+  grid-template-columns: 1fr;
+}
+body.view-preview .seam,
+body.view-preview .pane-editor {
+  display: none;
+}
+
+/* Editor host (#editor) is styled by CodeMirror's theme in editor.ts. */
+
+/* ---------- Preview (typeset, serif) ---------- */
+
+.doc {
+  max-width: 70ch;
+  padding: var(--pane-pad) max(var(--pane-pad), 5%) 64px;
+  font-family: var(--font-serif);
+  font-size: calc(var(--base-size) * var(--zoom));
+  line-height: 1.72;
+  color: var(--text);
+}
+
+.doc h1,
+.doc h2,
+.doc h3 {
+  font-family: var(--font-ui);
+  color: var(--text-strong);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.doc h1 {
+  font-size: 1.85em;
+  font-weight: 650;
+  margin: 0 0 0.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.doc h2 {
+  font-size: 1.3em;
+  font-weight: 620;
+  margin: 1.7em 0 0.6em;
+}
+
+.doc h3 {
+  font-size: 1.08em;
+  font-weight: 600;
+  margin: 1.4em 0 0.5em;
+}
+
+.doc p {
+  margin: 0 0 1em;
+}
+
+.doc strong {
+  color: var(--text-strong);
+  font-weight: 650;
+}
+
+.doc a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(224, 163, 86, 0.35);
+}
+
+.doc a:hover {
+  border-bottom-color: var(--accent);
+}
+
+.doc ul,
+.doc ol {
+  margin: 0 0 1em;
+  padding-left: 1.4em;
+}
+
+.doc li {
+  margin: 0.25em 0;
+}
+
+.doc li::marker {
+  color: var(--accent);
+}
+
+.doc blockquote {
+  margin: 1.2em 0;
+  padding: 0.2em 1.1em;
+  color: var(--muted);
+  font-style: italic;
+  border-left: 2px solid var(--accent);
+}
+
+/* inline code + fenced code share the mono face */
+.doc code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: var(--text-strong);
+  background: var(--code-bg);
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+}
+
+.doc pre.hljs {
+  margin: 1.2em 0;
+  padding: 16px 18px;
+  background: var(--code-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: auto;
+}
+
+.doc pre.hljs code {
+  font-size: 0.84em;
+  color: var(--text);
+  background: none;
+  padding: 0;
+}
+
+.hljs-keyword,
+.hljs-built_in,
+.hljs-type,
+.hljs-tag .hljs-name,
+.hljs-selector-tag {
+  color: var(--tok-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-meta .hljs-string,
+.hljs-attr,
+.hljs-selector-attr {
+  color: var(--tok-string);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-section,
+.hljs-func {
+  color: var(--tok-func);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: var(--accent);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 650;
+}
+
+.doc table {
+  width: 100%;
+  margin: 1.2em 0;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: 0.92em;
+}
+
+.doc th,
+.doc td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.doc th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ---------- Status bar ---------- */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.status-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-words {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  padding-left: 16px;
+}
+
+/* ---------- Scrollbars ---------- */
+
+.pane::-webkit-scrollbar {
+  width: 10px;
+}
+
+.pane::-webkit-scrollbar-thumb {
+  background: #2a2f3b;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+
+.pane::-webkit-scrollbar-thumb:hover {
+  background: #353b49;
+  background-clip: padding-box;
+}
+
+/* ---------- Quality floor ---------- */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

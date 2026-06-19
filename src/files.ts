@@ -1,0 +1,31 @@
+import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
+
+export type OpenResult = { path: string; contents: string } | null;
+
+const FILTERS = [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }];
+
+export async function openFile(): Promise<OpenResult> {
+  const path = await open({ multiple: false, filters: FILTERS });
+  if (typeof path !== "string") return null;
+  const contents = await invoke<string>("read_file", { path });
+  return { path, contents };
+}
+
+// path === null triggers a Save-As dialog. Returns the path written, or null if cancelled.
+export async function saveFile(path: string | null, contents: string): Promise<string | null> {
+  let target = path;
+  if (!target) {
+    target = await save({ filters: FILTERS });
+    if (!target) return null;
+  }
+  await invoke("save_file", { path: target, contents });
+  return target;
+}
+
+export async function getInitialFile(): Promise<OpenResult> {
+  const path = await invoke<string | null>("get_initial_file");
+  if (!path) return null;
+  const contents = await invoke<string>("read_file", { path });
+  return { path, contents };
+}
