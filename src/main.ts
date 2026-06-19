@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
 import { createEditor } from "./editor";
-import { initExplorer, openFolder } from "./explorer";
+import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
 import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
 import { renderMarkdown } from "./preview";
 import { initResize } from "./resize";
@@ -66,6 +66,7 @@ function clearDocumentSurface(): void {
   clearTimeout(previewTimer);
   previewVersion += 1;
   previewEl.replaceChildren();
+  setExplorerActivePath(null);
   statusPath.textContent = "Untitled";
   statusWords.textContent = "0 words";
 }
@@ -85,6 +86,7 @@ function activate(id: string): void {
   clearTimeout(previewTimer);
   editor.switchTo(id);
   setState({ activeTabId: id });
+  setExplorerActivePath(tab.path);
   statusPath.textContent = tab.path ?? tab.name;
   void updatePreview(editor.getText(id));
   editor.focus();

@@ -30,6 +30,11 @@ let activePath: string | null = null;
 let openFileCallback: (path: string) => void = () => {};
 let pathChangeCallback: (from: string, to: string | null) => void = () => {};
 
+export function setExplorerActivePath(path: string | null): void {
+  activePath = path;
+  render();
+}
+
 function pathName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
