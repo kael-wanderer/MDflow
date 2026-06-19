@@ -66,7 +66,18 @@ export function createPalette(provider: PaletteProvider): { open: () => void } {
   };
 
   const refilter = (): void => {
-    filtered = rankItems(input.value.trim(), items, (item) => item.label);
+    const query = input.value.trim();
+    const files = rankItems(
+      query,
+      items.filter((item) => item.kind === "file"),
+      (item) => item.label,
+    );
+    const commands = rankItems(
+      query,
+      items.filter((item) => item.kind === "command"),
+      (item) => item.label,
+    );
+    filtered = [...files, ...commands];
     active = 0;
     renderList();
   };
