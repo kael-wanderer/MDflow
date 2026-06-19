@@ -6,6 +6,7 @@ import { renderMarkdown } from "./preview";
 import { openFile, saveFile, getInitialFile } from "./files";
 import { applyViewMode, applyZoom } from "./views";
 import { loadState, saveState, type ViewMode } from "./state";
+import helpDoc from "../HELP.md?raw";
 
 const editorEl = document.getElementById("editor")!;
 const previewEl = document.getElementById("preview")!;
@@ -70,6 +71,13 @@ function toggleSoftWrap(): void {
   saveState(ui);
 }
 
+function openHelp(): void {
+  editor.setDoc(helpDoc);
+  currentPath = null;
+  statusPath.textContent = "MDflow Help";
+  updatePreview(helpDoc);
+}
+
 listen<string>("menu", (e) => {
   switch (e.payload) {
     case "file.new": return newDoc();
@@ -80,6 +88,7 @@ listen<string>("menu", (e) => {
     case "view.editor": return setMode("editor");
     case "view.read": return setMode("preview");
     case "view.softwrap": return toggleSoftWrap();
+    case "help.guide": return openHelp();
   }
 });
 

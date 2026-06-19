@@ -27,6 +27,8 @@ The app is launched via `npm run tauri dev`. Run through:
 - [ ] Quit and relaunch — last view mode + soft-wrap state persist.
 - [ ] "Open With MDflow" / launching with a file path argument loads that file on start.
 - [ ] Preview does not execute raw HTML (e.g. a `<script>` in the markdown does nothing).
+- [ ] Help ▸ MDflow Help opens the bundled HELP.md in the editor + preview.
+- [ ] MDflow ▸ About shows the app name **and version** (0.1.0).
 
 ## Notes
 

@@ -8,6 +8,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let app_menu = SubmenuBuilder::new(app, "MDflow")
         .about(Some(AboutMetadata {
             name: Some("MDflow".into()),
+            version: Some(env!("CARGO_PKG_VERSION").into()),
+            comments: Some("A fast, lightweight markdown editor".into()),
             ..Default::default()
         }))
         .separator()
@@ -77,8 +79,18 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .close_window()
         .build()?;
 
+    let help = MenuItemBuilder::with_id("help.guide", "MDflow Help").build(app)?;
+    let help_menu = SubmenuBuilder::new(app, "Help").item(&help).build()?;
+
     MenuBuilder::new(app)
-        .items(&[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu])
+        .items(&[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &window_menu,
+            &help_menu,
+        ])
         .build()
 }
 

@@ -45,7 +45,10 @@ Plan: `docs/superpowers/plans/2026-06-19-m1-lean-core.md`
 [x] Task 10 — main.ts (wiring via menu events, hotkeys, debounce)
 [x] Task 11 — style pass on live app
 [x] Task 12 — updater plugin (dormant — registration deferred to M2)
+[x] Task 14 — Help menu: MDflow Help (opens bundled HELP.md in editor) + version in About
 [~] Task 13 — M1 smoke test (automated ✓; GUI checklist in docs/review.md ← user to verify)
+
+Note: Help ▸ "Check for Updates" intentionally deferred to M2 (needs the real updater feed).
 
 ## Documentation Tasks
 
