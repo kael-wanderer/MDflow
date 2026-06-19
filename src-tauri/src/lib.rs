@@ -46,6 +46,7 @@ pub fn run() {
             files::delete_to_trash,
             files::duplicate_path,
             files::list_files_recursive,
+            files::get_settings,
             set_soft_wrap,
         ])
         .run(tauri::generate_context!())

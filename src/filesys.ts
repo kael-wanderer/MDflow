@@ -60,3 +60,14 @@ export function copyPath(path: string): Promise<void> {
 export function listFilesRecursive(folder: string): Promise<string[]> {
   return invoke<string[]>("list_files_recursive", { folder });
 }
+
+type RawSettingsFile = {
+  path: string;
+  contents: string;
+};
+
+export function getSettingsFile(
+  defaultJson: string,
+): Promise<RawSettingsFile> {
+  return invoke<RawSettingsFile>("get_settings", { default: defaultJson });
+}
