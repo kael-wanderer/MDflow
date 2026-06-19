@@ -12,14 +12,22 @@ export async function openFile(): Promise<OpenResult> {
   return { path, contents };
 }
 
+export async function pickSavePath(): Promise<string | null> {
+  return save({ filters: FILTERS });
+}
+
+export function writeFile(path: string, contents: string): Promise<void> {
+  return invoke("save_file", { path, contents });
+}
+
 // path === null triggers a Save-As dialog. Returns the path written, or null if cancelled.
 export async function saveFile(path: string | null, contents: string): Promise<string | null> {
   let target = path;
   if (!target) {
-    target = await save({ filters: FILTERS });
+    target = await pickSavePath();
     if (!target) return null;
   }
-  await invoke("save_file", { path: target, contents });
+  await writeFile(target, contents);
   return target;
 }
 

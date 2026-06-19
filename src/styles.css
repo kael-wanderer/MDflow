@@ -566,12 +566,101 @@ body.resizing-explorer .resize-handle::after {
 
 #editorarea {
   display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
 
 #editorarea .panes {
   flex: 1;
+}
+
+/* ---------- Tabs ---------- */
+
+.tabbar {
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+}
+
+.tabbar.empty {
+  display: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 220px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  border-right: 1px solid var(--border);
+  cursor: default;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.active {
+  color: var(--text-strong);
+  background: var(--bg-editor);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  background: transparent;
+  border-radius: 50%;
+}
+
+.tab-dot.dirty {
+  background: var(--accent);
+}
+
+.tab-close {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  flex-shrink: 0;
+  color: var(--faint);
+  font: inherit;
+  font-size: 14px;
+  line-height: 14px;
+  text-align: center;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.tab-close:hover {
+  color: var(--text-strong);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tabbar::-webkit-scrollbar {
+  height: 5px;
+}
+
+.tabbar::-webkit-scrollbar-thumb {
+  background: #343946;
+  border-radius: 5px;
 }
 
 .explorer-tree::-webkit-scrollbar {

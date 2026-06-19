@@ -6,6 +6,8 @@ export type UIState = {
   folder: string | null;
   explorerVisible: boolean;
   explorerWidth: number;
+  openPaths: string[];
+  activePath: string | null;
 };
 
 const KEY = "mdflow.ui";
@@ -16,6 +18,8 @@ const DEFAULTS: UIState = {
   folder: null,
   explorerVisible: true,
   explorerWidth: 240,
+  openPaths: [],
+  activePath: null,
 };
 
 export function loadState(): UIState {

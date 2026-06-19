@@ -12,6 +12,8 @@ describe("state", () => {
       folder: null,
       explorerVisible: true,
       explorerWidth: 240,
+      openPaths: [],
+      activePath: null,
     });
   });
 
@@ -23,6 +25,8 @@ describe("state", () => {
       folder: "/notes",
       explorerVisible: false,
       explorerWidth: 312,
+      openPaths: ["/notes/a.md", "/notes/b.md"],
+      activePath: "/notes/b.md",
     };
     saveState(state);
     expect(loadState()).toEqual(state);
@@ -37,6 +41,8 @@ describe("state", () => {
       folder: null,
       explorerVisible: true,
       explorerWidth: 240,
+      openPaths: [],
+      activePath: null,
     });
   });
 
@@ -49,6 +55,8 @@ describe("state", () => {
       folder: null,
       explorerVisible: true,
       explorerWidth: 240,
+      openPaths: [],
+      activePath: null,
     });
   });
 });

@@ -4,8 +4,8 @@ Date: 2026-06-19
 
 ## Automated checks
 
-- `npm run test` → **17 passed** across preview, state, tree operations, icons, and
-  path helpers.
+- `npm run test` → **22 passed** across preview, state, tree operations, icons, path
+  helpers, and tab operations.
 - `cd src-tauri && cargo test` → **5 passed** across word count, directory listing,
   create/rename validation, duplicate naming, and real file/directory duplication.
 - `npm run build` (tsc + vite) → clean.
@@ -85,6 +85,43 @@ window:
 - [ ] Right-click Explorer empty space or its header to create at the folder root.
 - [ ] Add or remove a file externally, refocus MDflow, and confirm the tree refreshes
   without collapsing expanded folders.
+
+## Shell Phase 3 checks
+
+### Verified
+
+- [x] Pure tab operations cover focus-existing and right/left neighbour selection.
+- [x] Each document owns a separate CodeMirror `EditorState` for cursor and undo
+  isolation.
+- [x] Real CodeMirror browser harness confirms cursor restoration and independent
+  undo histories across two documents.
+- [x] Closing the final active tab clears the editor instead of leaving stale content.
+- [x] Tab strip renders active, dirty, close, accessibility, and horizontal overflow
+  states; browser harness activation and close dispatch pass.
+- [x] Explorer highlighting follows the active tab.
+- [x] Preview debounce and word-count responses cannot overwrite a newly active tab.
+- [x] Save As refuses a path already owned by another open tab before writing.
+- [x] Explorer rename/delete rebases or detaches every affected open tab safely.
+- [x] File ▸ Close Tab uses `⌘W`; dirty close requires confirmation.
+- [x] Session state stores open file paths and the active path; vanished paths are
+  skipped during restore.
+- [x] Production build, frontend tests, Rust tests, `cargo check`, and native Tauri
+  launch pass.
+
+### Native GUI checklist
+
+- [ ] Open several files from Explorer and File ▸ Open; reopening an existing file
+  focuses its tab instead of duplicating it.
+- [ ] Edit a tab to show its dirty dot; Save clears it; Save As names an Untitled tab.
+- [ ] Click × and use `⌘W`; dirty tabs confirm before closing.
+- [ ] Closing an active middle tab selects the right neighbour; closing the last tab
+  selects the left neighbour; closing the only tab clears the editor and preview.
+- [ ] New File and MDflow Help each open in their own tab.
+- [ ] Rename or delete an open file/folder from Explorer and confirm affected tab
+  paths remain safe.
+- [ ] Quit and relaunch to restore open file tabs and the active tab; deleted files
+  are skipped.
+- [ ] Confirm Split, Editor, Read, Soft Wrap, and Explorer file management still work.
 
 ## Notes
 

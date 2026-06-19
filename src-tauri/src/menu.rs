@@ -34,6 +34,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let save_as = MenuItemBuilder::with_id("file.save_as", "Save As…")
         .accelerator("CmdOrCtrl+Shift+S")
         .build(app)?;
+    let close = MenuItemBuilder::with_id("file.close", "Close Tab")
+        .accelerator("CmdOrCtrl+W")
+        .build(app)?;
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&new)
         .separator()
@@ -41,6 +44,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .separator()
         .item(&save)
         .item(&save_as)
+        .separator()
+        .item(&close)
         .build()?;
 
     let edit_menu = SubmenuBuilder::new(app, "Edit")
@@ -73,11 +78,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&soft)
         .build()?;
 
-    let window_menu = SubmenuBuilder::new(app, "Window")
-        .minimize()
-        .separator()
-        .close_window()
-        .build()?;
+    let window_menu = SubmenuBuilder::new(app, "Window").minimize().build()?;
 
     let help = MenuItemBuilder::with_id("help.guide", "MDflow Help").build(app)?;
     let help_menu = SubmenuBuilder::new(app, "Help").item(&help).build()?;
