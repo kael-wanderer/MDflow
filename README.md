@@ -3,7 +3,7 @@
 A fast, lightweight markdown editor built with Tauri 2 + Rust and a plain-TypeScript
 frontend. MDflow is an IDE-style workspace for markdown: a file explorer, split
 windows, a command palette, rich preview (mermaid, math, raw HTML), a built-in AI
-panel, a PDF reader, editable Excalidraw boards, and document export.
+panel, a PDF reader, editable Excalidraw and mindmap boards, and document export.
 
 **License:** MIT · **Identifier:** `com.kael.mdflow`
 
@@ -21,13 +21,17 @@ panel, a PDF reader, editable Excalidraw boards, and document export.
   view mode (Editor / Read / Split).
 - **Tabs** — multi-document tabs with dirty markers, pinning, and right-click actions
   (split, move between windows, close variants, copy paths).
-- **Command palette** — `⌘K` / `⌘P` to fuzzy-find files or run commands.
+- **Command palette** — `⌘K` to fuzzy-find files or run commands.
 - **Compare** — select two files and view a side-by-side diff.
 - **Rich preview** — [mermaid](https://mermaid.js.org) diagrams, [KaTeX](https://katex.org)
   math (`$…$`, `$$…$$`), and raw HTML.
 - **PDF reader** — open `.pdf` files rendered with pdf.js.
 - **Excalidraw boards** — open and edit `.excalidraw` files in a focused full-pane
   canvas. Boards use the normal tab, save, dirty-close, and session workflows.
+- **Mindmap boards** — open and edit `.mind` files (jsMind) with an on-board toolbar:
+  add / rename / delete nodes, and format a selected node's shape (rect / rounded /
+  pill / circle), fill & text color, font size, and bold. Styling is saved in the
+  `.mind` file.
 - **AI panel** — a right-side assistant with a **Chat** tab (provider + permission-mode
   selectors, document/selection context, streamed replies, copy / insert-at-cursor /
   apply-as-diff) and a **Terminal** tab (an embedded terminal running an agent CLI).
@@ -47,7 +51,8 @@ panel, a PDF reader, editable Excalidraw boards, and document export.
 - **Export only:** [pandoc](https://pandoc.org) and [typst](https://typst.app) —
   install with `brew install pandoc typst`. They are located at runtime, not bundled.
 - **AI:** a local OpenAI-compatible server (e.g. [Ollama](https://ollama.com) or
-  LM Studio) and/or an agent CLI (Claude Code, Codex, Pi) on your `PATH`.
+  LM Studio) and/or an agent CLI (Claude Code, Codex, OpenCode, Pi). MDflow resolves
+  your login-shell `PATH` to find CLIs installed via Homebrew, npm, etc.
 
 ## Getting started
 
@@ -111,6 +116,9 @@ src/
   pdfview.ts       pdf.js viewer
   excalidraw-document.ts Excalidraw JSON validation and serialization
   excalidrawview.ts lazy board-only runtime loader
+  mindmap-document.ts jsMind node_tree validation and serialization
+  mindmap-style.ts pure per-node style helpers (shape/color/size)
+  mindmapview.ts   lazy jsMind board (node + format toolbars, screenshot)
   ai/              AI panel: aisettings, providers, client, conversation, diff,
                    terminal, panel
 src-tauri/src/

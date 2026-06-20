@@ -14,11 +14,26 @@ All notable changes to MDflow are documented here. The format is based on
     Apply-as-diff actions.
   - **Terminal** — an embedded terminal (xterm.js + a Rust PTY) running a configured
     agent CLI interactively.
-- **Configurable AI providers** via `ai.json`: `http` (OpenAI-compatible local servers
-  such as Ollama and LM Studio) and `command` (headless agent CLIs — Claude Code,
-  Codex, Pi — with optional `bypassRun`).
-- **Command palette** (`⌘K` / `⌘P`) for fuzzy file quick-open and running commands;
+- **Configurable AI providers** via `ai.json`: `http` (OpenAI-compatible servers,
+  local such as Ollama / LM Studio or hosted API endpoints) and `command` (headless
+  agent CLIs — Claude Code, Codex, OpenCode, Pi — with optional `bypassRun`).
+- **Command palette** (`⌘K`) for fuzzy file quick-open and running commands;
   a Search button in the activity bar.
+- **Excalidraw boards** — open/edit `.excalidraw` files in a focused full-pane canvas.
+- **Mindmap boards** — open/edit `.mind` files (jsMind) with an on-board toolbar to
+  add / rename / delete nodes, and per-node formatting: shape (rect / rounded / pill /
+  circle), fill & text color (swatches + custom), font size, and bold — all stored in
+  the `.mind` file. Dedicated activity-bar buttons create untitled boards.
+- **Native View menu** — Show/Hide Explorer (`⌘B`), Show/Hide Preview (`⌘P`),
+  Reading View (`⌘E`), Show/Hide Line Numbers, Soft Wrap (Off / Window Width / Page
+  Guide), zoom, and Font / Text Size / Explorer Text Size / Theme submenus.
+- **Native Window menu** — Enter Full Screen (`⌃⌘F`), Move to Left/Right Half (tiles
+  to the active monitor).
+- **Set MDflow as Default** (app menu) — register as the Markdown/text editor or PDF
+  viewer via macOS LaunchServices; the bundle declares those document types so Finder
+  opens route into the app.
+- **Update modes** — Manual or Automatic (once-daily) update checks; both always
+  confirm before installing.
 - **In-app settings panel** from the gear: Theme, Font, Size, Session, and Agent, with
   Open `settings.json` / `ai.json` as advanced actions.
 - **Themes**: System, Light, Dark, Catppuccin Mocha, Everforest Dark, Nord — including
@@ -42,6 +57,17 @@ All notable changes to MDflow are documented here. The format is based on
 - The gear button now opens the in-app settings panel instead of directly opening
   `settings.json`.
 - Editor gains selection, range-replace, and set-text APIs to support AI apply / insert.
+- The command palette is now **`⌘K` only**; `⌘P` is the View ▸ Show/Hide Preview toggle.
+- New app icon (the "roomy" MDflow mark); new activity-bar icons for the AI panel,
+  Excalidraw, and Mindmap.
+
+### Fixed
+
+- Agent `command` providers (e.g. `pi`, `opencode`) failed from the packaged app with
+  "No such file or directory" — MDflow now resolves the login-shell `PATH` so
+  Homebrew/npm-installed CLIs are found.
+- The Agent settings "Add local/API model" button could sit below the panel fold; the
+  provider list now scrolls so the button stays visible.
 
 ### Notes
 
