@@ -33,7 +33,11 @@ import { breadcrumbsPath, joinPath, relativePath } from "./paths";
 import { renderPdf } from "./pdfview";
 import { isExcalidrawFile, isHtmlFile, isMindmapFile } from "./document-kind";
 import type { EditorDocumentKind } from "./editor";
-import { renderMarkdown } from "./preview";
+import {
+  exportOptionsFor,
+  type ExportFormat,
+  type ExportItem,
+} from "./export-options";
 import { initResize } from "./resize";
 import {
   applySettings,
@@ -338,6 +342,12 @@ function makeView(windowId: string, isMain: boolean): WindowView {
 function renderAll(): void {
   for (const v of views.values()) v.render();
   document.getElementById("windows")!.classList.toggle("has-sub", getState().windows.length > 1);
+  const tab = activeMeta();
+  const exportButton = document.getElementById("ab-export") as HTMLButtonElement | null;
+  if (exportButton) {
+    exportButton.disabled =
+      !tab || exportOptionsFor(tab.path ?? tab.name).length === 0;
+  }
 }
 
 function requestWindowMeasure(): void {
@@ -576,15 +586,20 @@ function exportError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// Convert the markdown source ("Markdown" group) via Pandoc/Typst.
-async function exportDoc(kind: "pdf" | "docx"): Promise<void> {
+async function exportDocument(kind: "pdf" | "docx"): Promise<void> {
   const tab = activeMeta();
   if (!tab) return;
-  const markdown = activeView().editor.getText(tab.id);
   const out = await pickExportPath(kind);
   if (!out) return;
   try {
-    await invoke(kind === "pdf" ? "export_pdf" : "export_docx", { markdown, out });
+    const { buildExportHtml } = await import("./export-render");
+    const html = await buildExportHtml(activeView().editor.getText(tab.id), {
+      rasterizeSvg: kind === "docx",
+    });
+    await invoke(
+      kind === "pdf" ? "export_pdf_html" : "export_docx_html",
+      { html, out },
+    );
   } catch (error) {
     await message(exportError(error), { title: "Export", kind: "error" });
   }
@@ -596,59 +611,55 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   return Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
 }
 
-// Render markdown to a detached node so capture works in any view mode
-// (editor-only, preview, split) when no visible preview pane exists.
-function renderMarkdownForCapture(text: string): HTMLElement {
-  const article = document.createElement("article");
-  article.className = "doc";
-  article.style.position = "fixed";
-  article.style.left = "-10000px";
-  article.style.top = "0";
-  article.style.width = "800px";
-  article.innerHTML = renderMarkdown(text);
-  document.body.appendChild(article);
-  return article;
-}
-
 async function captureActive(): Promise<HTMLCanvasElement> {
   const tab = activeMeta()!;
-  if (isMindmapFile(tab.path)) {
-    const canvas = await activeView().captureBoard();
-    if (canvas) return canvas;
-    throw new Error("The mindmap is still loading.");
+  if (isMindmapFile(tab.path ?? tab.name) || isExcalidrawFile(tab.path ?? tab.name)) {
+    const board = activeView().captureBoard();
+    if (board) return board.png();
+    throw new Error("The board is still loading.");
   }
   const text = activeView().editor.getText(tab.id);
   const capture = await import("./capture");
-  if (isHtmlFile(tab.path)) {
+  if (isHtmlFile(tab.path ?? tab.name)) {
     return capture.htmlToCanvas(text);
   }
-  const visible = document.querySelector<HTMLElement>(
-    `.window[data-window-id="${getState().activeWindowId}"] .pane-preview .doc`,
+  const { buildExportHtml } = await import("./export-render");
+  return capture.htmlToCanvas(
+    await buildExportHtml(text, { rasterizeSvg: false }),
   );
-  if (visible) return capture.toCanvas(visible);
-  const temporary = renderMarkdownForCapture(text);
-  try {
-    return await capture.toCanvas(temporary);
-  } finally {
-    temporary.remove();
-  }
 }
 
-// Export the rendered preview ("HTML" group) as an image or image-backed PDF.
-async function exportRender(kind: "png" | "jpg" | "pdf"): Promise<void> {
+async function activeSvg(): Promise<string> {
+  const tab = activeMeta();
+  if (!tab) throw new Error("No document is active.");
+  const name = tab.path ?? tab.name;
+  const board = activeView().captureBoard();
+  if (isExcalidrawFile(name)) {
+    if (board?.svg) return board.svg();
+    throw new Error("The Excalidraw board is still loading.");
+  }
+  if (isMindmapFile(name)) {
+    throw new Error("SVG export is not available for mindmaps.");
+  }
+  const text = activeView().editor.getText(tab.id);
+  const capture = await import("./capture");
+  if (isHtmlFile(name)) return capture.htmlToSvg(text);
+  const { buildExportHtml } = await import("./export-render");
+  return capture.htmlToSvg(
+    await buildExportHtml(text, { rasterizeSvg: false }),
+  );
+}
+
+async function exportImage(kind: "png" | "svg"): Promise<void> {
   if (!activeMeta()) return;
   const out = await pickExportPath(kind);
   if (!out) return;
   try {
-    const canvas = await captureActive();
-    if (kind === "pdf") {
-      const jpeg = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.95));
-      const { imageToPdf } = await import("./pdfcapture");
-      const bytes = imageToPdf(jpeg, canvas.width, canvas.height);
-      await invoke("save_bytes", { path: out, bytes: Array.from(bytes) });
+    if (kind === "svg") {
+      await invoke("save_file", { path: out, contents: await activeSvg() });
     } else {
-      const mime = kind === "png" ? "image/png" : "image/jpeg";
-      const bytes = dataUrlToBytes(canvas.toDataURL(mime, 0.95));
+      const canvas = await captureActive();
+      const bytes = dataUrlToBytes(canvas.toDataURL("image/png"));
       await invoke("save_bytes", { path: out, bytes: Array.from(bytes) });
     }
   } catch (error) {
@@ -994,25 +1005,48 @@ async function setAsDefault(kind: "Markdown" | "PDF"): Promise<void> {
 }
 
 function openExportMenu(x: number, y: number): void {
-  if (!activeMeta()) return;
-  const items: MenuItem[] = [
-    {
-      label: "HTML",
-      children: [
-        { label: "PNG Image…", action: () => void exportRender("png") },
-        { label: "JPG Image…", action: () => void exportRender("jpg") },
-        { label: "PDF…", action: () => void exportRender("pdf") },
-      ],
-    },
-    {
-      label: "Markdown",
-      children: [
-        { label: "PDF…", action: () => void exportDoc("pdf") },
-        { label: "Word (DOCX)…", action: () => void exportDoc("docx") },
-      ],
-    },
-  ];
+  const tab = activeMeta();
+  if (!tab) return;
+  const options = exportOptionsFor(tab.path ?? tab.name);
+  if (options.length === 0) return;
+  const toMenuItem = (item: ExportItem): MenuItem => {
+    if ("children" in item) {
+      return {
+        label: item.label,
+        children: item.children.map(toMenuItem),
+      };
+    }
+    return {
+      label: item.label,
+      action: () => runExportFormat(item.format),
+    };
+  };
+  const items = options.map(toMenuItem);
   showContextMenu(x, y, items);
+}
+
+function runExportFormat(format: ExportFormat): void {
+  if (format === "doc-pdf") return void exportDocument("pdf");
+  if (format === "doc-docx") return void exportDocument("docx");
+  if (format === "img-png") return void exportImage("png");
+  void exportImage("svg");
+}
+
+async function runNativeExport(format: ExportFormat): Promise<void> {
+  const tab = activeMeta();
+  const available = tab
+    ? exportOptionsFor(tab.path ?? tab.name).flatMap((item) =>
+        "children" in item ? item.children : [item],
+      )
+    : [];
+  if (!available.some((item) => "format" in item && item.format === format)) {
+    await message("That export format is not available for this document.", {
+      title: "Export",
+      kind: "info",
+    });
+    return;
+  }
+  runExportFormat(format);
 }
 
 initActivityBar(
@@ -1132,16 +1166,14 @@ listen<string>("menu", (event) => {
       const w = activeWindow();
       return w.activeTabId ? void closeTab(w.id, w.activeTabId) : undefined;
     }
-    case "export.md.pdf":
-      return void exportDoc("pdf");
-    case "export.md.docx":
-      return void exportDoc("docx");
-    case "export.html.png":
-      return void exportRender("png");
-    case "export.html.jpg":
-      return void exportRender("jpg");
-    case "export.html.pdf":
-      return void exportRender("pdf");
+    case "export.document.pdf":
+      return void runNativeExport("doc-pdf");
+    case "export.document.docx":
+      return void runNativeExport("doc-docx");
+    case "export.image.png":
+      return void runNativeExport("img-png");
+    case "export.image.svg":
+      return void runNativeExport("img-svg");
     case "view.split":
       return setMode(wid, "split");
     case "view.editor":

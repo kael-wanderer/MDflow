@@ -50,25 +50,23 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let close = MenuItemBuilder::with_id("file.close", "Close Tab")
         .accelerator("CmdOrCtrl+W")
         .build(app)?;
-    let export_md_pdf =
-        MenuItemBuilder::with_id("export.md.pdf", "PDF…").build(app)?;
-    let export_md_docx =
-        MenuItemBuilder::with_id("export.md.docx", "Word (DOCX)…").build(app)?;
-    let export_markdown = SubmenuBuilder::new(app, "Markdown")
-        .items(&[&export_md_pdf, &export_md_docx])
+    let export_document_pdf =
+        MenuItemBuilder::with_id("export.document.pdf", "PDF…").build(app)?;
+    let export_document_docx =
+        MenuItemBuilder::with_id("export.document.docx", "Word (DOCX)…").build(app)?;
+    let export_document = SubmenuBuilder::new(app, "Document")
+        .items(&[&export_document_pdf, &export_document_docx])
         .build()?;
-    let export_html_png =
-        MenuItemBuilder::with_id("export.html.png", "PNG Image…").build(app)?;
-    let export_html_jpg =
-        MenuItemBuilder::with_id("export.html.jpg", "JPG Image…").build(app)?;
-    let export_html_pdf =
-        MenuItemBuilder::with_id("export.html.pdf", "PDF…").build(app)?;
-    let export_html = SubmenuBuilder::new(app, "HTML")
-        .items(&[&export_html_png, &export_html_jpg, &export_html_pdf])
+    let export_image_png =
+        MenuItemBuilder::with_id("export.image.png", "PNG Image…").build(app)?;
+    let export_image_svg =
+        MenuItemBuilder::with_id("export.image.svg", "SVG Image…").build(app)?;
+    let export_image = SubmenuBuilder::new(app, "Image")
+        .items(&[&export_image_png, &export_image_svg])
         .build()?;
     let export = SubmenuBuilder::new(app, "Export")
-        .item(&export_html)
-        .item(&export_markdown)
+        .item(&export_document)
+        .item(&export_image)
         .build()?;
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&new)

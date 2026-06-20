@@ -20,6 +20,30 @@ async function rasterize(
   return canvas;
 }
 
+function serializeElement(node: HTMLElement): string {
+  const clone = node.cloneNode(true) as HTMLElement;
+  if (typeof XMLSerializer !== "undefined") {
+    return new XMLSerializer().serializeToString(clone);
+  }
+  return clone.outerHTML;
+}
+
+export function nodeToSvg(node: HTMLElement): string {
+  const rect = node.getBoundingClientRect();
+  const width = Math.max(
+    1,
+    Math.ceil(rect.width || node.clientWidth || 0),
+  );
+  const height = Math.max(1, Math.ceil(node.scrollHeight || rect.height || 0));
+  const html = serializeElement(node);
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+    '<foreignObject width="100%" height="100%">' +
+    `<div xmlns="http://www.w3.org/1999/xhtml" style="box-sizing:border-box;background:#fff;color:#111;padding:16px;width:${width}px">${html}</div>` +
+    "</foreignObject></svg>"
+  );
+}
+
 // Many HTML "slide" docs use a fixed-size stage (#frame) or a large SVG, laid
 // out with position:fixed so the document's scroll size is just the viewport.
 // Detect that natural artboard so the capture isn't clipped on the right.
@@ -47,7 +71,9 @@ function detectArtboard(
 
 // Capture a full HTML document: render it in an off-screen iframe so its own
 // stylesheet and layout apply, measure the real content size, then rasterize.
-export async function htmlToCanvas(html: string): Promise<HTMLCanvasElement> {
+async function htmlToSvgAndSize(
+  html: string,
+): Promise<{ svg: string; width: number; height: number }> {
   const frame = document.createElement("iframe");
   frame.setAttribute("sandbox", "allow-same-origin");
   Object.assign(frame.style, {
@@ -90,24 +116,27 @@ export async function htmlToCanvas(html: string): Promise<HTMLCanvasElement> {
       '<foreignObject width="100%" height="100%">' +
       `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;background:#fff">${styles}${artboardCss}${body}</div>` +
       "</foreignObject></svg>";
-    return await rasterize(svg, width, height);
+    return { svg, width, height };
   } finally {
     frame.remove();
   }
+}
+
+export async function htmlToSvg(html: string): Promise<string> {
+  return (await htmlToSvgAndSize(html)).svg;
+}
+
+export async function htmlToCanvas(html: string): Promise<HTMLCanvasElement> {
+  const { svg, width, height } = await htmlToSvgAndSize(html);
+  return rasterize(svg, width, height);
 }
 
 export async function toCanvas(
   node: HTMLElement,
 ): Promise<HTMLCanvasElement> {
   const rect = node.getBoundingClientRect();
-  const width = Math.max(1, Math.ceil(rect.width));
-  const height = Math.max(1, Math.ceil(node.scrollHeight));
-  const clone = node.cloneNode(true) as HTMLElement;
-  const html = new XMLSerializer().serializeToString(clone);
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
-    '<foreignObject width="100%" height="100%">' +
-    `<div xmlns="http://www.w3.org/1999/xhtml" style="box-sizing:border-box;background:#fff;color:#111;padding:16px;width:${width}px">${html}</div>` +
-    "</foreignObject></svg>";
+  const width = Math.max(1, Math.ceil(rect.width || node.clientWidth || 0));
+  const height = Math.max(1, Math.ceil(node.scrollHeight || rect.height || 0));
+  const svg = nodeToSvg(node);
   return rasterize(svg, width, height);
 }

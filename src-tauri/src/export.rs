@@ -104,6 +104,39 @@ pub fn export_docx(markdown: String, out: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn export_pdf_html(html: String, out: String) -> Result<(), String> {
+    let pandoc = find_pandoc().ok_or(PANDOC_MISSING)?;
+    let typst = find_typst().ok_or(TYPST_MISSING)?;
+    let media = std::env::temp_dir().join("mdflow-export-media");
+    let args = vec![
+        "--from".into(),
+        "html".into(),
+        "--extract-media".into(),
+        media.to_string_lossy().into_owned(),
+        "--pdf-engine".into(),
+        typst.to_string_lossy().into_owned(),
+        "-o".into(),
+        out,
+    ];
+    run_pandoc(&pandoc, &html, &args)
+}
+
+#[tauri::command]
+pub fn export_docx_html(html: String, out: String) -> Result<(), String> {
+    let pandoc = find_pandoc().ok_or(PANDOC_MISSING)?;
+    let media = std::env::temp_dir().join("mdflow-export-media");
+    let args = vec![
+        "--from".into(),
+        "html".into(),
+        "--extract-media".into(),
+        media.to_string_lossy().into_owned(),
+        "-o".into(),
+        out,
+    ];
+    run_pandoc(&pandoc, &html, &args)
+}
+
+#[tauri::command]
 pub fn export_html(markdown: String, out: String) -> Result<(), String> {
     let pandoc = find_pandoc().ok_or(PANDOC_MISSING)?;
     let args = vec![

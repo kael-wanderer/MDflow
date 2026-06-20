@@ -66,7 +66,9 @@ src/
     panel.ts      Chat/Terminal panel and apply/insert actions
     providers.ts  provider request/SSE/command helpers
     terminal.ts   xterm view bound to the native PTY
-  capture.ts   preview-to-canvas image export
+  capture.ts   rendered HTML/node capture to PNG canvas or SVG string
+  export-options.ts context-aware export menu model by document type
+  export-render.ts rendered standalone HTML builder for PDF/DOCX export
   editor.ts    CodeMirror 6 (md highlight, soft-wrap) — createEditor()
   markdown-format.ts pure bold/italic/heading/link/code/quote/list/rule edits
   preview.ts   markdown-it + KaTeX render pipeline — renderMarkdown()
@@ -90,7 +92,7 @@ src/
 src-tauri/src/
   lib.rs       Tauri builder: command registry + plugins (dialog, updater)
   ai.rs        command-provider process streaming
-  export.rs    Pandoc/Typst PDF, DOCX, and HTML export
+  export.rs    Pandoc/Typst rendered-HTML to PDF/DOCX export
   files.rs     file IO/management, recursive walk, settings, byte IO
   pty.rs       portable PTY lifecycle and terminal streaming
 ```
@@ -107,11 +109,16 @@ Editor settings live at `<app config dir>/settings.json`; AI providers and termi
 live at `<app config dir>/ai.json`. The Gear button opens either file as a normal
 tab, and saving applies the relevant configuration.
 
-PDF/DOCX/HTML export requires Pandoc and Typst:
+Document PDF/DOCX export requires Pandoc and Typst:
 
 ```bash
 brew install pandoc typst
 ```
+
+Export is document-aware: Markdown/plain documents offer rendered PDF/DOCX plus
+PNG/SVG; HTML and Excalidraw offer PNG/SVG; mindmaps offer PNG; PDF is read-only.
+Document export renders KaTeX and Mermaid before conversion. DOCX rasterizes SVG
+diagrams as a best-effort compatibility step while retaining MathML for equations.
 
 Rich preview and terminal dependencies include Mermaid, KaTeX, PDF.js, xterm, and
 the Rust `portable-pty` crate. Heavy engines are loaded on demand so the startup

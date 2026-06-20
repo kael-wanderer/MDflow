@@ -31,7 +31,7 @@ Acceptance / smoke test cases, **one file per feature**. Run them against a dev 
 | [08-palette.md](08-palette.md) | ⌘K / ⌘P command & file palette, fuzzy match |
 | [09-settings-gear.md](09-settings-gear.md) | Gear panel (Theme / Format / General / Agent), themes |
 | [10-ai-panel.md](10-ai-panel.md) | AI chat + terminal panel, providers |
-| [11-export.md](11-export.md) | Export: HTML (PNG/JPG/PDF) & Markdown (PDF/DOCX), sidebar button + menu |
+| [11-export.md](11-export.md) | Context-aware Document (PDF/DOCX) and Image (PNG/SVG) export |
 | [12-pdf-reader.md](12-pdf-reader.md) | PDF.js reader |
 | [13-excalidraw.md](13-excalidraw.md) | Excalidraw board (M10) |
 | [14-mindmap.md](14-mindmap.md) | Mindmap board / jsMind (M11) |

@@ -73,7 +73,12 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
     - Large HTML/SVG previews no longer use document-level CSS `zoom`, which forced
       WebKit to clear, relayout, and repaint the iframe
     - Zoom now scales the already-painted iframe surface while inversely sizing its
-      viewport, preserving the full-picture behavior without the white flash
+    viewport, preserving the full-picture behavior without the white flash
+[x] Export overhaul (2026-06-20):
+    - Context-aware options per document type; PDF disables Export
+    - Markdown Document export renders KaTeX/Mermaid before PDF/DOCX conversion
+    - PNG/SVG image export for Markdown, HTML, and Excalidraw; mindmap PNG
+    - Excalidraw PNG/SVG bridge fixed; JPG and rendered HTML-to-PDF removed
 
 ## Backlog (specced 2026-06-20)
 

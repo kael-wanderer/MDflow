@@ -15,7 +15,17 @@ type VendorModule = {
         files: unknown,
       ) => void;
     },
-  ) => () => void;
+  ) => {
+    destroy: () => void;
+    exportPng: () => Promise<HTMLCanvasElement>;
+    exportSvg: () => Promise<string>;
+  };
+};
+
+export type ExcalidrawBoardHandle = {
+  destroy: () => void;
+  exportPng: () => Promise<HTMLCanvasElement>;
+  exportSvg: () => Promise<string>;
 };
 
 let stylePromise: Promise<void> | null = null;
@@ -89,7 +99,7 @@ export async function mountExcalidrawBoard(
   host: HTMLElement,
   raw: string,
   onChange: (serialized: string) => void,
-): Promise<() => void> {
+): Promise<ExcalidrawBoardHandle> {
   const scene = parseExcalidrawDocument(raw);
   await loadStyles();
   const vendor = await loadVendor();
@@ -100,7 +110,7 @@ export async function mountExcalidrawBoard(
   const stopAcceptingTimer = window.setTimeout(() => {
     acceptingChanges = true;
   }, 250);
-  const unmount = vendor.mountExcalidraw(host, {
+  const handle = vendor.mountExcalidraw(host, {
     initialData: scene,
     theme,
     onChange: (elements, appState, files) => {
@@ -115,8 +125,12 @@ export async function mountExcalidrawBoard(
       onChange(serialized);
     },
   });
-  return () => {
-    window.clearTimeout(stopAcceptingTimer);
-    unmount();
+  return {
+    destroy: () => {
+      window.clearTimeout(stopAcceptingTimer);
+      handle.destroy();
+    },
+    exportPng: handle.exportPng,
+    exportSvg: handle.exportSvg,
   };
 }

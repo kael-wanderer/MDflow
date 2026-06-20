@@ -1,66 +1,73 @@
 # Export
 
-Sidebar Export button + native File ▸ Export menu, grouped **HTML** (PNG/JPG/PDF) and
-**Markdown** (PDF/DOCX).
+Export is context-aware. Document PDF/DOCX needs Pandoc + Typst installed:
+`brew install pandoc typst`.
 
-> Markdown exports need Pandoc + Typst installed (`brew install pandoc typst`).
+### EXP-01 — Markdown options
 
-### EXP-01 — Sidebar export popover
-- Steps: Click the Export icon in the activity bar (after the AI icon).
-- Expected: A popover with two groups — HTML ▸ (PNG / JPG / PDF) and Markdown ▸ (PDF /
-  Word DOCX). The icon is the external-export (box-arrow) glyph.
+- Steps: Open `.md`, `.txt`, or an untitled document; click the activity-bar Export icon.
+- Expected: Document ▸ PDF / Word (DOCX), and Image ▸ PNG / SVG.
 - Status: [ ]  Notes:
 
-### EXP-02 — Markdown ▸ PDF
-- Pre-req: a `.md` file with headings, a table, code.
-- Steps: Export ▸ Markdown ▸ PDF; choose a path.
-- Expected: A valid PDF is written (no "read-only file system" error); content matches.
+### EXP-02 — Rendered Markdown PDF
+
+- Pre-req: Markdown containing a heading, table, `$x^2$`, and a Mermaid fence.
+- Steps: Export ▸ Document ▸ PDF; choose a path.
+- Expected: Valid PDF; math and Mermaid are rendered, not raw source; tables are visible.
 - Status: [ ]  Notes:
 
-### EXP-03 — Markdown ▸ Word (DOCX)
-- Steps: Export ▸ Markdown ▸ Word (DOCX); choose a path.
-- Expected: A valid .docx opens in Word/Pages with the content.
+### EXP-03 — Rendered Markdown DOCX
+
+- Steps: Export the same document via Document ▸ Word (DOCX).
+- Expected: Valid DOCX; equation is editable/readable and the Mermaid diagram appears as an image.
 - Status: [ ]  Notes:
 
-### EXP-04 — HTML ▸ PNG (markdown preview)
-- Steps: On a `.md`, Export ▸ HTML ▸ PNG Image; choose a path.
-- Expected: A PNG of the rendered preview, full width (not clipped), is written.
+### EXP-04 — Markdown PNG and SVG
+
+- Steps: Export the same document through Image ▸ PNG, then Image ▸ SVG.
+- Expected: Both files contain the full rendered document, including math and Mermaid.
 - Status: [ ]  Notes:
 
-### EXP-05 — HTML ▸ JPG
-- Steps: Export ▸ HTML ▸ JPG Image.
-- Expected: A JPG with a white background (no black where transparent).
+### EXP-05 — HTML PNG and SVG
+
+- Pre-req: `.html` with a fixed-size `#frame` or large SVG artboard.
+- Steps: Export PNG, then SVG.
+- Expected: Flat PNG/SVG choices only; full artboard is captured without right-side clipping.
 - Status: [ ]  Notes:
 
-### EXP-06 — HTML ▸ PDF (rendered)
-- Steps: Export ▸ HTML ▸ PDF.
-- Expected: A PDF wrapping the rendered preview image is written.
+### EXP-06 — Excalidraw PNG and SVG
+
+- Steps: Open a populated `.excalidraw`; export PNG, then SVG.
+- Expected: Both files contain the current board scene; no markdown/source fallback.
 - Status: [ ]  Notes:
 
-### EXP-07 — Export an .html file (full page)
-- Pre-req: an `.html` file with a fixed-size frame (e.g. 1920×1080).
-- Steps: Export ▸ HTML ▸ PNG.
-- Expected: The whole artboard is captured (full width, right side NOT cut off ~30%).
+### EXP-07 — Mindmap PNG only
+
+- Steps: Open `.mind`; click Export.
+- Expected: Only PNG Image is offered; exported PNG contains the whole mindmap.
 - Status: [ ]  Notes:
 
-### EXP-08 — Export in split (focus-aware)
-- Pre-req: Main and Sub showing different files.
-- Steps: Work in one window, then Export.
-- Expected: Exports the last-focused window's document.
+### EXP-08 — PDF has no sidebar export
+
+- Steps: Open `.pdf`.
+- Expected: Activity-bar Export button is disabled and opens no popover.
 - Status: [ ]  Notes:
 
-### EXP-09 — No success popup
-- Steps: Complete any export.
-- Expected: No "Saved" confirmation dialog (errors still show).
+### EXP-09 — Focus-aware split export
+
+- Pre-req: Main and Sub show different files.
+- Steps: Focus each window and inspect/export in turn.
+- Expected: Sidebar options and exported content follow the last-focused window.
 - Status: [ ]  Notes:
 
-### EXP-10 — Native File ▸ Export menu
-- Steps: Use the macOS menu File ▸ Export ▸ HTML/Markdown submenus.
-- Expected: Same options/behavior as the sidebar popover.
+### EXP-10 — Native File ▸ Export
+
+- Steps: Select each Document/Image command against compatible and incompatible files.
+- Expected: Compatible choices export normally; incompatible choices show a short unavailable message.
 - Status: [ ]  Notes:
 
-### EXP-11 — Pandoc/Typst missing
-- Pre-req: temporarily without Pandoc/Typst.
-- Steps: Export ▸ Markdown ▸ PDF.
-- Expected: A friendly "install pandoc/typst" error, no crash.
+### EXP-11 — Missing tools and quiet success
+
+- Steps: Test Document PDF without Pandoc/Typst, then complete any valid export with tools restored.
+- Expected: Missing tools produce a friendly install error; successful exports show no success popup.
 - Status: [ ]  Notes:

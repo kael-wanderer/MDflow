@@ -38,7 +38,10 @@ export type WindowView = {
   adjustFocusedZoom: (delta: number) => void;
   resetFocusedZoom: () => void;
   requestMeasure: () => void;
-  captureBoard: () => Promise<HTMLCanvasElement> | null;
+  captureBoard: () => {
+    png: () => Promise<HTMLCanvasElement>;
+    svg?: () => Promise<string>;
+  } | null;
   focus: () => void;
   destroy: () => void;
   setLineNumbersFlag: (on: boolean) => void;
@@ -121,7 +124,10 @@ export function createWindowView(
   let previewFrame: HTMLIFrameElement | null = null;
   let lastMode: ViewMode | null = null;
   let boardDestroy: (() => void) | null = null;
-  let boardCapture: (() => Promise<HTMLCanvasElement>) | null = null;
+  let boardCapture: {
+    png: () => Promise<HTMLCanvasElement>;
+    svg?: () => Promise<string>;
+  } | null = null;
   let boardRenderToken = 0;
 
   root.addEventListener("mousedown", () => h.onFocusWindow(windowId));
@@ -272,12 +278,16 @@ export function createWindowView(
             editor.setText(serialized);
           }),
         )
-        .then((destroy) => {
+        .then((handle) => {
           if (token !== boardRenderToken) {
-            destroy();
+            handle.destroy();
             return;
           }
-          boardDestroy = destroy;
+          boardDestroy = handle.destroy;
+          boardCapture = {
+            png: handle.exportPng,
+            svg: handle.exportSvg,
+          };
         })
         .catch((error) => {
           if (token !== boardRenderToken) return;
@@ -310,7 +320,7 @@ export function createWindowView(
           }
           previewPane.innerHTML = "";
           boardDestroy = handle.destroy;
-          boardCapture = handle.capture;
+          boardCapture = { png: handle.capture };
         })
         .catch((error) => {
           if (token !== boardRenderToken) return;
@@ -480,7 +490,7 @@ export function createWindowView(
       }
     },
     requestMeasure: () => editor.requestMeasure(),
-    captureBoard: () => (boardCapture ? boardCapture() : null),
+    captureBoard: () => boardCapture,
     focus: () => {
       if (isExcalidrawFile(previewPathOrName) || isMindmapFile(previewPathOrName)) {
         focusedPane = "preview";

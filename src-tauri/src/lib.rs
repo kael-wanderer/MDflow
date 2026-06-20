@@ -47,6 +47,8 @@ pub fn run() {
             ai::ai_run,
             export::export_pdf,
             export::export_docx,
+            export::export_pdf_html,
+            export::export_docx_html,
             export::export_html,
             files::read_file,
             files::read_file_bytes,
