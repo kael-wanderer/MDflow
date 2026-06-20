@@ -219,6 +219,42 @@ body.resizing-panes iframe {
   height: 100%;
 }
 
+.mm-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.mm-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.mm-toolbar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+
+.mm-btn {
+  padding: 4px 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--bg-elev) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: default;
+}
+
+.mm-btn:hover {
+  color: var(--text-strong);
+  border-color: var(--accent);
+}
+
 .window-document-board .jsmind-inner,
 .window-document-board jmnodes {
   background: var(--bg-preview, #171922);
@@ -1653,6 +1689,8 @@ body.resizing-ai {
 .agent-list {
   display: grid;
   gap: 7px;
+  max-height: 150px;
+  overflow-y: auto;
 }
 
 .agent-row {
