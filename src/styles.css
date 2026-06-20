@@ -219,6 +219,55 @@ body.resizing-panes iframe {
   height: 100%;
 }
 
+.window-document-board .jsmind-inner,
+.window-document-board jmnodes {
+  background: var(--bg-preview, #171922);
+}
+
+.window-document-board jmnode {
+  min-height: 24px;
+  padding: 6px 10px;
+  color: var(--text, #d7d9e0);
+  background: var(--bg-elev, #191c24);
+  border: 1px solid var(--border, #272b36);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--bg) 42%, transparent);
+  font: 500 13px/1.35 var(--font-ui);
+}
+
+.window-document-board jmnode.root {
+  color: var(--bg, #111318);
+  background: var(--accent, #e0a356);
+  border-color: var(--accent, #e0a356);
+  font-weight: 700;
+}
+
+.window-document-board jmnode:hover {
+  border-color: var(--accent, #e0a356);
+}
+
+.window-document-board jmnode.selected {
+  color: var(--text-strong, #fff);
+  background: color-mix(in srgb, var(--accent) 24%, var(--bg-elev));
+  border-color: var(--accent, #e0a356);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.window-document-board jmnode.root.selected {
+  color: var(--bg, #111318);
+  background: var(--accent-press, var(--accent));
+}
+
+.window-document-board jmexpander {
+  color: var(--muted, #9298a8);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+.window-document-board jmexpander:hover {
+  color: var(--accent, #e0a356);
+}
+
 .board-loading,
 .board-error {
   display: grid;
@@ -516,7 +565,7 @@ body.ai-hidden #ai-resize {
   border-right: 1px solid var(--border);
 }
 
-#activitybar .ab-settings {
+#activitybar .ab-export {
   margin-top: auto;
 }
 

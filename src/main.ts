@@ -534,6 +534,12 @@ function newDoc(): void {
   openInWindow(getState().activeWindowId, { path: null, name: "Untitled", text: "" });
 }
 
+function newBoard(kind: "excalidraw" | "mind"): void {
+  const name =
+    kind === "excalidraw" ? "Untitled.excalidraw" : "Untitled.mind";
+  openInWindow(getState().activeWindowId, { path: null, name, text: "" });
+}
+
 async function doSave(saveAs = false): Promise<void> {
   const t = activeMeta();
   if (!t) return;
@@ -1055,6 +1061,7 @@ initActivityBar(
   (x, y) => settingsPanel.open(x, y),
   toggleAI,
   openExportMenu,
+  newBoard,
 );
 initResize((explorerWidth) => setState({ explorerWidth }));
 const aiResize = document.getElementById("ai-resize")!;

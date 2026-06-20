@@ -31,6 +31,12 @@ export const glyphs: Record<string, string> = {
   ai: wrap(
     `<path d="M8 1.5l1.6 4.3 4.4 1.6-4.4 1.6L8 13.3 6.4 9 2 7.4l4.4-1.6z"/>`,
   ),
+  excalidraw: wrap(
+    `<rect x="2" y="3" width="10.5" height="9.5" rx="1.5"/><path d="M6 10.5l.5-2.4 5-5 2 2-5 5z"/><path d="M10.8 3.8l2 2"/>`,
+  ),
+  mindmap: wrap(
+    `<rect x="5.4" y="2" width="5.2" height="3.2" rx="1"/><rect x="1.5" y="10.5" width="4.5" height="3" rx="1"/><rect x="10" y="10.5" width="4.5" height="3" rx="1"/><path d="M8 5.2v2.1M3.8 10.5V8.8H12v1.7"/>`,
+  ),
   gear: wrap(
     `<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/>`,
   ),

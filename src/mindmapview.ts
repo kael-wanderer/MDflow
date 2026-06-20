@@ -36,8 +36,20 @@ type JsMindInstance = {
   show: (mind: unknown) => void;
   get_data: (format: string) => unknown;
   add_event_listener: (fn: (...args: unknown[]) => void) => void;
+  view: {
+    opts: { line_color: string };
+    show_lines: () => void;
+  };
   screenshot?: ScreenshotPlugin;
 };
+
+function themeColor(name: string, fallback: string): string {
+  return (
+    getComputedStyle(document.documentElement)
+      .getPropertyValue(name)
+      .trim() || fallback
+  );
+}
 
 export async function mountMindmapBoard(
   host: HTMLElement,
@@ -47,8 +59,23 @@ export async function mountMindmapBoard(
   const mind = parseMindmap(raw);
   const JsMind = (await loadJsMind()) as new (options: unknown) => JsMindInstance;
 
-  const jm = new JsMind({ container: host, editable: true, mode: "full" });
+  const jm = new JsMind({
+    container: host,
+    editable: true,
+    mode: "full",
+    view: {
+      line_color: themeColor("--border", "#777"),
+    },
+  });
   jm.show(mind);
+  const themeObserver = new MutationObserver(() => {
+    jm.view.opts.line_color = themeColor("--border", "#777");
+    jm.view.show_lines();
+  });
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
 
   let accepting = false;
   let last = serializeMindmap(jm.get_data("node_tree"));
@@ -67,6 +94,7 @@ export async function mountMindmapBoard(
   return {
     destroy: () => {
       window.clearTimeout(timer);
+      themeObserver.disconnect();
       host.replaceChildren();
     },
     capture: async () => {

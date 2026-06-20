@@ -37,3 +37,16 @@ Single-pane editable `.excalidraw` board (lazy React/Excalidraw runtime).
 - Steps: Move the board tab to Sub; rename the file; restart with session restore.
 - Expected: Tab ownership, path, and restore all behave like normal tabs.
 - Status: [ ]  Notes:
+
+### EXC-08 — Activity-bar new board
+
+- Steps: Click the Excalidraw icon between AI and Mindmap.
+- Expected: A new `Untitled.excalidraw` tab opens as an empty board; the activity-bar
+  order is Explorer, Search, AI, Excalidraw, Mindmap, Export, Gear.
+- Status: [ ]  Notes:
+
+### EXC-09 — Save a new board
+
+- Steps: Draw one shape in the untitled board and press ⌘S.
+- Expected: Save As opens; saving with `.excalidraw` creates a valid file that reopens.
+- Status: [ ]  Notes:

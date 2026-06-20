@@ -36,10 +36,9 @@ JSON; default root topic "Central Idea".
 - Expected: The mindmap is preserved; reopening shows no spurious dirty flag.
 - Status: [ ]  Notes:
 
-### MIND-07 — Export PNG / JPG / PDF
-- Steps: With the `.mind` board active: Export ▸ HTML ▸ PNG, then JPG, then PDF.
-- Expected: Each writes an image/PDF of the board (white background, nodes + connector
-  lines present, no jsMind watermark).
+### MIND-07 — Export PNG
+- Steps: With the `.mind` board active, choose Export ▸ PNG Image.
+- Expected: A PNG of the board is written with nodes and connector lines present.
 - Status: [ ]  Notes:
 
 ### MIND-08 — Invalid .mind JSON
@@ -61,4 +60,23 @@ JSON; default root topic "Central Idea".
 ### MIND-11 — Focus on activate
 - Steps: Switch to a `.mind` tab.
 - Expected: Keyboard focus goes to the board pane (not a hidden editor).
+- Status: [ ]  Notes:
+
+### MIND-12 — Activity-bar new board
+
+- Steps: Click the Mindmap icon between Excalidraw and Export.
+- Expected: A new `Untitled.mind` tab opens with root topic exactly "Central Idea".
+- Status: [ ]  Notes:
+
+### MIND-13 — Save a new board
+
+- Steps: Edit the untitled mindmap and press ⌘S.
+- Expected: Save As opens; saving with `.mind` creates a valid file that reopens.
+- Status: [ ]  Notes:
+
+### MIND-14 — Theme-aware board
+
+- Steps: Open a mindmap in a dark theme, then switch to Light while it remains open.
+- Expected: Canvas, nodes, selection, expanders, text, and connector lines remain
+  legible and update to the active palette without remounting the board.
 - Status: [ ]  Notes:

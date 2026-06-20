@@ -79,6 +79,10 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
     - Markdown Document export renders KaTeX/Mermaid before PDF/DOCX conversion
     - PNG/SVG image export for Markdown, HTML, and Excalidraw; mindmap PNG
     - Excalidraw PNG/SVG bridge fixed; JPG and rendered HTML-to-PDF removed
+[x] Board UX (2026-06-20):
+    - Activity bar order: Explorer, Search, AI, Excalidraw, Mindmap, Export, Gear
+    - One-click untitled Excalidraw and Mindmap creation using the normal save flow
+    - jsMind nodes, canvas, expanders, selection, and connector lines follow app themes
 
 ## Backlog (specced 2026-06-20)
 
@@ -240,6 +244,7 @@ Design: `docs/superpowers/specs/2026-06-20-m10-excalidraw-design.md`
 [x] Friendly invalid-document error that preserves the original file text
 [x] Export mindmap to PNG, JPG, and PDF via canvas capture
 [x] Automated frontend tests, production build, and interactive browser smoke
+[x] Theme-aware jsMind board styling and live connector recoloring
 [ ] Native GUI smoke test (native launch and user verification)
 
 ### Workflow

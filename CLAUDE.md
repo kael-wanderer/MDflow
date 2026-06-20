@@ -103,7 +103,9 @@ View mode + zoom persist to `localStorage` (`mdflow.ui`).
 
 Special-pane document types: `.excalidraw` files open as an editable Excalidraw board
 (single pane, React-isolated); `.mind` files open as an editable jsMind mindmap board
-(single pane, drag-drop node editing, similar layout shape).
+(single pane, drag-drop node editing, similar layout shape). Dedicated activity-bar
+buttons create untitled boards of either type. jsMind nodes and connector lines derive
+their colors from the active MDflow theme and update when the theme changes.
 
 Editor settings live at `<app config dir>/settings.json`; AI providers and terminals
 live at `<app config dir>/ai.json`. The Gear button opens either file as a normal

@@ -7,6 +7,7 @@ export function initActivityBar(
   onSettings: (x: number, y: number) => void = () => {},
   onAI: () => void = () => {},
   onExport: (x: number, y: number) => void = () => {},
+  onNewBoard: (kind: "excalidraw" | "mind") => void = () => {},
 ): void {
   const explorerButton = document.getElementById("ab-explorer")!;
   explorerButton.innerHTML = glyphs.explorer;
@@ -18,6 +19,14 @@ export function initActivityBar(
   const aiButton = document.getElementById("ab-ai")!;
   aiButton.innerHTML = glyphs.ai;
   aiButton.addEventListener("click", onAI);
+
+  const excalidrawButton = document.getElementById("ab-excalidraw")!;
+  excalidrawButton.innerHTML = glyphs.excalidraw;
+  excalidrawButton.addEventListener("click", () => onNewBoard("excalidraw"));
+
+  const mindmapButton = document.getElementById("ab-mindmap")!;
+  mindmapButton.innerHTML = glyphs.mindmap;
+  mindmapButton.addEventListener("click", () => onNewBoard("mind"));
 
   const exportButton = document.getElementById("ab-export")!;
   exportButton.innerHTML = glyphs.export;
