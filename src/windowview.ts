@@ -476,7 +476,7 @@ export function createWindowView(
     requestMeasure: () => editor.requestMeasure(),
     captureBoard: () => (boardCapture ? boardCapture() : null),
     focus: () => {
-      if (isExcalidrawFile(previewPathOrName)) {
+      if (isExcalidrawFile(previewPathOrName) || isMindmapFile(previewPathOrName)) {
         focusedPane = "preview";
         previewPane.focus();
         return;

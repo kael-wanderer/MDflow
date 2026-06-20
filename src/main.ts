@@ -434,7 +434,7 @@ function onDocChange(windowId: string, tabId: string, text: string): void {
     });
   }
   if (windowId === getState().activeWindowId && tabId === w.activeTabId) {
-    if (isExcalidrawFile(t?.path ?? t?.name)) return;
+    if (isExcalidrawFile(t?.path ?? t?.name) || isMindmapFile(t?.path ?? t?.name)) return;
     schedulePreview(windowId, tabId, text);
   }
 }
