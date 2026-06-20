@@ -32,7 +32,7 @@ import { createPalette, type PaletteItem } from "./palette";
 import { breadcrumbsPath, joinPath, relativePath } from "./paths";
 import { renderPdf } from "./pdfview";
 import { isExcalidrawFile, isHtmlFile, isMindmapFile } from "./document-kind";
-import type { EditorDocumentKind } from "./editor";
+import type { EditorDocumentKind, SoftWrapMode } from "./editor";
 import {
   exportOptionsFor,
   type ExportFormat,
@@ -42,6 +42,7 @@ import { initResize } from "./resize";
 import {
   applySettings,
   DEFAULT_SETTINGS_JSON,
+  normalizeThemeName,
   parseSettings,
   type Settings,
 } from "./settings";
@@ -94,6 +95,8 @@ async function loadSettings(): Promise<void> {
     currentSettings = parseSettings("{}");
   }
   applySettings(currentSettings);
+  applySoftWrap();
+  syncViewMenu();
 }
 
 async function loadAISettings(): Promise<void> {
@@ -124,6 +127,8 @@ function openAISettings(): void {
 function saveSettingsFromPanel(settings: Settings): void {
   currentSettings = settings;
   applySettings(currentSettings);
+  applySoftWrap();
+  syncViewMenu();
   requestWindowMeasure();
   if (settingsPath) {
     void writeFile(settingsPath, JSON.stringify(settings, null, 2));
@@ -167,7 +172,7 @@ function commandItems(): PaletteItem[] {
     command("split", "View: Split", () => setMode(activeWindowId(), "split")),
     command("editor", "View: Editor", () => setMode(activeWindowId(), "editor")),
     command("read", "View: Read", () => setMode(activeWindowId(), "preview")),
-    command("softwrap", "Toggle Soft Wrap", toggleSoftWrap),
+    command("softwrap", "Cycle Soft Wrap", cycleSoftWrap),
     command("lines", "Toggle Line Numbers", toggleLineNumbers),
     command("sub", "Toggle Sub Window", () => void toggleSub()),
     command("explorer", "Toggle Explorer", () => {
@@ -331,7 +336,7 @@ function showTabContextMenu(
 function makeView(windowId: string, isMain: boolean): WindowView {
   const v = createWindowView(windowsHost, windowId, isMain, handlers);
   v.setLineNumbersFlag(ui.lineNumbers);
-  v.editor.setSoftWrap(ui.softWrap);
+  v.editor.setSoftWrapMode(currentSettings.softWrapMode, currentSettings.wrapColumn);
   v.editor.setLineNumbers(ui.lineNumbers);
   views.set(windowId, v);
   return v;
@@ -565,6 +570,8 @@ async function doSave(saveAs = false): Promise<void> {
     if (target === settingsPath) {
       currentSettings = parseSettings(text);
       applySettings(currentSettings);
+      applySoftWrap();
+      syncViewMenu();
       requestWindowMeasure();
     }
     if (target === aiSettingsPath) {
@@ -732,13 +739,78 @@ function toggleLineNumbers(): void {
   renderAll();
 }
 
-function toggleSoftWrap(): void {
-  ui = { ...ui, softWrap: !ui.softWrap };
+function applySoftWrap(): void {
   for (const v of views.values()) {
-    v.editor.setSoftWrap(ui.softWrap);
+    v.editor.setSoftWrapMode(
+      currentSettings.softWrapMode,
+      currentSettings.wrapColumn,
+    );
   }
-  saveState(ui);
-  void invoke("set_soft_wrap", { on: ui.softWrap });
+}
+
+function syncViewMenu(): void {
+  void invoke("sync_view_menu", {
+    wrap: currentSettings.softWrapMode,
+    theme: currentSettings.theme,
+    font: currentSettings.main.font,
+    size: currentSettings.main.size,
+    explorerSize: currentSettings.explorer.size,
+  });
+}
+
+function persistCurrentSettings(): void {
+  applySettings(currentSettings);
+  requestWindowMeasure();
+  syncViewMenu();
+  if (settingsPath) {
+    void writeFile(settingsPath, JSON.stringify(currentSettings, null, 2));
+  }
+}
+
+function setWrapMode(mode: SoftWrapMode): void {
+  currentSettings = { ...currentSettings, softWrapMode: mode };
+  applySoftWrap();
+  persistCurrentSettings();
+}
+
+function cycleSoftWrap(): void {
+  const order: SoftWrapMode[] = ["off", "window", "guide"];
+  const next = order[(order.indexOf(currentSettings.softWrapMode) + 1) % order.length];
+  setWrapMode(next);
+}
+
+function setMenuFont(value: string): void {
+  currentSettings = {
+    ...currentSettings,
+    main: { ...currentSettings.main, font: value },
+    sub: { ...currentSettings.sub, font: value },
+  };
+  persistCurrentSettings();
+}
+
+function setMenuSize(size: number): void {
+  currentSettings = {
+    ...currentSettings,
+    main: { ...currentSettings.main, size },
+    sub: { ...currentSettings.sub, size },
+  };
+  persistCurrentSettings();
+}
+
+function setMenuExplorerSize(size: number): void {
+  currentSettings = {
+    ...currentSettings,
+    explorer: { ...currentSettings.explorer, size },
+  };
+  persistCurrentSettings();
+}
+
+function setMenuTheme(theme: string): void {
+  currentSettings = {
+    ...currentSettings,
+    theme: normalizeThemeName(theme) ?? currentSettings.theme,
+  };
+  persistCurrentSettings();
 }
 
 function ensureSubWindow(): void {
@@ -1126,7 +1198,7 @@ makeView("main", true);
 if (ui.aiVisible) buildAIPanel();
 patchWindow("main", { mode: ui.viewMode });
 for (const v of views.values()) {
-  v.editor.setSoftWrap(ui.softWrap);
+  v.editor.setSoftWrapMode(currentSettings.softWrapMode, currentSettings.wrapColumn);
   v.editor.setLineNumbers(ui.lineNumbers);
 }
 renderAll();
@@ -1162,7 +1234,23 @@ window.addEventListener("focus", () => {
 
 listen<string>("menu", (event) => {
   const wid = getState().activeWindowId;
-  switch (event.payload) {
+  const id = event.payload;
+  if (id.startsWith("view.wrap.")) {
+    return setWrapMode(id.slice("view.wrap.".length) as SoftWrapMode);
+  }
+  if (id.startsWith("view.font.")) {
+    return setMenuFont(id.slice("view.font.".length));
+  }
+  if (id.startsWith("view.explorer_size.")) {
+    return setMenuExplorerSize(Number(id.slice("view.explorer_size.".length)));
+  }
+  if (id.startsWith("view.size.")) {
+    return setMenuSize(Number(id.slice("view.size.".length)));
+  }
+  if (id.startsWith("view.theme.")) {
+    return setMenuTheme(id.slice("view.theme.".length));
+  }
+  switch (id) {
     case "file.new":
       return newDoc();
     case "file.open":
@@ -1189,14 +1277,26 @@ listen<string>("menu", (event) => {
       return void runNativeExport("img-png");
     case "export.image.svg":
       return void runNativeExport("img-svg");
-    case "view.split":
-      return setMode(wid, "split");
-    case "view.editor":
-      return setMode(wid, "editor");
-    case "view.read":
-      return setMode(wid, "preview");
-    case "view.softwrap":
-      return toggleSoftWrap();
+    case "view.toggle_explorer":
+      return void document.getElementById("ab-explorer")?.click();
+    case "view.toggle_preview":
+      return setMode(wid, activeWindow().mode === "split" ? "editor" : "split");
+    case "view.reading":
+      return setMode(wid, activeWindow().mode === "preview" ? "split" : "preview");
+    case "view.toggle_lines":
+      return toggleLineNumbers();
+    case "view.zoom_in":
+      return activeView().adjustFocusedZoom(0.1);
+    case "view.zoom_out":
+      return activeView().adjustFocusedZoom(-0.1);
+    case "view.zoom_reset":
+      return activeView().resetFocusedZoom();
+    case "window.fullscreen":
+      return void invoke("window_fullscreen_toggle");
+    case "window.left_half":
+      return void invoke("window_tile", { side: "left" });
+    case "window.right_half":
+      return void invoke("window_tile", { side: "right" });
     case "default.markdown":
       return void setAsDefault("markdown");
     case "default.pdf":
@@ -1226,11 +1326,7 @@ window.addEventListener("keydown", (e) => {
       return;
     }
   }
-  if (
-    (e.metaKey || e.ctrlKey) &&
-    (e.key.toLowerCase() === "k" ||
-      (e.key.toLowerCase() === "p" && !e.shiftKey))
-  ) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
     e.preventDefault();
     palette.open();
     return;
@@ -1246,7 +1342,6 @@ function applyZoom(zoom: number): void {
   document.getElementById("app")?.style.setProperty("--zoom", String(zoom));
 }
 applyZoom(ui.zoom);
-void invoke("set_soft_wrap", { on: ui.softWrap });
 
 async function restoreWindows(): Promise<void> {
   const saved = startupUi.windows;
