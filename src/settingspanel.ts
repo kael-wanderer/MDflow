@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { AISettings, Provider } from "./ai/aisettings";
 import {
   normalizeThemeName,
@@ -8,7 +9,7 @@ import {
 
 type SettingsTab = "theme" | "format" | "general" | "agent";
 type ZoneName = "explorer" | "main" | "sub";
-type AgentGroup = "command" | "local" | "api";
+type AgentGroup = "command" | "model";
 
 export type SettingsPanelDeps = {
   getSettings: () => Settings;
@@ -52,19 +53,8 @@ function cloneAISettings(settings: AISettings): AISettings {
   };
 }
 
-function isLocalHttp(provider: Provider): boolean {
-  if (provider.type !== "http") return false;
-  try {
-    const hostname = new URL(provider.baseUrl).hostname;
-    return hostname === "localhost" || hostname === "127.0.0.1";
-  } catch {
-    return false;
-  }
-}
-
 function providerGroup(provider: Provider): AgentGroup {
-  if (provider.type === "command") return "command";
-  return isLocalHttp(provider) ? "local" : "api";
+  return provider.type === "command" ? "command" : "model";
 }
 
 function uniqueId(label: string, settings: AISettings): string {
@@ -357,26 +347,94 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     const list = document.createElement("div");
     list.className = "agent-list";
     for (const provider of providers) {
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = `agent-row${
-        settings.defaultProvider === provider.id ? " selected" : ""
-      }`;
-      const detail =
+      const isDefault = settings.defaultProvider === provider.id;
+      const rowEl = document.createElement("div");
+      rowEl.className = `agent-row${isDefault ? " selected" : ""}`;
+
+      const info = document.createElement("span");
+      info.className = "agent-info";
+      info.innerHTML = `<strong></strong><small></small>`;
+      info.querySelector("strong")!.textContent = provider.label;
+      info.querySelector("small")!.textContent =
         provider.type === "command"
           ? provider.run.split(/\s+/)[0]
-          : `${provider.model} at ${provider.baseUrl}`;
-      row.innerHTML = `<span><strong></strong><small></small></span><span></span>`;
-      row.querySelector("strong")!.textContent = provider.label;
-      row.querySelector("small")!.textContent = detail;
-      row.lastElementChild!.textContent =
-        settings.defaultProvider === provider.id ? "Selected" : "Use";
-      row.addEventListener("click", () =>
+          : `${provider.model} @ ${provider.baseUrl}`;
+
+      const actions = document.createElement("span");
+      actions.className = "agent-actions";
+
+      const use = document.createElement("button");
+      use.type = "button";
+      use.className = "agent-use";
+      use.textContent = isDefault ? "Selected" : "Use";
+      use.addEventListener("click", () =>
         updateAI((next) => {
           next.defaultProvider = provider.id;
         }),
       );
-      list.appendChild(row);
+      actions.appendChild(use);
+
+      if (provider.type === "http") {
+        const badge = document.createElement("span");
+        badge.className = "agent-key-badge";
+        badge.textContent = "Key saved";
+        badge.hidden = true;
+        void invoke<boolean>("has_secret", { id: provider.id })
+          .then((ok) => {
+            badge.hidden = !ok;
+          })
+          .catch(() => {});
+        actions.appendChild(badge);
+
+        const setKey = document.createElement("button");
+        setKey.type = "button";
+        setKey.className = "agent-setkey";
+        setKey.textContent = "Set key…";
+        setKey.addEventListener("click", () => {
+          if (rowEl.querySelector(".agent-keyform")) return;
+          const keyForm = document.createElement("form");
+          keyForm.className = "agent-keyform";
+          keyForm.innerHTML = `<input type="password" name="key" placeholder="Paste API key" /><button type="submit">Save</button>`;
+          keyForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const value = String(
+              new FormData(keyForm).get("key") ?? "",
+            ).trim();
+            if (value) {
+              void invoke("set_secret", { id: provider.id, secret: value })
+                .then(() => render())
+                .catch(() => {});
+            } else {
+              keyForm.remove();
+            }
+          });
+          rowEl.appendChild(keyForm);
+          keyForm.querySelector("input")?.focus();
+        });
+        actions.appendChild(setKey);
+      }
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "agent-remove";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", () => {
+        if (provider.type === "http") {
+          void invoke("delete_secret", { id: provider.id }).catch(() => {});
+        }
+        updateAI((next) => {
+          next.providers = next.providers.filter(
+            (candidate) => candidate.id !== provider.id,
+          );
+          if (next.defaultProvider === provider.id) {
+            next.defaultProvider = next.providers[0]?.id ?? "";
+          }
+        });
+      });
+      actions.appendChild(remove);
+
+      rowEl.append(info, actions);
+      list.appendChild(rowEl);
     }
     if (!providers.length) {
       const empty = document.createElement("p");
@@ -393,60 +451,85 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
         <label>Name<input name="label" placeholder="Claude Code" required /></label>
         <label>Command<input name="run" placeholder="claude -p {prompt}" required /></label>
         <label>Bypass command<input name="bypass" placeholder="Optional command for bypass mode" /></label>
-        <button type="submit">Add local agent</button>`;
+        <button type="submit">Add agent</button>`;
     } else {
       form.innerHTML = `
-        <label>Name<input name="label" placeholder="${
-          activeAgentGroup === "local" ? "Ollama" : "OpenAI"
-        }" required /></label>
-        <label>Base URL<input name="base" placeholder="${
-          activeAgentGroup === "local"
-            ? "http://localhost:11434/v1"
-            : "https://api.openai.com/v1"
-        }" required /></label>
+        <div class="agent-locality settings-segment">
+          <button type="button" data-loc="local" class="active">Local</button>
+          <button type="button" data-loc="remote">Remote</button>
+        </div>
+        <label>Name<input name="label" placeholder="Ollama" required /></label>
+        <label>Base URL<input name="base" placeholder="http://localhost:11434/v1" required /></label>
         <label>Model ID<input name="model" placeholder="Model name" required /></label>
-        <label>API key<input name="key" type="password" placeholder="Optional" /></label>
-        <button type="submit">Add ${
-          activeAgentGroup === "local" ? "local model" : "API model"
-        }</button>`;
+        <label>API key<input name="key" type="password" placeholder="Optional — stored in Keychain" /></label>
+        <button type="submit">Add model</button>`;
+      const localityButtons = Array.from(
+        form.querySelectorAll<HTMLButtonElement>("[data-loc]"),
+      );
+      for (const button of localityButtons) {
+        button.addEventListener("click", () => {
+          for (const other of localityButtons) {
+            other.classList.toggle("active", other === button);
+          }
+          const remote = button.dataset.loc === "remote";
+          const baseInput =
+            form.querySelector<HTMLInputElement>('[name="base"]')!;
+          const labelInput =
+            form.querySelector<HTMLInputElement>('[name="label"]')!;
+          baseInput.placeholder = remote
+            ? "https://api.openai.com/v1"
+            : "http://localhost:11434/v1";
+          labelInput.placeholder = remote ? "OpenAI" : "Ollama";
+        });
+      }
     }
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = new FormData(form);
       const label = String(data.get("label") ?? "").trim();
       if (!label) return;
-      updateAI((next) => {
-        const id = uniqueId(label, next);
-        const provider: Provider =
-          activeAgentGroup === "command"
-            ? {
-                id,
-                label,
-                type: "command",
-                run: String(data.get("run") ?? "").trim(),
-                bypassRun:
-                  String(data.get("bypass") ?? "").trim() || undefined,
-              }
-            : {
-                id,
-                label,
-                type: "http",
-                baseUrl: String(data.get("base") ?? "").trim(),
-                model: String(data.get("model") ?? "").trim(),
-                key: String(data.get("key") ?? "").trim(),
-              };
-        next.providers.push(provider);
-        next.defaultProvider = id;
-      });
+      if (activeAgentGroup === "command") {
+        updateAI((next) => {
+          const id = uniqueId(label, next);
+          next.providers.push({
+            id,
+            label,
+            type: "command",
+            run: String(data.get("run") ?? "").trim(),
+            bypassRun:
+              String(data.get("bypass") ?? "").trim() || undefined,
+          });
+          next.defaultProvider = id;
+        });
+      } else {
+        const key = String(data.get("key") ?? "").trim();
+        let newId = "";
+        updateAI((next) => {
+          const id = uniqueId(label, next);
+          newId = id;
+          next.providers.push({
+            id,
+            label,
+            type: "http",
+            baseUrl: String(data.get("base") ?? "").trim(),
+            model: String(data.get("model") ?? "").trim(),
+          });
+          next.defaultProvider = id;
+        });
+        if (key && newId) {
+          void invoke("set_secret", { id: newId, secret: key })
+            .then(() => render())
+            .catch(() => {});
+        }
+      }
     });
     content.appendChild(form);
   }
 
   function renderAgent(content: HTMLElement): void {
     const groups: Array<[AgentGroup, string]> = [
-      ["command", "Local agent"],
-      ["local", "Local model"],
-      ["api", "API model"],
+      ["command", "CLI Agents"],
+      ["model", "Models"],
     ];
     const row = document.createElement("div");
     row.className = "settings-segment agent-segment";
@@ -462,6 +545,13 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       row.appendChild(button);
     }
     content.appendChild(row);
+    const help = document.createElement("p");
+    help.className = "settings-help";
+    help.textContent =
+      activeAgentGroup === "command"
+        ? "Installed agent CLIs (Claude Code, Codex, OpenCode, Pi). The agent chooses its own model and uses its own login."
+        : "OpenAI-compatible endpoints — local servers (Ollama, LM Studio) or hosted APIs. Keys are stored in your macOS Keychain.";
+    content.appendChild(help);
     renderAgentEditor(content);
   }
 
