@@ -456,7 +456,7 @@ export function createWindowView(
     render,
     renderPreview,
     adjustFocusedZoom: (delta) => {
-      if (isExcalidrawFile(previewPathOrName)) return;
+      if (isExcalidrawFile(previewPathOrName) || isMindmapFile(previewPathOrName)) return;
       if (focusedPane === "editor") {
         setEditorZoom(editorZoom + delta);
       } else {
@@ -465,7 +465,7 @@ export function createWindowView(
       }
     },
     resetFocusedZoom: () => {
-      if (isExcalidrawFile(previewPathOrName)) return;
+      if (isExcalidrawFile(previewPathOrName) || isMindmapFile(previewPathOrName)) return;
       if (focusedPane === "editor") {
         setEditorZoom(1);
       } else {
