@@ -4,6 +4,7 @@ mod export;
 mod files;
 mod menu;
 mod pty;
+mod secrets;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -125,6 +126,10 @@ pub fn run() {
             export::export_html,
             defaults::set_default_handler,
             defaults::open_default_apps_settings,
+            secrets::set_secret,
+            secrets::get_secret,
+            secrets::delete_secret,
+            secrets::has_secret,
             files::read_file,
             files::read_file_bytes,
             files::save_file,
