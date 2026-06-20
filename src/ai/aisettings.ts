@@ -4,7 +4,6 @@ export type HttpProvider = {
   type: "http";
   baseUrl: string;
   model: string;
-  key: string;
 };
 
 export type CommandProvider = {
@@ -41,7 +40,6 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
       type: "http",
       baseUrl: "http://localhost:11434/v1",
       model: "llama3",
-      key: "",
     },
     {
       id: "lmstudio",
@@ -49,7 +47,27 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
       type: "http",
       baseUrl: "http://localhost:1234/v1",
       model: "local-model",
-      key: "",
+    },
+    {
+      id: "openai",
+      label: "OpenAI",
+      type: "http",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4.1-mini",
+    },
+    {
+      id: "anthropic",
+      label: "Anthropic",
+      type: "http",
+      baseUrl: "https://api.anthropic.com/v1",
+      model: "claude-3-5-haiku-latest",
+    },
+    {
+      id: "openrouter",
+      label: "OpenRouter",
+      type: "http",
+      baseUrl: "https://openrouter.ai/api/v1",
+      model: "openai/gpt-4.1-mini",
     },
     {
       id: "claude",
@@ -114,7 +132,6 @@ function parseProvider(raw: unknown): Provider | null {
       type: "http",
       baseUrl: value.baseUrl,
       model: value.model,
-      key: stringValue(value.key),
     };
   }
 
@@ -188,5 +205,47 @@ export function parseAISettings(raw: string): AISettings {
       ? requestedTerminal
       : terminals[0].id,
     permissionMode,
+  };
+}
+
+export function extractLegacyKeys(raw: string): {
+  cleaned: string;
+  keys: { id: string; secret: string }[];
+} {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return { cleaned: raw, keys: [] };
+  }
+  if (!data || typeof data !== "object") {
+    return { cleaned: raw, keys: [] };
+  }
+
+  const object = data as Record<string, unknown>;
+  const providers = Array.isArray(object.providers) ? object.providers : [];
+  const keys: { id: string; secret: string }[] = [];
+  let changed = false;
+
+  for (const entry of providers) {
+    if (!entry || typeof entry !== "object") continue;
+    const provider = entry as Record<string, unknown>;
+    if (
+      provider.type === "http" &&
+      typeof provider.key === "string" &&
+      provider.key !== "" &&
+      typeof provider.id === "string"
+    ) {
+      keys.push({ id: provider.id, secret: provider.key });
+    }
+    if (Object.hasOwn(provider, "key")) {
+      delete provider.key;
+      changed = true;
+    }
+  }
+
+  return {
+    cleaned: changed ? JSON.stringify(object, null, 2) : raw,
+    keys,
   };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_AI_SETTINGS,
+  extractLegacyKeys,
   parseAISettings,
 } from "../ai/aisettings";
 
@@ -71,5 +72,76 @@ describe("parseAISettings", () => {
     expect(settings.providers[0]).toMatchObject({
       bypassRun: "x --yes {prompt}",
     });
+  });
+});
+
+describe("http providers carry no key", () => {
+  it("parses an http provider without a key field", () => {
+    const raw = JSON.stringify({
+      providers: [
+        {
+          id: "a",
+          label: "A",
+          type: "http",
+          baseUrl: "u",
+          model: "m",
+          key: "sekret",
+        },
+      ],
+    });
+    const provider = parseAISettings(raw).providers[0];
+    expect(provider).not.toHaveProperty("key");
+  });
+
+  it("ships OpenAI, Anthropic, and OpenRouter templates", () => {
+    const ids = DEFAULT_AI_SETTINGS.providers.map((provider) => provider.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(["openai", "anthropic", "openrouter"]),
+    );
+    const openai = DEFAULT_AI_SETTINGS.providers.find(
+      (provider) => provider.id === "openai",
+    );
+    expect(openai).not.toHaveProperty("key");
+  });
+});
+
+describe("extractLegacyKeys", () => {
+  it("pulls non-empty http keys and strips them", () => {
+    const raw = JSON.stringify({
+      providers: [
+        {
+          id: "a",
+          label: "A",
+          type: "http",
+          baseUrl: "u",
+          model: "m",
+          key: "k1",
+        },
+        {
+          id: "b",
+          label: "B",
+          type: "http",
+          baseUrl: "u",
+          model: "m",
+          key: "",
+        },
+        { id: "c", label: "C", type: "command", run: "r {prompt}" },
+      ],
+    });
+    const { cleaned, keys } = extractLegacyKeys(raw);
+    expect(keys).toEqual([{ id: "a", secret: "k1" }]);
+    expect(cleaned).not.toContain("k1");
+    expect(JSON.parse(cleaned).providers[0]).not.toHaveProperty("key");
+  });
+
+  it("returns the raw string unchanged on invalid JSON", () => {
+    expect(extractLegacyKeys("nope")).toEqual({ cleaned: "nope", keys: [] });
+  });
+
+  it("returns no keys when none are present", () => {
+    const raw = JSON.stringify({
+      providers: [{ id: "c", label: "C", type: "command", run: "r" }],
+    });
+    expect(extractLegacyKeys(raw).keys).toEqual([]);
   });
 });
