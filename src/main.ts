@@ -612,6 +612,11 @@ function renderMarkdownForCapture(text: string): HTMLElement {
 
 async function captureActive(): Promise<HTMLCanvasElement> {
   const tab = activeMeta()!;
+  if (isMindmapFile(tab.path)) {
+    const canvas = await activeView().captureBoard();
+    if (canvas) return canvas;
+    throw new Error("The mindmap is still loading.");
+  }
   const text = activeView().editor.getText(tab.id);
   const capture = await import("./capture");
   if (isHtmlFile(tab.path)) {
