@@ -66,11 +66,18 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
       bypassRun:
         "codex exec --dangerously-bypass-approvals-and-sandbox {prompt}",
     },
+    {
+      id: "opencode",
+      label: "OpenCode",
+      type: "command",
+      run: "opencode run {prompt}",
+    },
     { id: "pi", label: "Pi", type: "command", run: "pi {prompt}" },
   ],
   terminals: [
     { id: "claude-term", label: "Claude Code", run: "claude" },
     { id: "codex-term", label: "Codex", run: "codex" },
+    { id: "opencode-term", label: "OpenCode", run: "opencode" },
   ],
   defaultProvider: "ollama",
   defaultTerminal: "claude-term",

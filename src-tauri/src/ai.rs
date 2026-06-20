@@ -1,6 +1,28 @@
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use tauri::Emitter;
+
+/// GUI apps on macOS launch with a minimal PATH that omits Homebrew, npm, and
+/// other user bin dirs, so `Command::new("pi")` fails with "No such file or
+/// directory". Resolve the user's real PATH from their login shell once and
+/// reuse it for every spawned agent command.
+fn login_shell_path() -> Option<&'static String> {
+    static PATH: OnceLock<Option<String>> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+        let output = Command::new(shell)
+            .args(["-lic", "printf %s \"$PATH\""])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        (!path.is_empty()).then_some(path)
+    })
+    .as_ref()
+}
 
 #[derive(Clone, serde::Serialize)]
 struct Chunk {
@@ -37,6 +59,9 @@ pub fn ai_run(
         .args(&args[1..])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    if let Some(path) = login_shell_path() {
+        command.env("PATH", path);
+    }
     let mut child = command.spawn().map_err(|error| {
         let message = format!("Failed to start: {error}");
         let _ = app.emit(
