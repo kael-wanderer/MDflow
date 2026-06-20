@@ -587,6 +587,19 @@ body.ai-hidden #ai-resize {
   height: 26px;
 }
 
+.ab-btn .ab-img-icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
 .ab-btn:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.045);
