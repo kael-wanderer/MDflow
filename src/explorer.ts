@@ -31,6 +31,7 @@ const ICON: Record<string, string> = {
   html: "<>",
   pdf: "PDF",
   excalidraw: "EX",
+  mind: "MIND",
   file: "·",
 };
 

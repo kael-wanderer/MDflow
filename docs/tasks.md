@@ -75,7 +75,7 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
 [x] M9 — Editor formatting toolbar (bold/italic/heading/link/code/quote/bullet/hr)
 [x] M9 — Proper HTML editing mode for .html files
 [x] M10 — Excalidraw single-pane view bound to .excalidraw (lazy React mount)
-[ ] M11 — jsMind visual mindmap single-pane view
+[x] M11 — jsMind visual mindmap single-pane view
 [ ] Set-as-default: declare doc types in Info.plist + native default-handler command
 
 ## Code Tasks
@@ -218,6 +218,19 @@ Design: `docs/superpowers/specs/2026-06-20-m10-excalidraw-design.md`
 [x] Session restore, rename, and Main/Sub window moves reuse normal tab ownership
 [x] Friendly invalid-document error that preserves the original file text
 [x] Automated frontend tests, production build, and interactive browser smoke
+
+### M11 - Mindmap board
+
+[x] `.mind` file detection, open-dialog filter, Explorer badge, and tab icon
+[x] Pure jsMind node_tree JSON validation and persistence-safe serialization
+[x] Full-pane editable board with add/rename/drag/delete node operations
+[x] Lazy jsMind 0.9.1 board runtime outside the startup bundle
+[x] Board changes flow through normal dirty, Save, Save As, and close handling
+[x] Session restore, rename, and Main/Sub window moves reuse normal tab ownership
+[x] Friendly invalid-document error that preserves the original file text
+[x] Export mindmap to PNG, JPG, and PDF via canvas capture
+[x] Automated frontend tests, production build, and interactive browser smoke
+[ ] Native GUI smoke test (native launch and user verification)
 
 ### Workflow
 

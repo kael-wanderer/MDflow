@@ -74,6 +74,8 @@ src/
   pdfview.ts   lazy PDF.js page renderer
   excalidraw-document.ts Excalidraw JSON validation and safe serialization
   excalidrawview.ts lazy loader for the isolated board runtime
+  mindmap-document.ts jsMind node_tree JSON parse/serialize
+  mindmapview.ts   lazy jsMind board loader (editable, screenshot-capable)
   windowview.ts per-window tabs, toolbar, editor, preview, and status
   explorer.ts  lazy folder tree + file management
   fuzzy.ts     subsequence fuzzy match + ranking — fuzzyMatch(), rankItems()
@@ -96,6 +98,10 @@ src-tauri/src/
 Data flow: edit → 300ms debounce → `renderMarkdown` → preview pane + word count.
 `Cmd+S` → `saveFile` → IPC `save_file`. `Cmd+O` → dialog → IPC `read_file` → editor.
 View mode + zoom persist to `localStorage` (`mdflow.ui`).
+
+Special-pane document types: `.excalidraw` files open as an editable Excalidraw board
+(single pane, React-isolated); `.mind` files open as an editable jsMind mindmap board
+(single pane, drag-drop node editing, similar layout shape).
 
 Editor settings live at `<app config dir>/settings.json`; AI providers and terminals
 live at `<app config dir>/ai.json`. The Gear button opens either file as a normal

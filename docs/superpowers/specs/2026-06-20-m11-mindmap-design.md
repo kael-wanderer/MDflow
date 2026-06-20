@@ -42,7 +42,7 @@ the M10 Excalidraw board.
 
 ## Clean-room note
 
-jsMind is a third-party MIT/BSD library, unrelated to Kaelio. No Kaelio code or CSS
+jsMind is a third-party BSD-3-Clause library, unrelated to Kaelio. No Kaelio code or CSS
 is read or ported. Add jsMind's license to `THIRD-PARTY-NOTICES`.
 
 ## Architecture

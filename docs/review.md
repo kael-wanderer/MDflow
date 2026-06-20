@@ -226,3 +226,13 @@ window:
 - [ ] Rename an open board in Explorer and confirm subsequent Save uses the new path.
 - [ ] Open malformed Excalidraw JSON and confirm a friendly error appears without
   overwriting the source.
+
+## M11 Mindmap checks
+
+- [ ] Mindmap parse/serialize pass unit tests.
+- [ ] jsMind is absent from the normal Vite startup chunks.
+- [ ] Open or create a `.mind` file and confirm the board fills the document pane.
+- [ ] Add, rename, drag, and delete nodes; confirm the tab goes dirty and Save works.
+- [ ] Reopen the saved `.mind` and confirm the tree is preserved with no dirty flag.
+- [ ] Export the mindmap to PNG, JPG, and PDF.
+- [ ] Open malformed `.mind` JSON and confirm a friendly error without data loss.

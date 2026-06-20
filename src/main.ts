@@ -31,7 +31,7 @@ import {
 import { createPalette, type PaletteItem } from "./palette";
 import { breadcrumbsPath, joinPath, relativePath } from "./paths";
 import { renderPdf } from "./pdfview";
-import { isExcalidrawFile, isHtmlFile } from "./document-kind";
+import { isExcalidrawFile, isHtmlFile, isMindmapFile } from "./document-kind";
 import type { EditorDocumentKind } from "./editor";
 import { renderMarkdown } from "./preview";
 import { initResize } from "./resize";
@@ -75,7 +75,7 @@ function basename(path: string): string {
 }
 
 function editorKind(pathOrName: string | null): EditorDocumentKind {
-  if (isExcalidrawFile(pathOrName)) return "plain";
+  if (isExcalidrawFile(pathOrName) || isMindmapFile(pathOrName)) return "plain";
   return isHtmlFile(pathOrName) ? "html" : "markdown";
 }
 
@@ -434,7 +434,7 @@ function onDocChange(windowId: string, tabId: string, text: string): void {
     });
   }
   if (windowId === getState().activeWindowId && tabId === w.activeTabId) {
-    if (isExcalidrawFile(t?.path ?? t?.name)) return;
+    if (isExcalidrawFile(t?.path ?? t?.name) || isMindmapFile(t?.path ?? t?.name)) return;
     schedulePreview(windowId, tabId, text);
   }
 }
@@ -612,6 +612,11 @@ function renderMarkdownForCapture(text: string): HTMLElement {
 
 async function captureActive(): Promise<HTMLCanvasElement> {
   const tab = activeMeta()!;
+  if (isMindmapFile(tab.path)) {
+    const canvas = await activeView().captureBoard();
+    if (canvas) return canvas;
+    throw new Error("The mindmap is still loading.");
+  }
   const text = activeView().editor.getText(tab.id);
   const capture = await import("./capture");
   if (isHtmlFile(tab.path)) {

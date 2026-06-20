@@ -3,6 +3,7 @@ import {
   htmlWithPreviewZoom,
   isExcalidrawFile,
   isHtmlFile,
+  isMindmapFile,
   isMarkdownFile,
 } from "../document-kind";
 
@@ -23,6 +24,14 @@ describe("isExcalidrawFile", () => {
     expect(isExcalidrawFile("/boards/system.excalidraw")).toBe(true);
     expect(isExcalidrawFile("SYSTEM.EXCALIDRAW")).toBe(true);
     expect(isExcalidrawFile("system.json")).toBe(false);
+  });
+});
+
+describe("isMindmapFile", () => {
+  it("matches .mind only", () => {
+    expect(isMindmapFile("a/b/notes.mind")).toBe(true);
+    expect(isMindmapFile("notes.md")).toBe(false);
+    expect(isMindmapFile(null)).toBe(false);
   });
 });
 

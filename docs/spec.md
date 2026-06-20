@@ -135,10 +135,10 @@ the running app — not designed in a vacuum beforehand — using the UI/UX skil
   view (no split), the same shape as the PDF reader. Excalidraw is a React component,
   so it is lazy-mounted in isolation (React loaded only for this view) and never
   touches the plain-TS shell. Saves back to the `.excalidraw` JSON file.
-- **M11 — Visual mindmap:** drag-and-drop mindmap editor (jsMind) in a single
+- **M11 — Visual mindmap (implemented):** drag-and-drop mindmap editor (jsMind) in a single
   full-pane view like the PDF/Excalidraw views — view *and* edit nodes visually, not
   by writing code. Distinct from the existing code-based Mermaid `mindmap`. Stores its
-  own mindmap file format.
+  own mindmap file format (`.mind`).
 
 ### Set-as-default app (cross-cutting, macOS)
 
