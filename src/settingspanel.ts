@@ -313,20 +313,33 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     content.appendChild(session);
 
     renderSubhead(content, "Updates");
-    const label = document.createElement("label");
-    label.className = "settings-toggle";
-    label.innerHTML = `
-      <input type="checkbox" ${settings.autoUpdate ? "checked" : ""} />
-      <span>
-        <strong>Automatically check for updates</strong>
-        <small>Check once per day. MDflow always asks before downloading and installing.</small>
-      </span>`;
-    label.querySelector("input")!.addEventListener("change", (event) => {
-      updateSettings((next) => {
-        next.autoUpdate = (event.target as HTMLInputElement).checked;
-      });
-    });
-    content.appendChild(label);
+    const modeDescription = document.createElement("p");
+    modeDescription.className = "settings-help";
+    modeDescription.textContent =
+      settings.updateMode === "auto"
+        ? "Checks once per day. MDflow always asks before downloading and installing."
+        : "Checks only when you use Check for Updates. MDflow never installs silently.";
+    content.appendChild(
+      renderChoiceList([
+        {
+          label: "Manual",
+          selected: settings.updateMode === "manual",
+          run: () =>
+            updateSettings((next) => {
+              next.updateMode = "manual";
+            }),
+        },
+        {
+          label: "Automatic",
+          selected: settings.updateMode === "auto",
+          run: () =>
+            updateSettings((next) => {
+              next.updateMode = "auto";
+            }),
+        },
+      ]),
+    );
+    content.appendChild(modeDescription);
 
     const checkButton = document.createElement("button");
     checkButton.type = "button";

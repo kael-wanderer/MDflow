@@ -33,11 +33,10 @@ The Gear panel with **Theme / Format / General / Agent** tabs, the `settings.jso
 - Expected: Setting persists and governs startup (see TAB-08/09).
 - Status: [ ]  Notes:
 
-### SET-06 — General tab: Auto-update
-- Steps: General tab → toggle "Automatically check for updates"; click "Check for
-  Updates".
-- Expected: Toggle persists (daily check); the button triggers an update check (see
-  UPD-01).
+### SET-06 — General tab: Update mode
+- Steps: General tab → switch between Manual and Automatic; click "Check for Updates".
+- Expected: The selected mode persists. Manual disables background checks; Automatic
+  checks at most daily. The button works in either mode (see UPD-01).
 - Status: [ ]  Notes:
 
 ### SET-07 — Agent tab

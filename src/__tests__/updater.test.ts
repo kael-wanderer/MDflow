@@ -5,7 +5,7 @@ import {
 } from "../updater";
 
 describe("shouldCheckForUpdates", () => {
-  it("never checks when automatic updates are disabled", () => {
+  it("manual mode never checks", () => {
     expect(shouldCheckForUpdates(false, null, 100)).toBe(false);
   });
 

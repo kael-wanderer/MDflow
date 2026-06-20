@@ -52,8 +52,20 @@ describe("parseSettings", () => {
     expect(parseSettings('{ "restoreSession": "yes" }').restoreSession).toBe(true);
   });
 
-  it("parses the automatic update preference", () => {
-    expect(parseSettings('{ "autoUpdate": true }').autoUpdate).toBe(true);
-    expect(parseSettings('{ "autoUpdate": "yes" }').autoUpdate).toBe(false);
+  it("defaults update mode to manual", () => {
+    expect(parseSettings("{}").updateMode).toBe("manual");
+  });
+
+  it("migrates the legacy automatic update preference", () => {
+    expect(parseSettings('{ "autoUpdate": true }').updateMode).toBe("auto");
+    expect(parseSettings('{ "autoUpdate": false }').updateMode).toBe("manual");
+    expect(parseSettings('{ "autoUpdate": "yes" }').updateMode).toBe("manual");
+  });
+
+  it("accepts an explicit update mode with precedence over legacy data", () => {
+    expect(parseSettings('{ "updateMode": "auto" }').updateMode).toBe("auto");
+    expect(
+      parseSettings('{ "updateMode": "manual", "autoUpdate": true }').updateMode,
+    ).toBe("manual");
   });
 });

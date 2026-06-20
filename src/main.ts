@@ -122,14 +122,12 @@ function openAISettings(): void {
 }
 
 function saveSettingsFromPanel(settings: Settings): void {
-  const enabledAutoUpdate = !currentSettings.autoUpdate && settings.autoUpdate;
   currentSettings = settings;
   applySettings(currentSettings);
   requestWindowMeasure();
   if (settingsPath) {
     void writeFile(settingsPath, JSON.stringify(settings, null, 2));
   }
-  if (enabledAutoUpdate) void checkForUpdates(false);
 }
 
 function saveAISettingsFromPanel(settings: AISettings): void {
@@ -1282,7 +1280,7 @@ async function restoreWindows(): Promise<void> {
 async function boot(): Promise<void> {
   await loadSettings();
   await loadAISettings();
-  startDailyUpdateChecks(() => currentSettings.autoUpdate);
+  startDailyUpdateChecks(() => currentSettings.updateMode === "auto");
 
   if (currentSettings.restoreSession) {
     if (startupUi.folder) {

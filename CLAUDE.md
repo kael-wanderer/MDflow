@@ -131,6 +131,8 @@ Excalidraw 0.18.0 is pinned in a self-contained board-only module under
 `EXCALIDRAW_BUILD_ROOT` to an exact-tag Excalidraw tree whose package dist has
 already been built. React remains isolated from the plain-TypeScript shell.
 
-Updater runtime and UI are active. Production release checks still require the signed
-release feed (`latest.json`) and public key in `tauri.conf.json`; keep the matching
-private signing key only in CI secrets.
+Updater runtime and UI are active. Gear ▸ General offers Manual (no background
+checks) and Automatic (at most once per 24 hours); both modes always prompt before
+installing, and manual checks remain available. Production release checks still
+require the signed release feed (`latest.json`) and public key in `tauri.conf.json`;
+keep the matching private signing key only in CI secrets.

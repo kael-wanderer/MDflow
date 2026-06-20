@@ -1586,6 +1586,13 @@ body.resizing-ai {
   margin-top: 12px;
 }
 
+.settings-help {
+  margin: 7px 2px 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .settings-error {
   min-height: 15px;
   color: #e99;

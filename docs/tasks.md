@@ -83,6 +83,11 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
     - Activity bar order: Explorer, Search, AI, Excalidraw, Mindmap, Export, Gear
     - One-click untitled Excalidraw and Mindmap creation using the normal save flow
     - jsMind nodes, canvas, expanders, selection, and connector lines follow app themes
+[x] Update mode UX (2026-06-20):
+    - Replaced `autoUpdate` with Manual / Automatic `updateMode`
+    - Migrates legacy boolean settings without changing existing user intent
+    - Manual never checks in the background; Automatic obeys the 24-hour guard
+    - Both modes keep explicit Check for Updates and always prompt before install
 
 ## Backlog (specced 2026-06-20)
 
@@ -122,7 +127,7 @@ signing public key, private CI signing secret, and published `latest.json`.
 [x] Regenerate native app icons from `images/logo.png`
 [x] Add Help ▸ Check for Updates
 [x] Prompt before download/install and restart after installation
-[x] Add Gear ▸ Update daily-check preference
+[x] Add Gear ▸ Manual / Automatic update mode
 [x] Persist daily check time and avoid checking more than once per 24 hours
 [ ] Configure production updater endpoint and public key
 [ ] Add signed release workflow and publish `latest.json`
