@@ -69,6 +69,11 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
       place (no reload). Auto-fit re-runs via a ResizeObserver on the pane
     - Reading mode now matches Kaelio metrics: full width, 32/48px padding,
       ≥17px size, 1.7 line-height
+[x] HTML zoom performance follow-up (2026-06-20):
+    - Large HTML/SVG previews no longer use document-level CSS `zoom`, which forced
+      WebKit to clear, relayout, and repaint the iframe
+    - Zoom now scales the already-painted iframe surface while inversely sizing its
+      viewport, preserving the full-picture behavior without the white flash
 
 ## Backlog (specced 2026-06-20)
 

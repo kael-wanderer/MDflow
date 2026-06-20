@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  htmlPreviewFrameScale,
   htmlWithPreviewZoom,
   isExcalidrawFile,
   isHtmlFile,
@@ -16,6 +17,29 @@ describe("isHtmlFile", () => {
   it("does not treat markdown or missing names as html", () => {
     expect(isHtmlFile("/notes/page.md")).toBe(false);
     expect(isHtmlFile(null)).toBe(false);
+  });
+});
+
+describe("htmlPreviewFrameScale", () => {
+  it("expands the iframe viewport inversely while scaling its painted surface", () => {
+    expect(htmlPreviewFrameScale(0.5)).toEqual({
+      transform: "scale(0.5)",
+      width: "200%",
+      height: "200%",
+    });
+    expect(htmlPreviewFrameScale(2)).toEqual({
+      transform: "scale(2)",
+      width: "50%",
+      height: "50%",
+    });
+  });
+
+  it("guards against a zero scale", () => {
+    expect(htmlPreviewFrameScale(0)).toEqual({
+      transform: "scale(0.1)",
+      width: "1000%",
+      height: "1000%",
+    });
   });
 });
 

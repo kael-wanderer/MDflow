@@ -32,3 +32,17 @@ export function htmlWithPreviewZoom(html: string, zoom: number): string {
   }
   return `${injection}${html}`;
 }
+
+export function htmlPreviewFrameScale(zoom: number): {
+  transform: string;
+  width: string;
+  height: string;
+} {
+  const safeZoom = Math.max(0.1, zoom);
+  const inverse = 100 / safeZoom;
+  return {
+    transform: `scale(${safeZoom})`,
+    width: `${inverse}%`,
+    height: `${inverse}%`,
+  };
+}

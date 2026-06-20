@@ -155,6 +155,8 @@ body {
   min-height: 0;
   background: #fff;
   border: 0;
+  transform-origin: top left;
+  will-change: transform;
 }
 .window .seam {
   position: relative;

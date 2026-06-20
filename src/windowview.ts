@@ -1,5 +1,6 @@
 import { createEditor, type EditorHandle } from "./editor";
 import {
+  htmlPreviewFrameScale,
   htmlWithPreviewZoom,
   isExcalidrawFile,
   isHtmlFile,
@@ -335,7 +336,10 @@ export function createWindowView(
       // allow-same-origin (no scripts) lets the parent read contentDocument to
       // apply zoom/fit live; untrusted HTML still can't run scripts.
       frame.setAttribute("sandbox", "allow-same-origin");
-      frame.srcdoc = htmlWithPreviewZoom(text, previewZoom);
+      // Keep the iframe document at native scale. Preview zoom is applied to the
+      // already-painted iframe surface so WebKit does not relayout a large HTML/SVG
+      // document and flash white on every zoom step.
+      frame.srcdoc = htmlWithPreviewZoom(text, 1);
       frame.addEventListener("focus", () => {
         focusedPane = "preview";
       });
@@ -369,12 +373,14 @@ export function createWindowView(
         : `${Math.round(previewZoom * 100)}%`;
   }
 
-  // Set the live preview iframe's zoom without reloading it.
+  // Scale the already-painted iframe surface. This stays on the compositor path,
+  // avoiding the multi-second document reflow/repaint caused by CSS `zoom`.
   function applyHtmlZoom(zoom: number): void {
-    const style = previewFrame?.contentDocument?.querySelector(
-      "[data-mdflow-preview-zoom]",
-    );
-    if (style) style.textContent = `html{zoom:${zoom}!important}`;
+    if (!previewFrame) return;
+    const scaled = htmlPreviewFrameScale(zoom);
+    previewFrame.style.transform = scaled.transform;
+    previewFrame.style.width = scaled.width;
+    previewFrame.style.height = scaled.height;
   }
 
   // Scale the HTML preview to fit the pane (used in split auto-fit mode).
