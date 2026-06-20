@@ -59,6 +59,7 @@ export async function mountMindmapBoard(
   const mind = parseMindmap(raw);
   const JsMind = (await loadJsMind()) as new (options: unknown) => JsMindInstance;
 
+  host.replaceChildren();
   const jm = new JsMind({
     container: host,
     editable: true,

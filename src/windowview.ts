@@ -318,7 +318,6 @@ export function createWindowView(
             handle.destroy();
             return;
           }
-          previewPane.innerHTML = "";
           boardDestroy = handle.destroy;
           boardCapture = { png: handle.capture };
         })
