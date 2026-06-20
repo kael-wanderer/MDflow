@@ -19,6 +19,18 @@ export type Settings = {
   sub: ZoneSettings;
 };
 
+export const THEME_OPTIONS: ReadonlyArray<{
+  id: ThemeName;
+  label: string;
+}> = [
+  { id: "system", label: "System" },
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
+  { id: "catppuccin-mocha", label: "Catppuccin Mocha" },
+  { id: "everforest-dark", label: "Everforest Dark" },
+  { id: "nord", label: "Nord" },
+];
+
 const THEMES: ThemeName[] = [
   "system",
   "light",
@@ -37,6 +49,17 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULT_SETTINGS_JSON = JSON.stringify(DEFAULT_SETTINGS, null, 2);
+
+export function normalizeThemeName(value: unknown): ThemeName | null {
+  if (typeof value !== "string") return null;
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, "-");
+  return THEMES.includes(normalized as ThemeName)
+    ? (normalized as ThemeName)
+    : null;
+}
 
 function clampSize(value: unknown, fallback: number): number {
   const size = typeof value === "number" ? value : Number(value);
@@ -71,9 +94,7 @@ export function parseSettings(raw: string): Settings {
     return defaults();
   }
 
-  const theme = THEMES.includes(data.theme as ThemeName)
-    ? (data.theme as ThemeName)
-    : DEFAULT_SETTINGS.theme;
+  const theme = normalizeThemeName(data.theme) ?? DEFAULT_SETTINGS.theme;
   return {
     theme,
     restoreSession:

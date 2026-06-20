@@ -32,6 +32,10 @@ identity (the live preview).
   and manage files (new, rename, delete-to-trash, duplicate, copy path, reveal in
   Finder) via right-click.
 - **Tabs**: several files open at once in the Main window, with dirty indicators.
+- **Tab context menu**: reveal, pin/unpin, split/move, close variants, and path-copy
+  actions matching the desktop-editor workflow.
+- **File comparison**: select a file from the Explorer, then compare another file
+  against it in a synchronized side-by-side line diff.
 - **Main + Sub windows** (max 2). Each window has its **own tabs** and its **own view
   mode** (Editor / Read / Split). Sub is toggled on/off from the top-right.
 - The previous session (folder, open tabs, layout) **restores on launch**.
@@ -159,11 +163,16 @@ Plugins to (re)add: **`tauri-plugin-opener`** (for *Reveal in Finder* via
 - **File-type icons** (curated set, themed): folder (open/closed), `.md`/`.markdown`,
   `.txt`, `.json`, `.html`/`.htm`, `.pdf`, and a generic fallback.
 - **Right-click context menu**:
-  - New File · New Folder (inline text input in the tree)
-  - Rename (inline) · Delete (→ Trash, with a confirm dialog)
-  - Duplicate · Copy Path · Reveal in Finder
-  - **Open in Sub Window** — if Sub is off, turn it on; open the file as a tab in Sub
-    in Editor mode; if it was open in Main, move it.
+  - File rows: Open Preview, Open to the Side, Reveal in Finder, Add File to Chat,
+    Copy Path, Rename, Duplicate, and Delete.
+  - Comparison is a two-stage action:
+    1. Before a source is chosen, the file menu shows **Select for Compare**.
+    2. After a source is chosen, file menus show both **Compare with Selected** and
+       **Select for Compare**.
+  - The selected source row has a visible compare marker. Rename follows the selected
+    path; deleting the selected file clears the selection.
+  - Directory rows retain New File, New Folder, Rename, Duplicate, Delete, Copy Path,
+    and Reveal in Finder.
 - **Empty state**: a centered "Open Folder" button when no folder is set.
 - **Opening non-text files**: text-readable files (md, markdown, txt, json, html, css,
   js, ts, and anything valid UTF-8) open in the editor. `.pdf` / non-UTF-8 files open a
@@ -174,6 +183,24 @@ Plugins to (re)add: **`tauri-plugin-opener`** (for *Reveal in Finder* via
 - Per window. Each tab shows name + a dirty dot (`◦`) when unsaved. Click to activate,
   `×` or `⌘W` to close. Closing an unsaved tab prompts a confirm dialog.
 - Horizontal scroll on overflow. (Tab drag-reorder is Backlog.)
+- Right-clicking a tab opens:
+  - Reveal in Finder and Reveal in Explorer View for file-backed tabs.
+  - Pin / Unpin. Pinning moves the tab to the leading edge and marks it visually.
+  - Split Right and Split & Move to Main/Sub. Moving preserves the current unsaved
+    editor text and dirty state instead of rereading the file.
+  - Close, Close Others, Close to the Right, Close Saved, and Close All.
+  - Copy Path, Copy Relative Path, and Copy Breadcrumbs Path for file-backed tabs.
+
+## File comparison
+
+- Comparison is launched only from a file row in the Explorer.
+- Both files are read from disk and passed through the existing LCS line-diff engine.
+- The comparison surface overlays the editor area without changing either file.
+- Left and right columns scroll together. Removed lines are red-tinted, added lines
+  are green-tinted, and replacement runs align old/new lines on the same rows.
+- The header shows both file names and full paths, plus an explicit close button.
+- Binary and unreadable files surface the normal file-read error instead of opening
+  a broken comparison.
 
 ## Windows & split
 
@@ -266,7 +293,6 @@ reads and applies them. This is just an honest entry point so the gear isn't dea
 |------|------|
 | Copy / Paste (move files between folders) | Explorer-polish follow-up (file clipboard + move). |
 | Drag a file from Finder into the explorer (drop-on-file → copy to its folder; drop-on-folder → expand + copy in) | Explorer-polish follow-up (OS drag-drop). |
-| Compare two files ("Select for compare" → reselect → diff) | **Compare/Diff sub-project** (diff engine + diff UI). |
 | Render PDF / HTML content (icons shown now) | PDF = **M6 viewer**; HTML preview = later. |
 | Tab drag-reorder | Tabs polish. |
 | Live FS-watching (auto-refresh on external changes) | Explorer-polish (notify crate). |
@@ -276,7 +302,7 @@ reads and applies them. This is just an honest entry point so the gear isn't dea
 ## Out of scope (this sub-project)
 
 AI panel, the dedicated top bar / search / command palette, applying settings values,
-FS-watching, compare/diff, copy-paste file moves, OS drag-drop import, rendered PDF/HTML,
+FS-watching, copy-paste file moves, OS drag-drop import, rendered PDF/HTML,
 and more than two windows.
 
 ## Tech stack

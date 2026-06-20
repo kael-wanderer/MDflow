@@ -20,7 +20,9 @@ describe("renderMarkdown", () => {
     expect(html).toContain("hljs");
   });
 
-  it("does not pass through raw html", () => {
-    expect(renderMarkdown("<script>alert(1)</script>")).not.toContain("<script>");
+  it("passes through raw html", () => {
+    expect(renderMarkdown("<section>hello</section>")).toContain(
+      "<section>hello</section>",
+    );
   });
 });

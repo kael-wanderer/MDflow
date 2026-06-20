@@ -27,6 +27,14 @@
             aria-label="Search files and commands"
           ></button>
           <button
+            class="ab-btn ab-ai"
+            id="ab-ai"
+            title="AI"
+            type="button"
+            aria-label="Toggle AI panel"
+            aria-pressed="false"
+          ></button>
+          <button
             class="ab-btn ab-settings"
             id="ab-settings"
             title="Settings"
@@ -57,6 +65,22 @@
         <section id="editorarea">
           <div id="windows" class="windows"></div>
         </section>
+
+        <div id="ai-resize" class="resize-handle ai-resize" aria-hidden="true"></div>
+        <aside id="ai-panel" aria-label="AI">
+          <div class="ai-tabs">
+            <button class="ai-tab active" data-tab="chat" type="button">Chat</button>
+            <button class="ai-tab" data-tab="terminal" type="button">Terminal</button>
+            <button
+              class="ai-close"
+              id="ai-close"
+              type="button"
+              title="Hide AI panel"
+              aria-label="Hide AI panel"
+            >×</button>
+          </div>
+          <div class="ai-body"></div>
+        </aside>
       </div>
 
     </div>

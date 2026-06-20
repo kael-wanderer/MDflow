@@ -17,6 +17,9 @@ export type EditorHandle = {
   switchTo(id: string): void;
   closeState(id: string): void;
   getText(id: string): string;
+  getSelection(): { from: number; to: number; text: string };
+  replaceRange(from: number, to: number, text: string): void;
+  setText(text: string): void;
   setSoftWrap(on: boolean): void;
   setLineNumbers(on: boolean): void;
   requestMeasure(): void;
@@ -28,7 +31,7 @@ const theme = EditorView.theme(
     "&": { height: "100%", backgroundColor: "transparent", color: "var(--text)" },
     ".cm-scroller": {
       fontFamily: "var(--win-font, var(--font-mono))",
-      fontSize: "calc(var(--win-size, 15px) * var(--zoom, 1))",
+      fontSize: "calc(var(--win-size, 15px) * var(--editor-zoom, 1))",
       lineHeight: "1.65",
       padding: "var(--pane-pad) 0",
     },
@@ -131,6 +134,22 @@ export function createEditor(
     getText(id) {
       if (id === activeId) return view.state.doc.toString();
       return states.get(id)?.doc.toString() ?? "";
+    },
+    getSelection() {
+      const selection = view.state.selection.main;
+      return {
+        from: selection.from,
+        to: selection.to,
+        text: view.state.sliceDoc(selection.from, selection.to),
+      };
+    },
+    replaceRange(from, to, text) {
+      view.dispatch({ changes: { from, to, insert: text } });
+    },
+    setText(text) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: text },
+      });
     },
     setSoftWrap(on) {
       softWrap = on;

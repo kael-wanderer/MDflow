@@ -1,5 +1,8 @@
+mod ai;
+mod export;
 mod files;
 mod menu;
+mod pty;
 
 use tauri::Emitter;
 
@@ -19,6 +22,7 @@ pub fn run() {
         // M2 registers `tauri_plugin_updater` here and adds the `plugins.updater`
         // config (endpoints + pubkey).
         .plugin(tauri_plugin_dialog::init())
+        .manage(pty::PtyState::default())
         .setup(|app| {
             let m = menu::build(app.handle())?;
             app.set_menu(m)?;
@@ -35,8 +39,14 @@ pub fn run() {
             let _ = app.emit("menu", id);
         })
         .invoke_handler(tauri::generate_handler![
+            ai::ai_run,
+            export::export_pdf,
+            export::export_docx,
+            export::export_html,
             files::read_file,
+            files::read_file_bytes,
             files::save_file,
+            files::save_bytes,
             files::get_initial_file,
             files::word_count,
             files::list_dir,
@@ -47,6 +57,11 @@ pub fn run() {
             files::duplicate_path,
             files::list_files_recursive,
             files::get_settings,
+            files::get_ai_settings,
+            pty::pty_open,
+            pty::pty_write,
+            pty::pty_resize,
+            pty::pty_kill,
             set_soft_wrap,
         ])
         .run(tauri::generate_context!())

@@ -22,6 +22,15 @@ describe("parseSettings", () => {
     expect(parseSettings('{ "theme": "neon" }').theme).toBe("dark");
   });
 
+  it("accepts human-readable theme names", () => {
+    expect(parseSettings('{ "theme": "Everforest Dark" }').theme).toBe(
+      "everforest-dark",
+    );
+    expect(parseSettings('{ "theme": "Catppuccin Mocha" }').theme).toBe(
+      "catppuccin-mocha",
+    );
+  });
+
   it("clamps size into 10..28", () => {
     expect(parseSettings('{ "main": { "size": 200 } }').main.size).toBe(28);
     expect(parseSettings('{ "main": { "size": 2 } }').main.size).toBe(10);

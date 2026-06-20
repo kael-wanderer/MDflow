@@ -3,24 +3,51 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
-import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
-import { getInitialFile, openFile, pickSavePath, writeFile } from "./files";
 import {
+  DEFAULT_AI_SETTINGS_JSON,
+  parseAISettings,
+  type AISettings,
+} from "./ai/aisettings";
+import { createAIPanel, type AIPanel } from "./ai/panel";
+import { showComparison } from "./compareview";
+import { showContextMenu, type MenuItem } from "./contextmenu";
+import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
+import { revealExplorerPath } from "./explorer";
+import {
+  getInitialFile,
+  openFile,
+  pickExportPath,
+  pickSavePath,
+  writeFile,
+} from "./files";
+import {
+  getAISettingsFile,
   getSettingsFile,
   listFilesRecursive,
   pickFolder,
+  copyText,
+  revealInFinder,
 } from "./filesys";
 import { createPalette, type PaletteItem } from "./palette";
-import { joinPath } from "./paths";
+import { breadcrumbsPath, joinPath, relativePath } from "./paths";
+import { renderPdf } from "./pdfview";
 import { initResize } from "./resize";
 import {
   applySettings,
   DEFAULT_SETTINGS_JSON,
   parseSettings,
+  type Settings,
 } from "./settings";
+import { createSettingsPanel } from "./settingspanel";
 import { loadState, saveState, type ViewMode } from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
-import { nextActiveAfterClose, type TabMeta } from "./tabops";
+import {
+  nextActiveAfterClose,
+  otherTabIds,
+  savedTabIds,
+  tabIdsRightOf,
+  type TabMeta,
+} from "./tabops";
 import { findTabByPath } from "./windowops";
 import { createWindowView, type WindowView } from "./windowview";
 import helpDoc from "../HELP.md?raw";
@@ -31,6 +58,9 @@ const startupUi = loadState();
 let ui = { ...startupUi };
 let currentSettings = parseSettings("{}");
 let settingsPath = "";
+let aiSettingsPath = "";
+let currentAISettings: AISettings = parseAISettings("{}");
+let aiPanel: AIPanel | null = null;
 let fileList: string[] = [];
 let indexedFolder: string | null = null;
 let tabSeq = 0;
@@ -53,6 +83,18 @@ async function loadSettings(): Promise<void> {
   applySettings(currentSettings);
 }
 
+async function loadAISettings(): Promise<void> {
+  try {
+    const file = await getAISettingsFile(DEFAULT_AI_SETTINGS_JSON);
+    aiSettingsPath = file.path;
+    currentAISettings = parseAISettings(file.contents);
+    aiPanel?.render();
+  } catch {
+    aiSettingsPath = "";
+    currentAISettings = parseAISettings("{}");
+  }
+}
+
 async function refreshFileList(): Promise<void> {
   const folder = getState().folder;
   fileList = folder ? await listFilesRecursive(folder).catch(() => []) : [];
@@ -60,6 +102,27 @@ async function refreshFileList(): Promise<void> {
 
 function openSettings(): void {
   if (settingsPath) void doOpenPath(settingsPath);
+}
+
+function openAISettings(): void {
+  if (aiSettingsPath) void doOpenPath(aiSettingsPath);
+}
+
+function saveSettingsFromPanel(settings: Settings): void {
+  currentSettings = settings;
+  applySettings(currentSettings);
+  requestWindowMeasure();
+  if (settingsPath) {
+    void writeFile(settingsPath, JSON.stringify(settings, null, 2));
+  }
+}
+
+function saveAISettingsFromPanel(settings: AISettings): void {
+  currentAISettings = settings;
+  aiPanel?.render();
+  if (aiSettingsPath) {
+    void writeFile(aiSettingsPath, JSON.stringify(settings, null, 2));
+  }
 }
 
 function commandItems(): PaletteItem[] {
@@ -118,6 +181,12 @@ const palette = createPalette(() => [...fileItems(), ...commandItems()]);
 const handlers = {
   onActivateTab: (wid: string, tid: string) => activateTab(wid, tid),
   onCloseTab: (wid: string, tid: string) => void closeTab(wid, tid),
+  onTabContextMenu: (
+    wid: string,
+    tid: string,
+    x: number,
+    y: number,
+  ) => showTabContextMenu(wid, tid, x, y),
   onSetMode: (wid: string, m: ViewMode) => setMode(wid, m),
   onToggleLineNumbers: () => toggleLineNumbers(),
   onToggleSub: () => toggleSub(),
@@ -129,6 +198,122 @@ const handlers = {
   },
   onDocChange: (wid: string, tid: string, text: string) => onDocChange(wid, tid, text),
 };
+
+async function closeTabs(windowId: string, tabIds: string[]): Promise<void> {
+  for (const tabId of tabIds) {
+    if (!(await closeTab(windowId, tabId))) break;
+  }
+}
+
+function pinTab(windowId: string, tabId: string): void {
+  const windowState = getWindow(windowId);
+  if (!windowState) return;
+  const target = windowState.tabs.find((tab) => tab.id === tabId);
+  if (!target) return;
+  const pinned = !target.pinned;
+  const updated = { ...target, pinned };
+  const rest = windowState.tabs.filter((tab) => tab.id !== tabId);
+  patchWindow(windowId, {
+    tabs: pinned ? [updated, ...rest] : [...rest, updated],
+  });
+  renderAll();
+}
+
+function showTabContextMenu(
+  windowId: string,
+  tabId: string,
+  x: number,
+  y: number,
+): void {
+  const windowState = getWindow(windowId);
+  const tab = windowState?.tabs.find((candidate) => candidate.id === tabId);
+  if (!windowState || !tab) return;
+  const folder = getState().folder;
+  const pathItems: MenuItem[] = tab.path
+    ? [
+        "separator",
+        {
+          label: "Copy Path",
+          action: () => void copyText(tab.path!),
+        },
+        {
+          label: "Copy Relative Path",
+          action: () =>
+            void copyText(folder ? relativePath(folder, tab.path!) : tab.path!),
+        },
+        {
+          label: "Copy Breadcrumbs Path",
+          action: () =>
+            void copyText(breadcrumbsPath(folder, tab.path!)),
+        },
+      ]
+    : [];
+  showContextMenu(x, y, [
+    ...(tab.path
+      ? [
+          {
+            label: "Reveal in Finder",
+            action: () => void revealInFinder(tab.path!),
+          } satisfies MenuItem,
+          {
+            label: "Reveal in Explorer View",
+            action: () => {
+              if (!getState().explorerVisible) {
+                document.getElementById("ab-explorer")?.click();
+              }
+              void revealExplorerPath(tab.path!);
+            },
+          } satisfies MenuItem,
+          "separator" as const,
+        ]
+      : []),
+    {
+      label: tab.pinned ? "Unpin" : "Pin",
+      action: () => pinTab(windowId, tabId),
+    },
+    "separator",
+    {
+      label: "Split Right",
+      action: () =>
+        void moveTabToWindow(windowId, tabId, windowId === "main" ? "sub" : "main"),
+    },
+    {
+      label: "Split & Move",
+      children: [
+        {
+          label: "Main Window",
+          disabled: windowId === "main",
+          action: () => void moveTabToWindow(windowId, tabId, "main"),
+        },
+        {
+          label: "Sub Window",
+          disabled: windowId === "sub",
+          action: () => void moveTabToWindow(windowId, tabId, "sub"),
+        },
+      ],
+    },
+    "separator",
+    { label: "Close", action: () => void closeTab(windowId, tabId) },
+    {
+      label: "Close Others",
+      action: () => void closeTabs(windowId, otherTabIds(windowState.tabs, tabId)),
+    },
+    {
+      label: "Close to the Right",
+      action: () => void closeTabs(windowId, tabIdsRightOf(windowState.tabs, tabId)),
+    },
+    {
+      label: "Close Saved",
+      action: () => void closeTabs(windowId, savedTabIds(windowState.tabs)),
+    },
+    {
+      label: "Close All",
+      action: () =>
+        void closeTabs(windowId, windowState.tabs.map((candidate) => candidate.id)),
+    },
+    ...pathItems,
+  ]);
+}
 
 function makeView(windowId: string, isMain: boolean): WindowView {
   const v = createWindowView(windowsHost, windowId, isMain, handlers);
@@ -165,7 +350,8 @@ function activateTab(windowId: string, tabId: string): void {
   const v = views.get(windowId)!;
   v.editor.switchTo(tabId);
   const text = v.editor.getText(tabId);
-  v.renderPreview(text);
+  const tab = getWindow(windowId)?.tabs.find((item) => item.id === tabId);
+  v.renderPreview(text, tab?.path ?? tab?.name);
   syncExplorerActivePath();
   renderAll();
   v.focus();
@@ -231,17 +417,26 @@ function onDocChange(windowId: string, tabId: string, text: string): void {
     });
   }
   if (windowId === getState().activeWindowId && tabId === w.activeTabId) {
-    schedulePreview(windowId, text);
+    schedulePreview(windowId, tabId, text);
   }
 }
 
 const timers = new Map<string, number>();
-function schedulePreview(windowId: string, text: string): void {
+function schedulePreview(
+  windowId: string,
+  tabId: string,
+  text: string,
+): void {
   clearTimeout(timers.get(windowId));
   timers.set(
     windowId,
     window.setTimeout(() => {
-      views.get(windowId)!.renderPreview(text);
+      const tab = getWindow(windowId)?.tabs.find(
+        (item) => item.id === tabId,
+      );
+      views
+        .get(windowId)!
+        .renderPreview(text, tab?.path ?? tab?.name);
     }, 300)
   );
 }
@@ -263,6 +458,10 @@ async function showOpenError(error: unknown): Promise<void> {
 }
 
 async function doOpenPath(path: string): Promise<void> {
+  if (path.toLowerCase().endsWith(".pdf")) {
+    openPdf(path);
+    return;
+  }
   try {
     const contents = await invoke<string>("read_file", { path });
     openInWindow("main", { path, name: basename(path), text: contents });
@@ -275,6 +474,10 @@ async function doOpen(): Promise<void> {
   try {
     const result = await openFile();
     if (result) {
+      if (result.path.toLowerCase().endsWith(".pdf")) {
+        openPdf(result.path);
+        return;
+      }
       openInWindow(getState().activeWindowId, {
         path: result.path,
         name: basename(result.path),
@@ -284,6 +487,19 @@ async function doOpen(): Promise<void> {
   } catch (error) {
     await showOpenError(error);
   }
+}
+
+function openPdf(path: string): void {
+  const windowId = getState().activeWindowId;
+  const pane = document.querySelector<HTMLElement>(
+    `.window[data-window-id="${windowId}"] .pane-preview`,
+  );
+  setMode(windowId, "preview");
+  if (!pane) return;
+  void renderPdf(pane, path).catch((error) => {
+    pane.textContent =
+      error instanceof Error ? error.message : String(error);
+  });
 }
 
 function newDoc(): void {
@@ -319,6 +535,10 @@ async function doSave(saveAs = false): Promise<void> {
       applySettings(currentSettings);
       requestWindowMeasure();
     }
+    if (target === aiSettingsPath) {
+      currentAISettings = parseAISettings(text);
+      aiPanel?.render();
+    }
     patchWindow(getState().activeWindowId, {
       tabs: activeWindow().tabs.map((x) =>
         x.id === t.id ? { ...x, path: target, name: basename(target), dirty: false } : x
@@ -329,6 +549,59 @@ async function doSave(saveAs = false): Promise<void> {
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
     await message(text, { title: "Save file", kind: "error" });
+  }
+}
+
+async function exportDoc(
+  kind: "pdf" | "docx" | "html",
+): Promise<void> {
+  const tab = activeMeta();
+  if (!tab) return;
+  const markdown = activeView().editor.getText(tab.id);
+  const out = await pickExportPath(kind);
+  if (!out) return;
+  const command =
+    kind === "pdf"
+      ? "export_pdf"
+      : kind === "docx"
+        ? "export_docx"
+        : "export_html";
+  try {
+    await invoke(command, { markdown, out });
+  } catch (error) {
+    await message(
+      error instanceof Error ? error.message : String(error),
+      { title: "Export", kind: "error" },
+    );
+  }
+}
+
+async function exportImage(kind: "png" | "jpg"): Promise<void> {
+  const pane = document.querySelector<HTMLElement>(
+    `.window[data-window-id="${getState().activeWindowId}"] .pane-preview .doc`,
+  );
+  if (!pane) return;
+  const out = await pickExportPath(kind);
+  if (!out) return;
+  try {
+    const { toCanvas } = await import("./capture");
+    const canvas = await toCanvas(pane);
+    const mime = kind === "png" ? "image/png" : "image/jpeg";
+    const dataUrl = canvas.toDataURL(mime, 0.95);
+    const encoded = dataUrl.split(",")[1];
+    if (!encoded) throw new Error("Could not encode preview image");
+    const bytes = Uint8Array.from(atob(encoded), (character) =>
+      character.charCodeAt(0),
+    );
+    await invoke("save_bytes", {
+      path: out,
+      bytes: Array.from(bytes),
+    });
+  } catch (error) {
+    await message(
+      error instanceof Error ? error.message : String(error),
+      { title: "Export image", kind: "error" },
+    );
   }
 }
 
@@ -383,6 +656,72 @@ function toggleSoftWrap(): void {
   void invoke("set_soft_wrap", { on: ui.softWrap });
 }
 
+function ensureSubWindow(): void {
+  const state = getState();
+  if (state.windows.length > 1) return;
+  setState({
+    windows: [
+      ...state.windows,
+      { id: "sub", tabs: [], activeTabId: null, mode: "split" },
+    ],
+  });
+  addSplitter();
+  makeView("sub", false);
+  applySettings(currentSettings);
+  renderAll();
+  requestWindowMeasure();
+}
+
+async function moveTabToWindow(
+  sourceId: string,
+  tabId: string,
+  targetId: "main" | "sub",
+): Promise<void> {
+  if (sourceId === targetId) {
+    activateTab(sourceId, tabId);
+    return;
+  }
+  if (targetId === "sub") ensureSubWindow();
+  const source = getWindow(sourceId);
+  const target = getWindow(targetId);
+  const tab = source?.tabs.find((candidate) => candidate.id === tabId);
+  if (!source || !target || !tab) return;
+
+  const sourceView = views.get(sourceId)!;
+  const targetView = views.get(targetId)!;
+  const text = sourceView.editor.getText(tabId);
+  const sourceNext = nextActiveAfterClose(
+    source.tabs,
+    tabId,
+    source.activeTabId,
+  );
+  sourceView.editor.closeState(tabId);
+  patchWindow(sourceId, {
+    tabs: source.tabs.filter((candidate) => candidate.id !== tabId),
+    activeTabId: sourceNext,
+  });
+  if (sourceNext) {
+    sourceView.editor.switchTo(sourceNext);
+    const nextTab = getWindow(sourceId)?.tabs.find(
+      (candidate) => candidate.id === sourceNext,
+    );
+    sourceView.renderPreview(
+      sourceView.editor.getText(sourceNext),
+      nextTab?.path ?? nextTab?.name,
+    );
+  } else {
+    sourceView.renderPreview("");
+  }
+
+  const movedId = nextId();
+  targetView.editor.openState(movedId, text);
+  patchWindow(targetId, {
+    tabs: [...target.tabs, { ...tab, id: movedId }],
+    activeTabId: movedId,
+  });
+  activateTab(targetId, movedId);
+}
+
 async function toggleSub(): Promise<void> {
   const s = getState();
   if (s.windows.length > 1) {
@@ -414,12 +753,9 @@ async function toggleSub(): Promise<void> {
       activateTab("main", moved[0].id);
     }
   } else {
-    setState({ windows: [...s.windows, { id: "sub", tabs: [], activeTabId: null, mode: "split" }], activeWindowId: "sub" });
-    addSplitter();
-    makeView("sub", false);
-    applySettings(currentSettings);
+    ensureSubWindow();
+    setState({ activeWindowId: "sub" });
     renderAll();
-    requestWindowMeasure();
   }
 }
 
@@ -449,18 +785,104 @@ function removeSplitter(): void {
   windowsHost.querySelectorAll<HTMLElement>(".window").forEach((el) => (el.style.flex = ""));
 }
 
+const aiPanelElement = document.getElementById("ai-panel")!;
+
+function buildAIPanel(): void {
+  aiPanel = createAIPanel(aiPanelElement, {
+    getSettings: () => currentAISettings,
+    onSettingsChange: saveAISettingsFromPanel,
+    getDoc: () => {
+      const view = activeView();
+      const tab = activeMeta();
+      const selection = view.editor.getSelection();
+      return {
+        text: tab ? view.editor.getText(tab.id) : "",
+        selection: selection.text,
+      };
+    },
+    onApply: (newText) => {
+      const editor = activeView().editor;
+      const selection = editor.getSelection();
+      if (selection.text) {
+        editor.replaceRange(selection.from, selection.to, newText);
+      } else {
+        editor.setText(newText);
+      }
+    },
+    onInsert: (text) => {
+      const editor = activeView().editor;
+      const selection = editor.getSelection();
+      editor.replaceRange(selection.from, selection.to, text);
+    },
+    onClose: () => setAIVisible(false),
+  });
+}
+
+function applyAIVisibility(): void {
+  document.body.classList.toggle("ai-hidden", !ui.aiVisible);
+  const button = document.getElementById("ab-ai")!;
+  button.classList.toggle("active", ui.aiVisible);
+  button.setAttribute("aria-pressed", String(ui.aiVisible));
+}
+
+function setAIVisible(aiVisible: boolean): void {
+  ui = { ...ui, aiVisible };
+  applyAIVisibility();
+  if (aiVisible && !aiPanel) buildAIPanel();
+  saveState(ui);
+  requestWindowMeasure();
+  requestAnimationFrame(() => aiPanel?.resize());
+}
+
+function toggleAI(): void {
+  setAIVisible(!ui.aiVisible);
+}
+
 async function openInSub(path: string): Promise<void> {
-  if (getState().windows.length < 2) await toggleSub();
-  // move if already open in main
+  ensureSubWindow();
   const found = findTabByPath(getState().windows, path);
   if (found && found.windowId === "main") {
-    const closed = await closeTab("main", found.tab.id);
-    if (!closed) return;
+    await moveTabToWindow("main", found.tab.id, "sub");
+    return;
+  }
+  if (found) {
+    activateTab(found.windowId, found.tab.id);
+    return;
   }
   const contents = await invoke<string>("read_file", { path });
   openInWindow("sub", { path, name: basename(path), text: contents });
 }
 (window as any).mdflowOpenInSub = (p: string) => void openInSub(p);
+
+async function compareFiles(
+  selectedPath: string,
+  path: string,
+): Promise<void> {
+  try {
+    const [selectedText, text] = await Promise.all([
+      invoke<string>("read_file", { path: selectedPath }),
+      invoke<string>("read_file", { path }),
+    ]);
+    showComparison(
+      document.getElementById("editorarea")!,
+      {
+        name: basename(selectedPath),
+        path: selectedPath,
+        text: selectedText,
+      },
+      {
+        name: basename(path),
+        path,
+        text,
+      },
+    );
+  } catch (error) {
+    await message(
+      error instanceof Error ? error.message : String(error),
+      { title: "Compare files", kind: "error" },
+    );
+  }
+}
 
 
 
@@ -471,16 +893,73 @@ setState({
 });
 document.documentElement.style.setProperty("--explorer-w", `${ui.explorerWidth}px`);
 document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
+document.documentElement.style.setProperty("--ai-w", `${ui.aiWidth}px`);
+applyAIVisibility();
+
+const settingsPanel = createSettingsPanel({
+  getSettings: () => currentSettings,
+  getAISettings: () => currentAISettings,
+  onSettingsChange: saveSettingsFromPanel,
+  onAISettingsChange: saveAISettingsFromPanel,
+  onOpenSettingsFile: openSettings,
+  onOpenAISettingsFile: openAISettings,
+});
 
 initActivityBar(
   requestWindowMeasure,
   () => palette.open(),
-  openSettings,
+  (x, y) => settingsPanel.open(x, y),
+  toggleAI,
 );
 initResize((explorerWidth) => setState({ explorerWidth }));
-initExplorer((path) => void doOpenPath(path), handleExplorerPathChange);
+const aiResize = document.getElementById("ai-resize")!;
+aiResize.addEventListener("mousedown", (event) => {
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = ui.aiWidth;
+  document.body.classList.add("resizing-ai");
+  const onMove = (moveEvent: MouseEvent): void => {
+    const width = Math.max(
+      240,
+      Math.min(560, startWidth + startX - moveEvent.clientX),
+    );
+    ui = { ...ui, aiWidth: width };
+    document.documentElement.style.setProperty("--ai-w", `${width}px`);
+    requestWindowMeasure();
+    aiPanel?.resize();
+  };
+  const onUp = (): void => {
+    document.body.classList.remove("resizing-ai");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    saveState(ui);
+    requestWindowMeasure();
+    aiPanel?.resize();
+  };
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+});
+initExplorer(
+  (path) => void doOpenPath(path),
+  handleExplorerPathChange,
+  {
+    onOpenPreview: (path) => {
+      void doOpenPath(path).then(() => {
+        const windowId = getState().activeWindowId;
+        setMode(windowId, "preview");
+      });
+    },
+    onOpenSide: (path) => void openInSub(path),
+    onCompare: (selectedPath, path) =>
+      void compareFiles(selectedPath, path),
+    onAddToChat: (path) => {
+      void doOpenPath(path).then(() => setAIVisible(true));
+    },
+  },
+);
 
 makeView("main", true);
+if (ui.aiVisible) buildAIPanel();
 patchWindow("main", { mode: ui.viewMode });
 for (const v of views.values()) {
   v.editor.setSoftWrap(ui.softWrap);
@@ -538,6 +1017,16 @@ listen<string>("menu", (event) => {
       const w = activeWindow();
       return w.activeTabId ? void closeTab(w.id, w.activeTabId) : undefined;
     }
+    case "export.pdf":
+      return void exportDoc("pdf");
+    case "export.docx":
+      return void exportDoc("docx");
+    case "export.html":
+      return void exportDoc("html");
+    case "export.png":
+      return void exportImage("png");
+    case "export.jpg":
+      return void exportImage("jpg");
     case "view.split":
       return setMode(wid, "split");
     case "view.editor":
@@ -552,6 +1041,23 @@ listen<string>("menu", (event) => {
 });
 
 window.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey) {
+    if (e.key === "+" || e.key === "=") {
+      e.preventDefault();
+      activeView().adjustFocusedZoom(0.1);
+      return;
+    }
+    if (e.key === "-" || e.key === "_") {
+      e.preventDefault();
+      activeView().adjustFocusedZoom(-0.1);
+      return;
+    }
+    if (e.key === "0") {
+      e.preventDefault();
+      activeView().resetFocusedZoom();
+      return;
+    }
+  }
   if (
     (e.metaKey || e.ctrlKey) &&
     (e.key.toLowerCase() === "k" ||
@@ -615,6 +1121,7 @@ async function restoreWindows(): Promise<void> {
 
 async function boot(): Promise<void> {
   await loadSettings();
+  await loadAISettings();
 
   if (currentSettings.restoreSession) {
     if (startupUi.folder) {

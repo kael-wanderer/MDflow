@@ -17,3 +17,18 @@ export function joinPath(directory: string, name: string): string {
   }
   return `${directory}${separator}${name}`;
 }
+
+export function relativePath(root: string, path: string): string {
+  if (path === root) return "";
+  const prefix = root.endsWith("/") || root.endsWith("\\") ? root : `${root}/`;
+  const normalizedRoot = prefix.replace(/\\/g, "/");
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith(normalizedRoot)
+    ? normalizedPath.slice(normalizedRoot.length)
+    : path;
+}
+
+export function breadcrumbsPath(root: string | null, path: string): string {
+  const value = root ? relativePath(root, path) : path;
+  return value.split(/[\\/]/).filter(Boolean).join(" › ");
+}

@@ -14,6 +14,9 @@ export default defineConfig(async () => ({
   },
 
   build: {
+    // Mermaid's optional diagram engines are lazy chunks; keep the startup
+    // bundle small while allowing those on-demand engines to exceed 500 kB.
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         manualChunks(id) {

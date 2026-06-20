@@ -1,4 +1,5 @@
 import { confirm, message } from "@tauri-apps/plugin-dialog";
+import { compareActions } from "./compareactions";
 import { showContextMenu, type MenuItem } from "./contextmenu";
 import { glyphs } from "./glyphs";
 import { fileIcon } from "./icons";
@@ -33,12 +34,56 @@ const ICON: Record<string, string> = {
 };
 
 let activePath: string | null = null;
+let comparePath: string | null = null;
 let openFileCallback: (path: string) => void = () => {};
 let pathChangeCallback: (from: string, to: string | null) => void = () => {};
+let explorerActions: ExplorerActions = {};
+
+export type ExplorerActions = {
+  onOpenPreview?: (path: string) => void;
+  onOpenSide?: (path: string) => void;
+  onCompare?: (selectedPath: string, path: string) => void;
+  onAddToChat?: (path: string) => void;
+};
 
 export function setExplorerActivePath(path: string | null): void {
   activePath = path;
   render();
+}
+
+export async function revealExplorerPath(path: string): Promise<void> {
+  const folder = getState().folder;
+  if (!folder) return;
+  activePath = path;
+  const relative = path
+    .replace(/\\/g, "/")
+    .slice(folder.replace(/\\/g, "/").replace(/\/$/, "").length)
+    .replace(/^\//, "");
+  const directories = relative.split("/").slice(0, -1);
+  let currentPath = folder;
+  for (const name of directories) {
+    let tree = getState().tree;
+    if (!tree) break;
+    let node = findNode(tree, currentPath);
+    if (!node) break;
+    if (node.children === null) {
+      const children = await entriesToNodes(currentPath);
+      tree = setChildren(tree, currentPath, children);
+      setState({ tree });
+      node = findNode(tree, currentPath);
+    }
+    if (node && !node.expanded) {
+      setState({ tree: toggleExpanded(getState().tree!, currentPath) });
+    }
+    currentPath = joinPath(currentPath, name);
+  }
+  render();
+  requestAnimationFrame(() => {
+    const row = Array.from(
+      document.querySelectorAll<HTMLElement>(".tree-row[data-path]"),
+    ).find((candidate) => candidate.dataset.path === path);
+    row?.scrollIntoView({ block: "nearest" });
+  });
 }
 
 function pathName(path: string): string {
@@ -217,6 +262,13 @@ export function startRename(path: string, currentName: string): void {
     } else if (activePath?.startsWith(`${path}/`) || activePath?.startsWith(`${path}\\`)) {
       activePath = `${nextPath}${activePath.slice(path.length)}`;
     }
+    if (
+      comparePath === path ||
+      comparePath?.startsWith(`${path}/`) ||
+      comparePath?.startsWith(`${path}\\`)
+    ) {
+      comparePath = nextPath + comparePath.slice(path.length);
+    }
     pathChangeCallback(path, nextPath);
     await refreshDir(parentPath(path));
   });
@@ -238,6 +290,13 @@ async function deleteNode(path: string, name: string): Promise<void> {
     ) {
       activePath = null;
     }
+    if (
+      comparePath === path ||
+      comparePath?.startsWith(`${path}/`) ||
+      comparePath?.startsWith(`${path}\\`)
+    ) {
+      comparePath = null;
+    }
     pathChangeCallback(path, null);
     await refreshDir(parentPath(path));
   });
@@ -245,10 +304,73 @@ async function deleteNode(path: string, name: string): Promise<void> {
 
 function rowMenu(node: TreeNode): MenuItem[] {
   const directory = node.isDir ? node.path : parentPath(node.path);
+  if (!node.isDir) {
+    return [
+      {
+        label: "Open Preview",
+        action: () =>
+          (explorerActions.onOpenPreview ?? openFileCallback)(node.path),
+      },
+      {
+        label: "Open to the Side",
+        action: () =>
+          (explorerActions.onOpenSide ??
+            ((path: string) => (window as any).mdflowOpenInSub(path)))(node.path),
+      },
+      {
+        label: "Reveal in Finder",
+        action: () => void runAction(() => revealInFinder(node.path)),
+      },
+      "separator",
+      ...compareActions(comparePath).map(
+        (action): MenuItem =>
+          action.kind === "compare"
+            ? {
+                label: action.label,
+                action: () =>
+                  explorerActions.onCompare?.(comparePath!, node.path),
+              }
+            : {
+                label: action.label,
+                action: () => {
+                  comparePath = node.path;
+                  render();
+                },
+              },
+      ),
+      "separator",
+      {
+        label: "Add File to Chat",
+        action: () =>
+          (explorerActions.onAddToChat ?? openFileCallback)(node.path),
+      },
+      "separator",
+      {
+        label: "Copy Path",
+        action: () => void runAction(() => copyPath(node.path)),
+      },
+      {
+        label: "Rename…",
+        action: () => startRename(node.path, node.name),
+      },
+      {
+        label: "Duplicate",
+        action: () => {
+          void runAction(async () => {
+            await duplicatePath(node.path);
+            await refreshDir(parentPath(node.path));
+          });
+        },
+      },
+      {
+        label: "Delete",
+        action: () => void deleteNode(node.path, node.name),
+      },
+    ];
+  }
   return [
     { label: "New File", action: () => startCreate(directory, "file") },
     { label: "New Folder", action: () => startCreate(directory, "dir") },
-    ...(node.isDir ? [] : [{ label: "Open in Sub Window", action: () => (window as any).mdflowOpenInSub(node.path) }]),
     "separator",
     { label: "Rename", action: () => startRename(node.path, node.name) },
     {
@@ -275,7 +397,9 @@ function rowMenu(node: TreeNode): MenuItem[] {
 
 function createRow(node: TreeNode, depth: number): HTMLElement {
   const row = document.createElement("div");
-  row.className = `tree-row${node.path === activePath ? " active" : ""}`;
+  row.className = `tree-row${node.path === activePath ? " active" : ""}${
+    node.path === comparePath ? " compare-selected" : ""
+  }`;
   row.style.setProperty("--depth", String(depth));
   row.dataset.path = node.path;
   row.dataset.depth = String(depth);
@@ -338,9 +462,11 @@ function render(): void {
 export function initExplorer(
   onOpenFile: (path: string) => void,
   onPathChange: (from: string, to: string | null) => void = () => {},
+  actions: ExplorerActions = {},
 ): void {
   openFileCallback = onOpenFile;
   pathChangeCallback = onPathChange;
+  explorerActions = actions;
 
   const chooseFolder = async (): Promise<void> => {
     const directory = await pickFolder();

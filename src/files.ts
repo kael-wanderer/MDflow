@@ -3,17 +3,33 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 
 export type OpenResult = { path: string; contents: string } | null;
 
-const FILTERS = [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }];
+const FILTERS = [
+  {
+    name: "Documents",
+    extensions: ["md", "markdown", "txt", "html", "htm", "pdf"],
+  },
+];
 
 export async function openFile(): Promise<OpenResult> {
   const path = await open({ multiple: false, filters: FILTERS });
   if (typeof path !== "string") return null;
+  if (path.toLowerCase().endsWith(".pdf")) {
+    return { path, contents: "" };
+  }
   const contents = await invoke<string>("read_file", { path });
   return { path, contents };
 }
 
 export async function pickSavePath(): Promise<string | null> {
   return save({ filters: FILTERS });
+}
+
+export function pickExportPath(ext: string): Promise<string | null> {
+  return save({
+    filters: [
+      { name: ext.toUpperCase(), extensions: [ext] },
+    ],
+  }).then((path) => path ?? null);
 }
 
 export function writeFile(path: string, contents: string): Promise<void> {

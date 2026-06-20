@@ -20,7 +20,10 @@
 - Shell Phase 4c is implemented: icon toolbar, per-window status lines, colored file
   icons, Explorer header actions, and File ▸ Open Folder.
 - Shell Phase 5 is implemented: command/file palette, Search/Gear activity controls,
-  settings.json, themes, per-zone typography, and restore-session control.
+  settings.json, layered in-app settings UI, themes, per-zone typography,
+  restore-session control, and agent configuration.
+- Phases 6–7 are implemented: configurable AI chat + terminal panel, Mermaid/KaTeX
+  and raw-HTML preview, PDF reader, and PDF/DOCX/HTML/PNG/JPG export.
 - M2 auto-update follows the shell sub-project.
 
 ## Next step (the immediate task)
@@ -93,6 +96,9 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 [x] Safe tab path handling across Explorer rename/delete
 [x] Persist and restore open file tabs and active path
 [x] Preserve one-document/one-tab ownership during Save As
+[x] Tab right-click menu: reveal, pin, split/move, close groups, and path copy
+[x] Explorer two-stage Select for Compare workflow
+[x] Synchronized side-by-side file diff surface
 [x] Automated tests, production build, Rust checks, browser harness, and native launch
 [~] Native GUI smoke checklist in `docs/review.md`
 
@@ -110,7 +116,24 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 [x] App-config `settings.json` opened and saved as a normal tab
 [x] Six theme choices and themeable editor syntax
 [x] Per-zone font/size and restore-session setting
+[x] Gear settings panel with Theme/Font/Size/Session/Agent sections
+[x] Friendly theme-name parsing, including "Everforest Dark"
+[x] Focus-aware editor/preview zoom shortcuts
+[x] Chat provider and ask/bypass permission selectors
 [x] Automated tests, production build, and native launch
+
+### Phases 6–7 - AI, rich render, PDF, and export
+
+[x] Separate app-config `ai.json` with HTTP, command, and terminal providers
+[x] Streaming AI chat with document/selection context and edit diff
+[x] Embedded xterm terminal backed by a native PTY
+[x] Resizable, persisted AI side panel
+[x] Raw HTML, KaTeX, and lazy Mermaid preview rendering
+[x] PDF.js reader using native byte IPC
+[x] Pandoc/Typst PDF, DOCX, and HTML export
+[x] PNG/JPG preview capture and native byte save
+[x] Lazy heavy-feature chunks; no production chunk-size warning
+[x] Automated tests, production build, Rust checks, and native smoke
 
 ### Workflow
 

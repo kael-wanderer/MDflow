@@ -1,9 +1,12 @@
 const wrap = (inner: string): string =>
   `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 
+const wrapFill = (inner: string): string =>
+  `<svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true">${inner}</svg>`;
+
 export const glyphs: Record<string, string> = {
-  explorer: wrap(
-    `<rect x="2.5" y="1.5" width="11" height="13" rx="1"/><path d="M4.5 4h7M4.5 6h7M4.5 8h7M4.5 10h7M4.5 12h7"/>`,
+  explorer: wrapFill(
+    `<path d="M49.984,56l-35.989,0c-3.309,0-5.995,-2.686-5.995,-5.995l0,-36.011c0,-3.308 2.686,-5.995 5.995,-5.995l35.989,0c3.309,0 5.995,2.687 5.995,5.995l0,36.011c0,3.309-2.686,5.995-5.995,5.995Zm-25.984,-4.001l0,-39.999l-9.012,0c-1.65,0-2.989,1.339-2.989,2.989l0,34.021c0,1.65 1.339,2.989 2.989,2.989l9.012,0Zm24.991,-39.999l-20.991,0l0,39.999l20.991,0c1.65,0,2.989,-1.339,2.989,-2.989l0,-34.021c0,-1.65-1.339,-2.989-2.989,-2.989Z"/><path d="M19.999,38.774l-6.828,-6.828l6.828,-6.829l2.829,2.829l-4,4l4,4l-2.829,2.828Z"/>`,
   ),
   editor: wrap(`<path d="M10.5 2.5l3 3-8 8-3.5.5.5-3.5z"/>`),
   read: wrap(
@@ -26,6 +29,9 @@ export const glyphs: Record<string, string> = {
   collapseAll: wrap(`<path d="M5 6l3-2.5L11 6"/><path d="M5 10l3 2.5L11 10"/>`),
   expandAll: wrap(`<path d="M5 4l3 2.5L11 4"/><path d="M5 12l3-2.5L11 12"/>`),
   search: wrap(`<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3.5 3.5"/>`),
+  ai: wrap(
+    `<path d="M8 1.5l1.6 4.3 4.4 1.6-4.4 1.6L8 13.3 6.4 9 2 7.4l4.4-1.6z"/>`,
+  ),
   gear: wrap(
     `<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/>`,
   ),

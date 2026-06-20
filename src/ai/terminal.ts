@@ -1,0 +1,77 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { FitAddon } from "@xterm/addon-fit";
+import { Terminal } from "@xterm/xterm";
+import "@xterm/xterm/css/xterm.css";
+
+export function createTerminalView(
+  host: HTMLElement,
+  run: string,
+): { resize: () => void; destroy: () => void } {
+  const id = `pty-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const terminal = new Terminal({
+    fontFamily: "var(--font-mono)",
+    fontSize: 13,
+    theme: { background: "#00000000" },
+  });
+  const fit = new FitAddon();
+  const unlisteners: UnlistenFn[] = [];
+  let destroyed = false;
+
+  terminal.loadAddon(fit);
+  terminal.open(host);
+  fit.fit();
+
+  void listen<{ id: string; data: string }>("pty-data", (event) => {
+    if (event.payload.id === id && !destroyed) {
+      terminal.write(event.payload.data);
+    }
+  }).then((unlisten) => {
+    if (destroyed) unlisten();
+    else unlisteners.push(unlisten);
+  });
+
+  const dataSubscription = terminal.onData((data) => {
+    void invoke("pty_write", { id, data });
+  });
+
+  void invoke("pty_open", { id, cmd: run })
+    .then(() => {
+      if (!destroyed) {
+        void invoke("pty_resize", {
+          id,
+          rows: terminal.rows,
+          cols: terminal.cols,
+        });
+      }
+    })
+    .catch((error) => {
+      if (!destroyed) {
+        terminal.writeln(
+          `\r\n[failed to start: ${
+            error instanceof Error ? error.message : String(error)
+          }]`,
+        );
+      }
+    });
+
+  return {
+    resize: () => {
+      if (destroyed) return;
+      fit.fit();
+      void invoke("pty_resize", {
+        id,
+        rows: terminal.rows,
+        cols: terminal.cols,
+      });
+    },
+    destroy: () => {
+      if (destroyed) return;
+      destroyed = true;
+      dataSubscription.dispose();
+      unlisteners.splice(0).forEach((unlisten) => unlisten());
+      void invoke("pty_kill", { id });
+      terminal.dispose();
+    },
+  };
+}

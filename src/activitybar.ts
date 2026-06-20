@@ -4,7 +4,8 @@ import { glyphs } from "./glyphs";
 export function initActivityBar(
   onLayoutChange: () => void = () => {},
   onSearch: () => void = () => {},
-  onSettings: () => void = () => {},
+  onSettings: (x: number, y: number) => void = () => {},
+  onAI: () => void = () => {},
 ): void {
   const explorerButton = document.getElementById("ab-explorer")!;
   explorerButton.innerHTML = glyphs.explorer;
@@ -13,9 +14,16 @@ export function initActivityBar(
   searchButton.innerHTML = glyphs.search;
   searchButton.addEventListener("click", onSearch);
 
+  const aiButton = document.getElementById("ab-ai")!;
+  aiButton.innerHTML = glyphs.ai;
+  aiButton.addEventListener("click", onAI);
+
   const settingsButton = document.getElementById("ab-settings")!;
   settingsButton.innerHTML = glyphs.gear;
-  settingsButton.addEventListener("click", onSettings);
+  settingsButton.addEventListener("click", () => {
+    const rect = settingsButton.getBoundingClientRect();
+    onSettings(rect.right + 4, rect.top);
+  });
 
   const applyVisibility = (visible: boolean): void => {
     document.body.classList.toggle("explorer-hidden", !visible);
