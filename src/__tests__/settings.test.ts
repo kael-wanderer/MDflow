@@ -69,3 +69,20 @@ describe("parseSettings", () => {
     ).toBe("manual");
   });
 });
+
+describe("soft wrap", () => {
+  it("defaults to window-width wrap, column 80", () => {
+    const s = parseSettings("{}");
+    expect(s.softWrapMode).toBe("window");
+    expect(s.wrapColumn).toBe(80);
+  });
+  it("accepts a guide mode and column", () => {
+    const s = parseSettings('{"softWrapMode":"guide","wrapColumn":100}');
+    expect(s.softWrapMode).toBe("guide");
+    expect(s.wrapColumn).toBe(100);
+  });
+  it("clamps an out-of-range column", () => {
+    expect(parseSettings('{"wrapColumn":5}').wrapColumn).toBe(20);
+    expect(parseSettings('{"wrapColumn":500}').wrapColumn).toBe(200);
+  });
+});

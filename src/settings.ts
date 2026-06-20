@@ -15,6 +15,8 @@ export type Settings = {
   theme: ThemeName;
   restoreSession: boolean;
   updateMode: "manual" | "auto";
+  softWrapMode: "off" | "window" | "guide";
+  wrapColumn: number;
   explorer: ZoneSettings;
   main: ZoneSettings;
   sub: ZoneSettings;
@@ -45,6 +47,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   restoreSession: true,
   updateMode: "manual",
+  softWrapMode: "window",
+  wrapColumn: 80,
   explorer: { font: "", size: 13 },
   main: { font: "", size: 15 },
   sub: { font: "", size: 15 },
@@ -69,6 +73,12 @@ function clampSize(value: unknown, fallback: number): number {
   return Math.min(28, Math.max(10, Math.round(size)));
 }
 
+function clampWrapColumn(value: unknown): number {
+  const col = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(col)) return 80;
+  return Math.min(200, Math.max(20, Math.round(col)));
+}
+
 function parseZone(raw: unknown, fallback: ZoneSettings): ZoneSettings {
   const value = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   return {
@@ -80,6 +90,8 @@ function parseZone(raw: unknown, fallback: ZoneSettings): ZoneSettings {
 function defaults(): Settings {
   return {
     ...DEFAULT_SETTINGS,
+    softWrapMode: "window",
+    wrapColumn: 80,
     explorer: { ...DEFAULT_SETTINGS.explorer },
     main: { ...DEFAULT_SETTINGS.main },
     sub: { ...DEFAULT_SETTINGS.sub },
@@ -103,6 +115,17 @@ export function parseSettings(raw: string): Settings {
       : data.autoUpdate === true
         ? "auto"
         : "manual";
+
+  let softWrapMode: "off" | "window" | "guide" = DEFAULT_SETTINGS.softWrapMode;
+  if (data.softWrapMode === "off" || data.softWrapMode === "window" || data.softWrapMode === "guide") {
+    softWrapMode = data.softWrapMode;
+  } else if (typeof data.softWrap === "boolean") {
+    // migrate legacy softWrap boolean
+    softWrapMode = data.softWrap ? "window" : "off";
+  }
+
+  const wrapColumn = clampWrapColumn(data.wrapColumn);
+
   return {
     theme,
     restoreSession:
@@ -110,6 +133,8 @@ export function parseSettings(raw: string): Settings {
         ? data.restoreSession
         : DEFAULT_SETTINGS.restoreSession,
     updateMode,
+    softWrapMode,
+    wrapColumn,
     explorer: parseZone(data.explorer, DEFAULT_SETTINGS.explorer),
     main: parseZone(data.main, DEFAULT_SETTINGS.main),
     sub: parseZone(data.sub, DEFAULT_SETTINGS.sub),
