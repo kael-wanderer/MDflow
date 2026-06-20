@@ -101,6 +101,11 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
     - Window menu: Enter Full Screen ⌃⌘F, Move to Left/Right Half (window_tile)
     - Palette is ⌘K only (⌘P freed for Show/Hide Preview)
     - Test cases: docs/test-cases/17-menu-bar.md (MENU-01..17)
+[x] AI settings + keychain (2026-06-20):
+    - API keys live in the macOS Keychain and never in `ai.json`
+    - Legacy plaintext keys migrate automatically without deleting failed migrations
+    - Agent settings use CLI Agents and Models tabs with key/removal actions
+    - OpenAI, Anthropic, and OpenRouter templates ship by default
 
 ## Backlog (specced 2026-06-20)
 

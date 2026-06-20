@@ -56,6 +56,10 @@ All notable changes to MDflow are documented here. The format is based on
 
 - The gear button now opens the in-app settings panel instead of directly opening
   `settings.json`.
+- Agent settings now use two tabs: **CLI Agents** and **Models**, combining local and
+  hosted HTTP providers with per-provider key and removal actions.
+- API keys are now stored in the macOS Keychain via the `keyring` crate. `ai.json`
+  no longer holds secrets, and existing plaintext keys migrate automatically.
 - Editor gains selection, range-replace, and set-text APIs to support AI apply / insert.
 - The command palette is now **`⌘K` only**; `⌘P` is the View ▸ Show/Hide Preview toggle.
 - New app icon (the "roomy" MDflow mark); new activity-bar icons for the AI panel,
@@ -73,8 +77,7 @@ All notable changes to MDflow are documented here. The format is based on
 
 - Export requires `pandoc` and `typst` on the system (`brew install pandoc typst`);
   they are located at runtime, not bundled.
-- API keys in `ai.json` are stored in plaintext in the app config directory; OS-keychain
-  storage is planned.
+- API keys are stored in the macOS Keychain, not in `ai.json`.
 
 ## [0.1.0] — 2026-06-19
 

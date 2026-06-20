@@ -80,17 +80,19 @@ cd src-tauri && cargo check  # fast backend compile-check
 ## Configuring the AI panel
 
 AI providers are configured in `ai.json` (in the app config directory; open it from the
-gear menu → **Open ai.json**). Each provider is one of:
+gear menu → **Open ai.json**). The Agent panel has **CLI Agents** and **Models** tabs;
+Models combines local and hosted endpoints. OpenAI, Anthropic, and OpenRouter
+templates ship by default. Each provider is one of:
 
-- `http` — an OpenAI-compatible endpoint: `{ "type": "http", "baseUrl": "http://localhost:11434/v1", "model": "llama3", "key": "" }`
+- `http` — an OpenAI-compatible endpoint: `{ "type": "http", "baseUrl": "http://localhost:11434/v1", "model": "llama3" }`
 - `command` — a headless agent CLI: `{ "type": "command", "run": "claude -p {prompt}" }`
   (`{prompt}` is replaced with your message plus document context). An optional
   `bypassRun` is used when **Bypass approvals** mode is selected.
 
 `terminals` entries define interactive commands for the Terminal tab.
 
-> **Security note:** API keys in `ai.json` are stored in **plaintext** in the app config
-> directory (never in this repository). OS-keychain storage is a planned improvement.
+> **Security note:** API keys are stored in your macOS Keychain under service
+> `com.kael.mdflow`, never in `ai.json`.
 
 ## Architecture
 

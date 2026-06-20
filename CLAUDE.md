@@ -96,6 +96,7 @@ src-tauri/src/
   export.rs    Pandoc/Typst rendered-HTML to PDF/DOCX export
   files.rs     file IO/management, recursive walk, settings, byte IO
   pty.rs       portable PTY lifecycle and terminal streaming
+  secrets.rs   macOS Keychain API-key storage via keyring
 ```
 
 Data flow: edit → 300ms debounce → `renderMarkdown` → preview pane + word count.
@@ -125,8 +126,10 @@ buttons create untitled boards of either type. jsMind nodes and connector lines 
 their colors from the active MDflow theme and update when the theme changes.
 
 Editor settings live at `<app config dir>/settings.json`; AI providers and terminals
-live at `<app config dir>/ai.json`. The Gear button opens either file as a normal
-tab, and saving applies the relevant configuration.
+live at `<app config dir>/ai.json`, while API keys live in the OS keychain and never
+in that file. The Gear button opens either file as a normal tab, and saving applies
+the relevant configuration. Agent settings are split into CLI Agents and Models
+(local and hosted) tabs.
 
 Document PDF/DOCX export requires Pandoc and Typst:
 
