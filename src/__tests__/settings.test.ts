@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, parseSettings } from "../settings";
+import {
+  DEFAULT_SETTINGS,
+  normalizeThemeName,
+  parseSettings,
+  THEME_OPTIONS,
+} from "../settings";
 
 describe("parseSettings", () => {
   it("returns defaults for invalid JSON", () => {
@@ -31,6 +36,13 @@ describe("parseSettings", () => {
     );
   });
 
+  it("normalizes every installed theme option", () => {
+    for (const option of THEME_OPTIONS) {
+      expect(normalizeThemeName(option.label)).toBe(option.id);
+      expect(normalizeThemeName(option.id)).toBe(option.id);
+    }
+  });
+
   it("clamps size into 10..28", () => {
     expect(parseSettings('{ "main": { "size": 200 } }').main.size).toBe(28);
     expect(parseSettings('{ "main": { "size": 2 } }').main.size).toBe(10);
@@ -38,5 +50,10 @@ describe("parseSettings", () => {
 
   it("ignores non-boolean restoreSession", () => {
     expect(parseSettings('{ "restoreSession": "yes" }').restoreSession).toBe(true);
+  });
+
+  it("parses the automatic update preference", () => {
+    expect(parseSettings('{ "autoUpdate": true }').autoUpdate).toBe(true);
+    expect(parseSettings('{ "autoUpdate": "yes" }').autoUpdate).toBe(false);
   });
 });

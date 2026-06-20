@@ -6,7 +6,7 @@ import {
   type ZoneSettings,
 } from "./settings";
 
-type SettingsTab = "theme" | "font" | "size" | "session" | "agent";
+type SettingsTab = "theme" | "format" | "general" | "agent";
 type ZoneName = "explorer" | "main" | "sub";
 type AgentGroup = "command" | "local" | "api";
 
@@ -17,6 +17,7 @@ export type SettingsPanelDeps = {
   onAISettingsChange: (settings: AISettings) => void;
   onOpenSettingsFile: () => void;
   onOpenAISettingsFile: () => void;
+  onCheckForUpdates: () => void;
 };
 
 export type SettingsPanel = {
@@ -209,8 +210,14 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     content.appendChild(row);
   }
 
-  function renderFont(content: HTMLElement): void {
-    renderZoneTabs(content);
+  function renderSubhead(content: HTMLElement, text: string): void {
+    const head = document.createElement("h4");
+    head.className = "settings-subhead";
+    head.textContent = text;
+    content.appendChild(head);
+  }
+
+  function renderFontControls(content: HTMLElement): void {
     const settings = deps.getSettings();
     const current = zoneSettings(settings).font;
     content.appendChild(
@@ -245,8 +252,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     );
   }
 
-  function renderSize(content: HTMLElement): void {
-    renderZoneTabs(content);
+  function renderSizeControls(content: HTMLElement): void {
     const current = zoneSettings(deps.getSettings()).size;
     content.appendChild(
       renderChoiceList(
@@ -281,22 +287,53 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     );
   }
 
-  function renderSession(content: HTMLElement): void {
+  function renderFormat(content: HTMLElement): void {
+    renderZoneTabs(content);
+    renderSubhead(content, "Font");
+    renderFontControls(content);
+    renderSubhead(content, "Size");
+    renderSizeControls(content);
+  }
+
+  function renderGeneral(content: HTMLElement): void {
     const settings = deps.getSettings();
-    const label = document.createElement("label");
-    label.className = "settings-toggle";
-    label.innerHTML = `
+    const session = document.createElement("label");
+    session.className = "settings-toggle";
+    session.innerHTML = `
       <input type="checkbox" ${settings.restoreSession ? "checked" : ""} />
       <span>
         <strong>Restore last session</strong>
         <small>Reopen the last folder, tabs, and active document.</small>
       </span>`;
-    label.querySelector("input")!.addEventListener("change", (event) => {
+    session.querySelector("input")!.addEventListener("change", (event) => {
       updateSettings((next) => {
         next.restoreSession = (event.target as HTMLInputElement).checked;
       });
     });
+    content.appendChild(session);
+
+    renderSubhead(content, "Updates");
+    const label = document.createElement("label");
+    label.className = "settings-toggle";
+    label.innerHTML = `
+      <input type="checkbox" ${settings.autoUpdate ? "checked" : ""} />
+      <span>
+        <strong>Automatically check for updates</strong>
+        <small>Check once per day. MDflow always asks before downloading and installing.</small>
+      </span>`;
+    label.querySelector("input")!.addEventListener("change", (event) => {
+      updateSettings((next) => {
+        next.autoUpdate = (event.target as HTMLInputElement).checked;
+      });
+    });
     content.appendChild(label);
+
+    const checkButton = document.createElement("button");
+    checkButton.type = "button";
+    checkButton.className = "settings-check-update";
+    checkButton.textContent = "Check for Updates";
+    checkButton.addEventListener("click", deps.onCheckForUpdates);
+    content.appendChild(checkButton);
   }
 
   function renderAgentEditor(content: HTMLElement): void {
@@ -418,14 +455,19 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   function render(): void {
     const tabs: Array<[SettingsTab, string]> = [
       ["theme", "Theme"],
-      ["font", "Font"],
-      ["size", "Size"],
-      ["session", "Session"],
+      ["format", "Format"],
+      ["general", "General"],
       ["agent", "Agent"],
     ];
     panel.innerHTML = `
       <header class="settings-header">
-        <strong>${activeTab === "agent" ? "Agents" : "Appearance"}</strong>
+        <strong>${
+          activeTab === "agent"
+            ? "Agents"
+            : activeTab === "general"
+              ? "General"
+              : "Appearance"
+        }</strong>
         <button class="settings-close" type="button" aria-label="Close settings">×</button>
       </header>
       <nav class="settings-tabs" aria-label="Settings sections"></nav>
@@ -464,9 +506,8 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
 
     const content = panel.querySelector<HTMLElement>(".settings-content")!;
     if (activeTab === "theme") renderTheme(content);
-    else if (activeTab === "font") renderFont(content);
-    else if (activeTab === "size") renderSize(content);
-    else if (activeTab === "session") renderSession(content);
+    else if (activeTab === "format") renderFormat(content);
+    else if (activeTab === "general") renderGeneral(content);
     else renderAgent(content);
   }
 
@@ -492,7 +533,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     open: (x, y) => {
       render();
       panel.classList.remove("hidden");
-      const width = 520;
+      const width = 440;
       const left = Math.max(8, Math.min(window.innerWidth - width - 8, x));
       panel.style.left = `${left}px`;
       panel.style.bottom = `${Math.max(8, window.innerHeight - y - 36)}px`;

@@ -14,6 +14,7 @@ export type ZoneSettings = {
 export type Settings = {
   theme: ThemeName;
   restoreSession: boolean;
+  autoUpdate: boolean;
   explorer: ZoneSettings;
   main: ZoneSettings;
   sub: ZoneSettings;
@@ -43,6 +44,7 @@ const THEMES: ThemeName[] = [
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   restoreSession: true,
+  autoUpdate: false,
   explorer: { font: "", size: 13 },
   main: { font: "", size: 15 },
   sub: { font: "", size: 15 },
@@ -101,6 +103,10 @@ export function parseSettings(raw: string): Settings {
       typeof data.restoreSession === "boolean"
         ? data.restoreSession
         : DEFAULT_SETTINGS.restoreSession,
+    autoUpdate:
+      typeof data.autoUpdate === "boolean"
+        ? data.autoUpdate
+        : DEFAULT_SETTINGS.autoUpdate,
     explorer: parseZone(data.explorer, DEFAULT_SETTINGS.explorer),
     main: parseZone(data.main, DEFAULT_SETTINGS.main),
     sub: parseZone(data.sub, DEFAULT_SETTINGS.sub),

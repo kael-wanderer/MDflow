@@ -3,7 +3,7 @@
 A fast, lightweight markdown editor built with Tauri 2 + Rust and a plain-TypeScript
 frontend. MDflow is an IDE-style workspace for markdown: a file explorer, split
 windows, a command palette, rich preview (mermaid, math, raw HTML), a built-in AI
-panel, a PDF reader, and document export.
+panel, a PDF reader, editable Excalidraw boards, and document export.
 
 **License:** MIT · **Identifier:** `com.kael.mdflow`
 
@@ -13,7 +13,8 @@ panel, a PDF reader, and document export.
 ## Features
 
 - **Editor** — CodeMirror 6 with markdown highlighting, soft-wrap, line numbers, and
-  per-document undo. Live preview with a 300 ms debounce and word count.
+  per-document undo. Markdown tabs include a formatting toolbar; standalone HTML
+  tabs use proper HTML syntax highlighting. Live preview has a 300 ms debounce.
 - **Workspace shell** — activity bar, toggleable file explorer with full CRUD
   (create, rename, duplicate, delete-to-trash, reveal in Finder), and resizable panels.
 - **Split windows** — a Main and an optional Sub window, each with its own tabs and
@@ -25,11 +26,15 @@ panel, a PDF reader, and document export.
 - **Rich preview** — [mermaid](https://mermaid.js.org) diagrams, [KaTeX](https://katex.org)
   math (`$…$`, `$$…$$`), and raw HTML.
 - **PDF reader** — open `.pdf` files rendered with pdf.js.
+- **Excalidraw boards** — open and edit `.excalidraw` files in a focused full-pane
+  canvas. Boards use the normal tab, save, dirty-close, and session workflows.
 - **AI panel** — a right-side assistant with a **Chat** tab (provider + permission-mode
   selectors, document/selection context, streamed replies, copy / insert-at-cursor /
   apply-as-diff) and a **Terminal** tab (an embedded terminal running an agent CLI).
-- **Settings** — an in-app panel (Theme, Font, Size, Session, Agent) plus raw
+- **Settings** — an in-app panel (Theme, Font, Size, Session, Update, Agent) plus raw
   `settings.json` / `ai.json` for advanced edits.
+- **Updates** — manual checks from Help and optional once-daily automatic checks;
+  installation always requires confirmation.
 - **Themes** — System, Light, Dark, Catppuccin Mocha, Everforest Dark, Nord — recoloring
   the whole UI including editor syntax.
 - **Export** — PDF and DOCX via pandoc (+ typst for PDF), HTML, and PNG / JPG of the
@@ -93,6 +98,7 @@ paths are manually smoke-tested.
 src/
   main.ts          bootstrap + wiring + hotkeys + preview debounce
   editor.ts        CodeMirror 6 (multi-document, selection/replace API)
+  markdown-format.ts pure Markdown toolbar transformations
   preview.ts       markdown-it pipeline (+ KaTeX rule, raw HTML)
   render-extras.ts mermaid + KaTeX post-processing
   windowview.ts    per-window component (tabs, toolbar, panes, status)
@@ -100,8 +106,11 @@ src/
   palette.ts       ⌘K command/file overlay
   settingspanel.ts in-app settings panel
   settings.ts      settings.json model (themes, fonts, sizes, session)
+  updater.ts       manual and once-daily signed update checks
   compareview.ts   side-by-side diff surface
   pdfview.ts       pdf.js viewer
+  excalidraw-document.ts Excalidraw JSON validation and serialization
+  excalidrawview.ts lazy board-only runtime loader
   ai/              AI panel: aisettings, providers, client, conversation, diff,
                    terminal, panel
 src-tauri/src/
@@ -113,7 +122,19 @@ src-tauri/src/
   menu.rs          native menu bar
 ```
 
+Excalidraw 0.18.0 and its React boundary are shipped as a pinned, self-contained
+module under `public/vendor/excalidraw`. It is requested only when a board opens, so
+the plain-TypeScript startup bundle does not load React.
+
 See `docs/` for the full spec, plans, and design notes.
+
+## Configuring signed updates
+
+The update UI is active, but release checks require a signed feed. Set
+`plugins.updater.endpoints` and `plugins.updater.pubkey` in
+`src-tauri/tauri.conf.json`, then publish Tauri updater artifacts and `latest.json`
+with each release. Until those values exist, **Help → Check for Updates** reports
+that the build is not configured.
 
 ## License
 

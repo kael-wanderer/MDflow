@@ -4,10 +4,12 @@ Date: 2026-06-19
 
 ## Automated checks
 
-- `npm run test` → **26 passed** across preview, state, tree operations, icons, path
-  helpers, tab/window operations, and word counting.
-- `cd src-tauri && cargo test` → **5 passed** across word count, directory listing,
-  create/rename validation, duplicate naming, and real file/directory duplication.
+- `npm run test` → **92 passed in 22 files** across rendering, state, settings,
+  formatting, Excalidraw serialization, tree operations, icons, path helpers,
+  tab/window operations, export helpers, updater logic, and word counting.
+- `cd src-tauri && cargo test` → **7 passed** across word count, directory listing,
+  recursive walking, create/rename validation, duplicate naming, and real
+  file/directory duplication.
 - `npm run build` (tsc + vite) → clean.
 - `cargo check` → clean.
 - `npm run tauri dev` → app compiles and launches with no panic.
@@ -205,3 +207,22 @@ window:
 - App icon is the temporary logo from `images/logo.png`.
 - Unsigned dev/build app is blocked by macOS Gatekeeper — `xattr -dr
   com.apple.quarantine "/Applications/MDflow.app"` or right-click ▸ Open. Signing is M2.
+
+## M10 Excalidraw checks
+
+### Verified
+
+- [x] Excalidraw parsing and persistence-safe serialization pass unit tests.
+- [x] The Excalidraw engine is absent from the normal Vite startup chunks.
+- [x] Browser smoke mounts the canvas and serializes a newly drawn element.
+- [x] Production build completes with the pinned vendor module copied to `dist`.
+
+### Native GUI checklist
+
+- [ ] Open a valid `.excalidraw` file and confirm the board fills the document pane.
+- [ ] Draw or edit an element; confirm the tab becomes dirty and `⌘S` persists it.
+- [ ] Use Save As, close/reopen, and relaunch to confirm the board restores.
+- [ ] Move a board between Main and Sub windows, then close Sub and confirm it remains.
+- [ ] Rename an open board in Explorer and confirm subsequent Save uses the new path.
+- [ ] Open malformed Excalidraw JSON and confirm a friendly error appears without
+  overwriting the source.

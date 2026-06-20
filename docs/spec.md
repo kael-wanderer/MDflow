@@ -115,8 +115,9 @@ the running app — not designed in a vacuum beforehand — using the UI/UX skil
   highlighting, soft-wrap), live markdown-it preview (GFM + code highlighting), view
   modes (split/editor/preview), hotkeys (`Cmd+O/S/P/E/B`), refined dark theme,
   window/zoom persistence. **Tauri updater plugin wired in but dormant.**
-- **M2 — Auto-update (must-have early):** activate Tauri updater + signed release feed
-  (GitHub Releases + `latest.json`), code signing, update-available prompt in-app.
+- **M2 — Auto-update (in progress):** updater runtime, Help menu check, confirmation
+  prompt, restart flow, and optional daily checks are implemented. Publishing remains:
+  configure the signed release feed (GitHub Releases + `latest.json`) and public key.
 - **M3 — File explorer + session:** sidebar folder tree, tabs, reopen-last-files.
 - **M4 — Signature render:** Mermaid diagrams, KaTeX math, Obsidian-style callouts,
   interactive checklists, YAML frontmatter.
@@ -126,8 +127,29 @@ the running app — not designed in a vacuum beforehand — using the UI/UX skil
 - **M7 — Export:** Pandoc Markdown→PDF/DOCX (system-resolved) + HTML→PNG/JPG/PDF
   capture.
 - **M8 — Snapshots / version history.**
+- **M9 — Editing affordances (implemented):** formatting toolbar above the editor (bold, italic,
+  heading, link, inline code, quote, bullet, horizontal rule) that wraps/toggles the
+  selection in markdown — works for `.md`; standalone `.html` files open in a proper
+  HTML editing mode (HTML syntax highlighting instead of the markdown fallback).
+- **M10 — Excalidraw board (implemented):** open/edit `.excalidraw` files in a single full-pane
+  view (no split), the same shape as the PDF reader. Excalidraw is a React component,
+  so it is lazy-mounted in isolation (React loaded only for this view) and never
+  touches the plain-TS shell. Saves back to the `.excalidraw` JSON file.
+- **M11 — Visual mindmap:** drag-and-drop mindmap editor (jsMind) in a single
+  full-pane view like the PDF/Excalidraw views — view *and* edit nodes visually, not
+  by writing code. Distinct from the existing code-based Mermaid `mindmap`. Stores its
+  own mindmap file format.
+
+### Set-as-default app (cross-cutting, macOS)
+
+The MDflow menu offers "Set MDflow as Default ▸ As Markdown Editor / As PDF Reader".
+Wiring it fully needs document-type (UTI) declarations in `Info.plist` plus a macOS
+`LSSetDefaultRoleHandlerForContentType` call. Until those land, the menu explains how
+to set the default via Finder ▸ Get Info. **Follow-up:** declare the doc types and add
+the native default-handler command.
 
 Milestone order after M2 may be resequenced as priorities shift; M1 and M2 are fixed.
+M9–M11 were requested 2026-06-20; M9 and M10 are complete. M11 (jsMind) is next.
 
 ## Testing
 

@@ -1,6 +1,7 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
+import { html } from "@codemirror/lang-html";
 import { markdown } from "@codemirror/lang-markdown";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
@@ -11,11 +12,19 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import {
+  applyMarkdownFormat,
+  type MarkdownFormat,
+} from "./markdown-format";
+
+export type EditorDocumentKind = "markdown" | "html" | "plain";
 
 export type EditorHandle = {
-  openState(id: string, text: string): void;
+  openState(id: string, text: string, kind?: EditorDocumentKind): void;
   switchTo(id: string): void;
   closeState(id: string): void;
+  setDocumentKind(id: string, kind: EditorDocumentKind): void;
+  applyMarkdownFormat(format: MarkdownFormat): void;
   getText(id: string): string;
   getSelection(): { from: number; to: number; text: string };
   replaceRange(from: number, to: number, text: string): void;
@@ -69,6 +78,13 @@ const mdHighlight = HighlightStyle.define([
 
 const wrap = new Compartment();
 const gutter = new Compartment();
+const language = new Compartment();
+
+function languageExtension(kind: EditorDocumentKind): Extension {
+  if (kind === "html") return html({ autoCloseTags: true });
+  if (kind === "plain") return [];
+  return markdown({ codeLanguages: languages });
+}
 
 export function createEditor(
   parent: HTMLElement,
@@ -79,13 +95,16 @@ export function createEditor(
   let softWrap = true;
   let lineNums = true;
 
-  const baseExtensions = (id: string): Extension[] => [
+  const baseExtensions = (
+    id: string,
+    kind: EditorDocumentKind = "markdown",
+  ): Extension[] => [
     gutter.of(lineNums ? lineNumbers() : []),
     history(),
     drawSelection(),
     highlightActiveLine(),
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-    markdown({ codeLanguages: languages }),
+    language.of(languageExtension(kind)),
     syntaxHighlighting(mdHighlight, { fallback: true }),
     wrap.of(softWrap ? EditorView.lineWrapping : []),
     theme,
@@ -109,8 +128,11 @@ export function createEditor(
   };
 
   const handle: EditorHandle = {
-    openState(id, text) {
-      states.set(id, EditorState.create({ doc: text, extensions: baseExtensions(id) }));
+    openState(id, text, kind = "markdown") {
+      states.set(
+        id,
+        EditorState.create({ doc: text, extensions: baseExtensions(id, kind) }),
+      );
       handle.switchTo(id);
     },
     switchTo(id) {
@@ -130,6 +152,42 @@ export function createEditor(
         view.setState(EditorState.create({ doc: "", extensions: baseExtensions("") }));
         reapplyToggles();
       }
+    },
+    setDocumentKind(id, kind) {
+      if (id === activeId) {
+        view.dispatch({
+          effects: language.reconfigure(languageExtension(kind)),
+        });
+        return;
+      }
+      const state = states.get(id);
+      if (!state) return;
+      states.set(
+        id,
+        state.update({
+          effects: language.reconfigure(languageExtension(kind)),
+        }).state,
+      );
+    },
+    applyMarkdownFormat(format) {
+      if (!activeId) return;
+      const selection = view.state.selection.main;
+      const result = applyMarkdownFormat(
+        view.state.doc.toString(),
+        selection.from,
+        selection.to,
+        format,
+      );
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: result.text,
+        },
+        selection: { anchor: result.anchor, head: result.head },
+        scrollIntoView: true,
+      });
+      view.focus();
     },
     getText(id) {
       if (id === activeId) return view.state.doc.toString();

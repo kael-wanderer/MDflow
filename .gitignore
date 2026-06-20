@@ -23,8 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-.DS_Store
-
 # Agent scratch files (Codex/Gemini working notes)
 findings.md
 progress.md

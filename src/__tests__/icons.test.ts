@@ -11,6 +11,7 @@ describe("fileIcon", () => {
     expect(fileIcon("pkg.json", false)).toBe("json");
     expect(fileIcon("page.HTML", false)).toBe("html");
     expect(fileIcon("doc.pdf", false)).toBe("pdf");
+    expect(fileIcon("board.excalidraw", false)).toBe("excalidraw");
   });
 
   it("falls back to file", () => expect(fileIcon("Makefile", false)).toBe("file"));

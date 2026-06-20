@@ -6,7 +6,7 @@ export type OpenResult = { path: string; contents: string } | null;
 const FILTERS = [
   {
     name: "Documents",
-    extensions: ["md", "markdown", "txt", "html", "htm", "pdf"],
+    extensions: ["md", "markdown", "txt", "html", "htm", "pdf", "excalidraw"],
   },
 ];
 

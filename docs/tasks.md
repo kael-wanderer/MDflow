@@ -4,7 +4,7 @@
 > This file is the handoff between sessions (auto-memory does NOT carry over from the
 > Kaelio sessions — it was keyed to the Kaelio folder).
 
-## Where we are (2026-06-19)
+## Where we are (2026-06-20)
 
 - Locked decisions: name **MDflow**; **MIT** license; **clean-room incremental
   rewrite**; modular architecture; refined/cleaner UI; identifier `com.kael.mdflow`.
@@ -24,11 +24,59 @@
   restore-session control, and agent configuration.
 - Phases 6–7 are implemented: configurable AI chat + terminal panel, Mermaid/KaTeX
   and raw-HTML preview, PDF reader, and PDF/DOCX/HTML/PNG/JPG export.
-- M2 auto-update follows the shell sub-project.
+- M2 update client, M9 editing affordances, and M10 Excalidraw boards are implemented.
 
 ## Next step (the immediate task)
 
-Run the remaining native GUI checklists in `docs/review.md`, then begin M2 auto-update.
+Run the remaining native GUI checklists in `docs/review.md`. Then build M11
+(jsMind visual mindmap). See `docs/spec.md` roadmap.
+
+## UI pass (2026-06-20) — done
+
+[x] Sidebar Export button (after AI icon) → popover of PDF/DOCX/HTML/PNG/JPG;
+    focus-aware (exports the active pane's file in split view)
+[x] Explorer redesign: "EXPLORER" title with ⋯ overflow menu (Hide Explorer, Toggle
+    Line Numbers); root folder row with caret + New File / New Folder / Refresh /
+    Collapse All; collapsible tree
+[x] Gear panel: fixed size (no per-tab jump), narrower columns
+[x] MDflow ▸ Set MDflow as Default ▸ Markdown / PDF menu (informational until the
+    native UTI/Info.plist wiring lands — see spec)
+[x] Reading/preview toolbar icon swapped to an open-book glyph
+[x] Removed stray .DS_Store files; de-duplicated .gitignore
+[x] Export bug fixes (2026-06-20):
+    - PDF/DOCX failed from the .app ("Read-only file system" temp file): run
+      pandoc/typst with current_dir = temp dir
+    - PNG/JPG did nothing in editor-only mode / for HTML files: render the active
+      doc to a detached node so capture works in any view mode
+    - Export menu regrouped to HTML (PNG/JPG/PDF) and Markdown (PDF/DOCX); dropped
+      the standalone HTML-file export; sidebar icon → external-export glyph
+    - HTML▸PDF = rendered preview wrapped into a PDF (src/pdfcapture.ts, dep-free)
+[x] Export follow-up fixes (2026-06-20):
+    - Removed the post-export success popups
+    - HTML image/PDF export only captured the top: render full HTML docs in an
+      off-screen iframe sized to content (capture.htmlToCanvas)
+    - Markdown tables looked "missing" (bottom-border only): full grid + header
+      shade + zebra rows
+    - Reading (preview-only) mode bumped up ~3px and wider side padding
+    - HTML preview zoom no longer reloads the iframe (killed the white-blank
+      flash): zoom updates the live document in place
+[x] Export/preview fixes round 2 (2026-06-20, behavior referenced from Kaelio):
+    - HTML image/PDF capture lost ~30% on the right: detect the artboard (#frame
+      or largest SVG viewBox) and capture at that size with fixed-layout CSS
+      neutralized (capture.detectArtboard)
+    - HTML preview zoom flash truly fixed: preview iframe is now allow-same-origin
+      with NO scripts; parent reads contentDocument to apply zoom + auto-fit in
+      place (no reload). Auto-fit re-runs via a ResizeObserver on the pane
+    - Reading mode now matches Kaelio metrics: full width, 32/48px padding,
+      ≥17px size, 1.7 line-height
+
+## Backlog (specced 2026-06-20)
+
+[x] M9 — Editor formatting toolbar (bold/italic/heading/link/code/quote/bullet/hr)
+[x] M9 — Proper HTML editing mode for .html files
+[x] M10 — Excalidraw single-pane view bound to .excalidraw (lazy React mount)
+[ ] M11 — jsMind visual mindmap single-pane view
+[ ] Set-as-default: declare doc types in Info.plist + native default-handler command
 
 ## Code Tasks
 
@@ -48,11 +96,22 @@ Plan: `docs/superpowers/plans/2026-06-19-m1-lean-core.md`
 [x] Task 9B — Native application menu (Rust menu.rs → menu events)
 [x] Task 10 — main.ts (wiring via menu events, hotkeys, debounce)
 [x] Task 11 — style pass on live app
-[x] Task 12 — updater plugin (dormant — registration deferred to M2)
+[x] Task 12 — updater plugin registered with manual and daily-check UI
 [x] Task 14 — Help menu: MDflow Help (opens bundled HELP.md in editor) + version in About
 [~] Task 13 — M1 smoke test (automated ✓; GUI checklist in docs/review.md ← user to verify)
 
-Note: Help ▸ "Check for Updates" intentionally deferred to M2 (needs the real updater feed).
+M2 update client is implemented. Release setup still needs the production feed URL,
+signing public key, private CI signing secret, and published `latest.json`.
+
+## M2 — Auto-update
+
+[x] Regenerate native app icons from `images/logo.png`
+[x] Add Help ▸ Check for Updates
+[x] Prompt before download/install and restart after installation
+[x] Add Gear ▸ Update daily-check preference
+[x] Persist daily check time and avoid checking more than once per 24 hours
+[ ] Configure production updater endpoint and public key
+[ ] Add signed release workflow and publish `latest.json`
 
 ## Shell Sub-project
 
@@ -134,6 +193,31 @@ Design: `docs/superpowers/specs/2026-06-19-shell-explorer-tabs-split-design.md`
 [x] PNG/JPG preview capture and native byte save
 [x] Lazy heavy-feature chunks; no production chunk-size warning
 [x] Automated tests, production build, Rust checks, and native smoke
+
+### M9 - Editing affordances
+
+Design: `docs/superpowers/specs/2026-06-20-m9-editing-affordances-design.md`
+
+[x] Pure Markdown formatting commands with selection/cursor results
+[x] Markdown-only toolbar above the editor
+[x] Bold, italic, heading, link, inline code, quote, bullet, and rule controls
+[x] Formatting edits participate in CodeMirror undo/redo
+[x] Per-tab HTML syntax parsing and highlighting for `.html` / `.htm`
+[x] Language mode updates on open, Save As, rename, and window moves
+[x] Automated frontend tests and production build
+
+### M10 - Excalidraw board
+
+Design: `docs/superpowers/specs/2026-06-20-m10-excalidraw-design.md`
+
+[x] `.excalidraw` file detection, open-dialog filter, Explorer badge, and tab icon
+[x] Pure Excalidraw JSON validation and persistence-safe serialization
+[x] Full-pane editable board with incompatible text controls hidden
+[x] Lazy isolated React/Excalidraw 0.18.0 runtime outside the startup bundle
+[x] Canvas changes flow through normal dirty, Save, Save As, and close handling
+[x] Session restore, rename, and Main/Sub window moves reuse normal tab ownership
+[x] Friendly invalid-document error that preserves the original file text
+[x] Automated frontend tests, production build, and interactive browser smoke
 
 ### Workflow
 

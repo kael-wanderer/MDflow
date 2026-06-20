@@ -31,6 +31,9 @@ import {
 import { createPalette, type PaletteItem } from "./palette";
 import { breadcrumbsPath, joinPath, relativePath } from "./paths";
 import { renderPdf } from "./pdfview";
+import { isExcalidrawFile, isHtmlFile } from "./document-kind";
+import type { EditorDocumentKind } from "./editor";
+import { renderMarkdown } from "./preview";
 import { initResize } from "./resize";
 import {
   applySettings,
@@ -39,6 +42,7 @@ import {
   type Settings,
 } from "./settings";
 import { createSettingsPanel } from "./settingspanel";
+import { checkForUpdates, startDailyUpdateChecks } from "./updater";
 import { loadState, saveState, type ViewMode } from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
 import {
@@ -68,6 +72,11 @@ const nextId = () => `t${++tabSeq}`;
 
 function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
+function editorKind(pathOrName: string | null): EditorDocumentKind {
+  if (isExcalidrawFile(pathOrName)) return "plain";
+  return isHtmlFile(pathOrName) ? "html" : "markdown";
 }
 
 const views = new Map<string, WindowView>();
@@ -109,12 +118,14 @@ function openAISettings(): void {
 }
 
 function saveSettingsFromPanel(settings: Settings): void {
+  const enabledAutoUpdate = !currentSettings.autoUpdate && settings.autoUpdate;
   currentSettings = settings;
   applySettings(currentSettings);
   requestWindowMeasure();
   if (settingsPath) {
     void writeFile(settingsPath, JSON.stringify(settings, null, 2));
   }
+  if (enabledAutoUpdate) void checkForUpdates(false);
 }
 
 function saveAISettingsFromPanel(settings: AISettings): void {
@@ -371,7 +382,13 @@ function openInWindow(windowId: string, opts: { path: string | null; name: strin
     tabs: [...w.tabs, { id, path: opts.path, name: opts.name, dirty: false }],
     activeTabId: id,
   });
-  views.get(windowId)!.editor.openState(id, opts.text);
+  views
+    .get(windowId)!
+    .editor.openState(
+      id,
+      opts.text,
+      editorKind(opts.path ?? opts.name),
+    );
   activateTab(windowId, id);
 }
 
@@ -417,6 +434,7 @@ function onDocChange(windowId: string, tabId: string, text: string): void {
     });
   }
   if (windowId === getState().activeWindowId && tabId === w.activeTabId) {
+    if (isExcalidrawFile(t?.path ?? t?.name)) return;
     schedulePreview(windowId, tabId, text);
   }
 }
@@ -544,6 +562,8 @@ async function doSave(saveAs = false): Promise<void> {
         x.id === t.id ? { ...x, path: target, name: basename(target), dirty: false } : x
       ),
     });
+    view.editor.setDocumentKind(t.id, editorKind(target));
+    view.renderPreview(text, target);
     syncExplorerActivePath();
     renderAll();
   } catch (error) {
@@ -552,56 +572,82 @@ async function doSave(saveAs = false): Promise<void> {
   }
 }
 
-async function exportDoc(
-  kind: "pdf" | "docx" | "html",
-): Promise<void> {
+function exportError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// Convert the markdown source ("Markdown" group) via Pandoc/Typst.
+async function exportDoc(kind: "pdf" | "docx"): Promise<void> {
   const tab = activeMeta();
   if (!tab) return;
   const markdown = activeView().editor.getText(tab.id);
   const out = await pickExportPath(kind);
   if (!out) return;
-  const command =
-    kind === "pdf"
-      ? "export_pdf"
-      : kind === "docx"
-        ? "export_docx"
-        : "export_html";
   try {
-    await invoke(command, { markdown, out });
+    await invoke(kind === "pdf" ? "export_pdf" : "export_docx", { markdown, out });
   } catch (error) {
-    await message(
-      error instanceof Error ? error.message : String(error),
-      { title: "Export", kind: "error" },
-    );
+    await message(exportError(error), { title: "Export", kind: "error" });
   }
 }
 
-async function exportImage(kind: "png" | "jpg"): Promise<void> {
-  const pane = document.querySelector<HTMLElement>(
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const encoded = dataUrl.split(",")[1];
+  if (!encoded) throw new Error("Could not encode image");
+  return Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+}
+
+// Render markdown to a detached node so capture works in any view mode
+// (editor-only, preview, split) when no visible preview pane exists.
+function renderMarkdownForCapture(text: string): HTMLElement {
+  const article = document.createElement("article");
+  article.className = "doc";
+  article.style.position = "fixed";
+  article.style.left = "-10000px";
+  article.style.top = "0";
+  article.style.width = "800px";
+  article.innerHTML = renderMarkdown(text);
+  document.body.appendChild(article);
+  return article;
+}
+
+async function captureActive(): Promise<HTMLCanvasElement> {
+  const tab = activeMeta()!;
+  const text = activeView().editor.getText(tab.id);
+  const capture = await import("./capture");
+  if (isHtmlFile(tab.path)) {
+    return capture.htmlToCanvas(text);
+  }
+  const visible = document.querySelector<HTMLElement>(
     `.window[data-window-id="${getState().activeWindowId}"] .pane-preview .doc`,
   );
-  if (!pane) return;
+  if (visible) return capture.toCanvas(visible);
+  const temporary = renderMarkdownForCapture(text);
+  try {
+    return await capture.toCanvas(temporary);
+  } finally {
+    temporary.remove();
+  }
+}
+
+// Export the rendered preview ("HTML" group) as an image or image-backed PDF.
+async function exportRender(kind: "png" | "jpg" | "pdf"): Promise<void> {
+  if (!activeMeta()) return;
   const out = await pickExportPath(kind);
   if (!out) return;
   try {
-    const { toCanvas } = await import("./capture");
-    const canvas = await toCanvas(pane);
-    const mime = kind === "png" ? "image/png" : "image/jpeg";
-    const dataUrl = canvas.toDataURL(mime, 0.95);
-    const encoded = dataUrl.split(",")[1];
-    if (!encoded) throw new Error("Could not encode preview image");
-    const bytes = Uint8Array.from(atob(encoded), (character) =>
-      character.charCodeAt(0),
-    );
-    await invoke("save_bytes", {
-      path: out,
-      bytes: Array.from(bytes),
-    });
+    const canvas = await captureActive();
+    if (kind === "pdf") {
+      const jpeg = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.95));
+      const { imageToPdf } = await import("./pdfcapture");
+      const bytes = imageToPdf(jpeg, canvas.width, canvas.height);
+      await invoke("save_bytes", { path: out, bytes: Array.from(bytes) });
+    } else {
+      const mime = kind === "png" ? "image/png" : "image/jpeg";
+      const bytes = dataUrlToBytes(canvas.toDataURL(mime, 0.95));
+      await invoke("save_bytes", { path: out, bytes: Array.from(bytes) });
+    }
   } catch (error) {
-    await message(
-      error instanceof Error ? error.message : String(error),
-      { title: "Export image", kind: "error" },
-    );
+    await message(exportError(error), { title: "Export", kind: "error" });
   }
 }
 
@@ -625,6 +671,25 @@ function handleExplorerPathChange(from: string, to: string | null): void {
     return { ...w, tabs };
   });
   setState({ windows: updatedWindows });
+  for (const windowState of updatedWindows) {
+    const view = views.get(windowState.id);
+    if (!view) continue;
+    for (const tab of windowState.tabs) {
+      view.editor.setDocumentKind(
+        tab.id,
+        editorKind(tab.path ?? tab.name),
+      );
+    }
+    const activeTab = windowState.tabs.find(
+      (tab) => tab.id === windowState.activeTabId,
+    );
+    if (activeTab) {
+      view.renderPreview(
+        view.editor.getText(activeTab.id),
+        activeTab.path ?? activeTab.name,
+      );
+    }
+  }
 
   syncExplorerActivePath();
   renderAll();
@@ -714,7 +779,11 @@ async function moveTabToWindow(
   }
 
   const movedId = nextId();
-  targetView.editor.openState(movedId, text);
+  targetView.editor.openState(
+    movedId,
+    text,
+    editorKind(tab.path ?? tab.name),
+  );
   patchWindow(targetId, {
     tabs: [...target.tabs, { ...tab, id: movedId }],
     activeTabId: movedId,
@@ -736,7 +805,13 @@ async function toggleSub(): Promise<void> {
     for (const t of sub.tabs) {
       const id = nextId();
       moved.push({ ...t, id });
-      views.get("main")!.editor.openState(id, subView.editor.getText(t.id));
+      views
+        .get("main")!
+        .editor.openState(
+          id,
+          subView.editor.getText(t.id),
+          editorKind(t.path ?? t.name),
+        );
     }
     subView.destroy();
     views.delete("sub");
@@ -903,13 +978,44 @@ const settingsPanel = createSettingsPanel({
   onAISettingsChange: saveAISettingsFromPanel,
   onOpenSettingsFile: openSettings,
   onOpenAISettingsFile: openAISettings,
+  onCheckForUpdates: () => void checkForUpdates(),
 });
+
+async function setAsDefault(kind: "Markdown" | "PDF"): Promise<void> {
+  await message(
+    `To make MDflow your default ${kind} app, this build needs its document types registered with macOS first. That setup is planned — for now, set the default via Finder ▸ Get Info ▸ Open with ▸ Change All.`,
+    { title: `Set as Default ${kind} App`, kind: "info" },
+  );
+}
+
+function openExportMenu(x: number, y: number): void {
+  if (!activeMeta()) return;
+  const items: MenuItem[] = [
+    {
+      label: "HTML",
+      children: [
+        { label: "PNG Image…", action: () => void exportRender("png") },
+        { label: "JPG Image…", action: () => void exportRender("jpg") },
+        { label: "PDF…", action: () => void exportRender("pdf") },
+      ],
+    },
+    {
+      label: "Markdown",
+      children: [
+        { label: "PDF…", action: () => void exportDoc("pdf") },
+        { label: "Word (DOCX)…", action: () => void exportDoc("docx") },
+      ],
+    },
+  ];
+  showContextMenu(x, y, items);
+}
 
 initActivityBar(
   requestWindowMeasure,
   () => palette.open(),
   (x, y) => settingsPanel.open(x, y),
   toggleAI,
+  openExportMenu,
 );
 initResize((explorerWidth) => setState({ explorerWidth }));
 const aiResize = document.getElementById("ai-resize")!;
@@ -955,6 +1061,10 @@ initExplorer(
     onAddToChat: (path) => {
       void doOpenPath(path).then(() => setAIVisible(true));
     },
+    onHideExplorer: () => {
+      if (getState().explorerVisible) document.getElementById("ab-explorer")!.click();
+    },
+    onToggleLineNumbers: () => toggleLineNumbers(),
   },
 );
 
@@ -1017,16 +1127,16 @@ listen<string>("menu", (event) => {
       const w = activeWindow();
       return w.activeTabId ? void closeTab(w.id, w.activeTabId) : undefined;
     }
-    case "export.pdf":
+    case "export.md.pdf":
       return void exportDoc("pdf");
-    case "export.docx":
+    case "export.md.docx":
       return void exportDoc("docx");
-    case "export.html":
-      return void exportDoc("html");
-    case "export.png":
-      return void exportImage("png");
-    case "export.jpg":
-      return void exportImage("jpg");
+    case "export.html.png":
+      return void exportRender("png");
+    case "export.html.jpg":
+      return void exportRender("jpg");
+    case "export.html.pdf":
+      return void exportRender("pdf");
     case "view.split":
       return setMode(wid, "split");
     case "view.editor":
@@ -1035,8 +1145,14 @@ listen<string>("menu", (event) => {
       return setMode(wid, "preview");
     case "view.softwrap":
       return toggleSoftWrap();
+    case "default.markdown":
+      return void setAsDefault("Markdown");
+    case "default.pdf":
+      return void setAsDefault("PDF");
     case "help.guide":
       return openHelp();
+    case "help.check_updates":
+      return void checkForUpdates();
   }
 });
 
@@ -1122,6 +1238,7 @@ async function restoreWindows(): Promise<void> {
 async function boot(): Promise<void> {
   await loadSettings();
   await loadAISettings();
+  startDailyUpdateChecks(() => currentSettings.autoUpdate);
 
   if (currentSettings.restoreSession) {
     if (startupUi.folder) {

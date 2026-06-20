@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   htmlWithPreviewZoom,
+  isExcalidrawFile,
   isHtmlFile,
+  isMarkdownFile,
 } from "../document-kind";
 
 describe("isHtmlFile", () => {
@@ -13,6 +15,29 @@ describe("isHtmlFile", () => {
   it("does not treat markdown or missing names as html", () => {
     expect(isHtmlFile("/notes/page.md")).toBe(false);
     expect(isHtmlFile(null)).toBe(false);
+  });
+});
+
+describe("isExcalidrawFile", () => {
+  it("recognizes Excalidraw paths case-insensitively", () => {
+    expect(isExcalidrawFile("/boards/system.excalidraw")).toBe(true);
+    expect(isExcalidrawFile("SYSTEM.EXCALIDRAW")).toBe(true);
+    expect(isExcalidrawFile("system.json")).toBe(false);
+  });
+});
+
+describe("isMarkdownFile", () => {
+  it("recognizes markdown paths and unsaved documents", () => {
+    expect(isMarkdownFile("/notes/page.md")).toBe(true);
+    expect(isMarkdownFile("README.MARKDOWN")).toBe(true);
+    expect(isMarkdownFile("Untitled")).toBe(true);
+    expect(isMarkdownFile(null)).toBe(true);
+  });
+
+  it("rejects HTML and other saved file types", () => {
+    expect(isMarkdownFile("page.html")).toBe(false);
+    expect(isMarkdownFile("notes.txt")).toBe(false);
+    expect(isMarkdownFile("settings.json")).toBe(false);
   });
 });
 
@@ -33,13 +58,11 @@ describe("htmlWithPreviewZoom", () => {
     );
   });
 
-  it("adds a self-contained fit script for split mode", () => {
+  it("does not inject any script into the preview", () => {
     const output = htmlWithPreviewZoom(
       "<html><body><div id=\"frame\">Y</div></body></html>",
       1,
-      true,
     );
-    expect(output).toContain("data-mdflow-preview-fit");
-    expect(output).toContain("innerWidth / width");
+    expect(output).not.toContain("<script");
   });
 });

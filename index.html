@@ -35,6 +35,13 @@
             aria-pressed="false"
           ></button>
           <button
+            class="ab-btn ab-export"
+            id="ab-export"
+            title="Export"
+            type="button"
+            aria-label="Export document"
+          ></button>
+          <button
             class="ab-btn ab-settings"
             id="ab-settings"
             title="Settings"
@@ -44,13 +51,20 @@
         </nav>
 
         <aside id="explorer" aria-label="Explorer">
+          <div class="explorer-title">
+            <span>EXPLORER</span>
+            <button id="ex-more" class="ex-icon" type="button" title="More actions" aria-label="More actions"></button>
+          </div>
           <header class="explorer-header">
-            <span id="explorer-folder-name">No folder</span>
+            <button id="ex-root" class="explorer-root" type="button" aria-expanded="true">
+              <span class="explorer-caret"></span>
+              <span id="explorer-folder-name">No folder</span>
+            </button>
             <div class="explorer-actions">
               <button id="ex-new-file" class="ex-icon" type="button" title="New File"></button>
               <button id="ex-new-folder" class="ex-icon" type="button" title="New Folder"></button>
+              <button id="ex-refresh" class="ex-icon" type="button" title="Refresh"></button>
               <button id="ex-collapse" class="ex-icon" type="button" title="Collapse All"></button>
-              <button id="ex-expand" class="ex-icon" type="button" title="Expand All"></button>
             </div>
           </header>
           <div id="explorer-tree" class="explorer-tree" role="tree"></div>

@@ -13,17 +13,22 @@ fn set_soft_wrap(app: tauri::AppHandle, on: bool) {
     }
 }
 
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
-        // Updater plugin is installed (dependency + capability) but dormant in M1.
-        // M2 registers `tauri_plugin_updater` here and adds the `plugins.updater`
-        // config (endpoints + pubkey).
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
         .setup(|app| {
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             let m = menu::build(app.handle())?;
             app.set_menu(m)?;
             Ok(())
@@ -63,6 +68,7 @@ pub fn run() {
             pty::pty_resize,
             pty::pty_kill,
             set_soft_wrap,
+            restart_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MDflow");

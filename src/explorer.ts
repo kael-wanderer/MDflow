@@ -30,6 +30,7 @@ const ICON: Record<string, string> = {
   json: "{}",
   html: "<>",
   pdf: "PDF",
+  excalidraw: "EX",
   file: "·",
 };
 
@@ -44,6 +45,8 @@ export type ExplorerActions = {
   onOpenSide?: (path: string) => void;
   onCompare?: (selectedPath: string, path: string) => void;
   onAddToChat?: (path: string) => void;
+  onHideExplorer?: () => void;
+  onToggleLineNumbers?: () => void;
 };
 
 export function setExplorerActivePath(path: string | null): void {
@@ -478,8 +481,9 @@ export function initExplorer(
   };
   setIcon("ex-new-file", "newFile");
   setIcon("ex-new-folder", "newFolder");
+  setIcon("ex-refresh", "refresh");
   setIcon("ex-collapse", "collapseAll");
-  setIcon("ex-expand", "expandAll");
+  setIcon("ex-more", "more");
 
   const withFolder = (fn: (folder: string) => void) => (): void => {
     const folder = getState().folder;
@@ -495,9 +499,23 @@ export function initExplorer(
     const tree = getState().tree;
     if (tree) setState({ tree: setAllExpanded(tree, false) });
   });
-  document.getElementById("ex-expand")!.addEventListener("click", () => {
-    const tree = getState().tree;
-    if (tree) setState({ tree: setAllExpanded(tree, true) });
+  document
+    .getElementById("ex-refresh")!
+    .addEventListener("click", withFolder((folder) => void refreshDir(folder)));
+
+  const root = document.getElementById("ex-root")!;
+  root.addEventListener("click", () => {
+    const collapsed = document.getElementById("explorer")!.classList.toggle("tree-collapsed");
+    root.setAttribute("aria-expanded", String(!collapsed));
+  });
+
+  document.getElementById("ex-more")!.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    showContextMenu(rect.left, rect.bottom + 2, [
+      { label: "Hide Explorer", action: () => explorerActions.onHideExplorer?.() },
+      { label: "Toggle Line Numbers", action: () => explorerActions.onToggleLineNumbers?.() },
+    ]);
   });
 
   document.getElementById("explorer-empty-open")!.addEventListener("click", () => {

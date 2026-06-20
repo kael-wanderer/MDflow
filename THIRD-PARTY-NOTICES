@@ -8,7 +8,8 @@ Tauri (tauri, tauri-plugin-dialog, tauri-plugin-updater, tauri-plugin-opener)
 ================================================================================
 CodeMirror 6
   (codemirror, @codemirror/state, @codemirror/view, @codemirror/commands,
-   @codemirror/lang-markdown, @codemirror/language-data)
+   @codemirror/lang-markdown, @codemirror/lang-html,
+   @codemirror/language-data)
   License: MIT
   https://github.com/codemirror/dev
 ================================================================================
@@ -23,6 +24,14 @@ highlight.js
 Vite
   License: MIT
   https://github.com/vitejs/vite
+================================================================================
+Excalidraw 0.18.0
+  License: MIT
+  https://github.com/excalidraw/excalidraw
+================================================================================
+React and ReactDOM 19
+  License: MIT
+  https://github.com/facebook/react
 ================================================================================
 
 Full license texts are available in each package's distribution under

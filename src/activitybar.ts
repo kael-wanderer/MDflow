@@ -6,6 +6,7 @@ export function initActivityBar(
   onSearch: () => void = () => {},
   onSettings: (x: number, y: number) => void = () => {},
   onAI: () => void = () => {},
+  onExport: (x: number, y: number) => void = () => {},
 ): void {
   const explorerButton = document.getElementById("ab-explorer")!;
   explorerButton.innerHTML = glyphs.explorer;
@@ -17,6 +18,13 @@ export function initActivityBar(
   const aiButton = document.getElementById("ab-ai")!;
   aiButton.innerHTML = glyphs.ai;
   aiButton.addEventListener("click", onAI);
+
+  const exportButton = document.getElementById("ab-export")!;
+  exportButton.innerHTML = glyphs.export;
+  exportButton.addEventListener("click", () => {
+    const rect = exportButton.getBoundingClientRect();
+    onExport(rect.right + 4, rect.top);
+  });
 
   const settingsButton = document.getElementById("ab-settings")!;
   settingsButton.innerHTML = glyphs.gear;

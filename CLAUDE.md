@@ -68,14 +68,18 @@ src/
     terminal.ts   xterm view bound to the native PTY
   capture.ts   preview-to-canvas image export
   editor.ts    CodeMirror 6 (md highlight, soft-wrap) — createEditor()
+  markdown-format.ts pure bold/italic/heading/link/code/quote/list/rule edits
   preview.ts   markdown-it + KaTeX render pipeline — renderMarkdown()
   render-extras.ts lazy Mermaid enhancement
   pdfview.ts   lazy PDF.js page renderer
+  excalidraw-document.ts Excalidraw JSON validation and safe serialization
+  excalidrawview.ts lazy loader for the isolated board runtime
   windowview.ts per-window tabs, toolbar, editor, preview, and status
   explorer.ts  lazy folder tree + file management
   fuzzy.ts     subsequence fuzzy match + ranking — fuzzyMatch(), rankItems()
   palette.ts   ⌘K/⌘P command/file overlay — createPalette()
   settings.ts  settings.json model — parseSettings(), applySettings()
+  updater.ts   signed update checks, prompts, restart, and daily schedule
   themes.css   light/dark/catppuccin-mocha/everforest-dark/nord palettes
   files.ts     IPC open/save + native file dialogs
   filesys.ts   Explorer/settings/recursive-walk IPC wrappers
@@ -107,5 +111,11 @@ Rich preview and terminal dependencies include Mermaid, KaTeX, PDF.js, xterm, an
 the Rust `portable-pty` crate. Heavy engines are loaded on demand so the startup
 bundle remains below the release chunk-warning threshold.
 
-Updater plugin is installed but **dormant** in M1 — M2 adds the signed release feed
-(`latest.json` + pubkey) and the in-app update prompt.
+Excalidraw 0.18.0 is pinned in a self-contained board-only module under
+`public/vendor/excalidraw`. Rebuild it with `npm run vendor:excalidraw` after setting
+`EXCALIDRAW_BUILD_ROOT` to an exact-tag Excalidraw tree whose package dist has
+already been built. React remains isolated from the plain-TypeScript shell.
+
+Updater runtime and UI are active. Production release checks still require the signed
+release feed (`latest.json`) and public key in `tauri.conf.json`; keep the matching
+private signing key only in CI secrets.

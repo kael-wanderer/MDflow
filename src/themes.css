@@ -1,10 +1,10 @@
 /* MDflow theme palettes. Each is a fresh CSS-variable set. */
 
-[data-theme="dark"] {
+:root[data-theme="dark"] {
   color-scheme: dark;
 }
 
-[data-theme="light"] {
+:root[data-theme="light"] {
   color-scheme: light;
   --bg: #ffffff;
   --bg-elev: #f4f4f6;
@@ -26,7 +26,7 @@
   --tok-comment: #9aa0ab;
 }
 
-[data-theme="catppuccin-mocha"] {
+:root[data-theme="catppuccin-mocha"] {
   color-scheme: dark;
   --bg: #1e1e2e;
   --bg-elev: #181825;
@@ -48,7 +48,7 @@
   --tok-comment: #6c7086;
 }
 
-[data-theme="everforest-dark"] {
+:root[data-theme="everforest-dark"] {
   color-scheme: dark;
   --bg: #2d353b;
   --bg-elev: #343f44;
@@ -70,7 +70,7 @@
   --tok-comment: #859289;
 }
 
-[data-theme="nord"] {
+:root[data-theme="nord"] {
   color-scheme: dark;
   --bg: #2e3440;
   --bg-elev: #3b4252;

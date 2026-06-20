@@ -1,13 +1,16 @@
 import { createEditor, type EditorHandle } from "./editor";
 import {
   htmlWithPreviewZoom,
+  isExcalidrawFile,
   isHtmlFile,
+  isMarkdownFile,
 } from "./document-kind";
 import { glyphs } from "./glyphs";
 import { renderMarkdown } from "./preview";
 import { enhancePreview } from "./render-extras";
 import { getWindow, getState } from "./store";
 import type { ViewMode } from "./state";
+import type { MarkdownFormat } from "./markdown-format";
 
 export type WindowHandlers = {
   onActivateTab: (windowId: string, tabId: string) => void;
@@ -74,7 +77,19 @@ export function createWindowView(
       </div>
     </div>
     <div class="window-panes">
-      <div class="pane pane-editor"></div>
+      <div class="pane pane-editor">
+        <div class="format-toolbar" role="toolbar" aria-label="Markdown formatting">
+          <button type="button" data-format="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
+          <button type="button" data-format="italic" title="Italic" aria-label="Italic"><em>I</em></button>
+          <button type="button" data-format="heading" title="Cycle heading" aria-label="Cycle heading">H</button>
+          <button type="button" data-format="link" title="Link" aria-label="Link">↗</button>
+          <button type="button" data-format="code" title="Inline code" aria-label="Inline code">&lt;/&gt;</button>
+          <button type="button" data-format="quote" title="Quote" aria-label="Quote">❯</button>
+          <button type="button" data-format="bullet" title="Bullet list" aria-label="Bullet list">•</button>
+          <button type="button" data-format="rule" title="Horizontal rule" aria-label="Horizontal rule">—</button>
+        </div>
+        <div class="editor-surface"></div>
+      </div>
       <div class="seam"></div>
       <div class="pane pane-preview"></div>
     </div>
@@ -86,7 +101,10 @@ export function createWindowView(
 
   const tabbarEl = root.querySelector<HTMLElement>(".tabbar")!;
   const editorPane = root.querySelector<HTMLElement>(".pane-editor")!;
+  const editorSurface = root.querySelector<HTMLElement>(".editor-surface")!;
+  const formatToolbar = root.querySelector<HTMLElement>(".format-toolbar")!;
   const previewPane = root.querySelector<HTMLElement>(".pane-preview")!;
+  previewPane.tabIndex = -1;
   const wsName = root.querySelector<HTMLElement>(".ws-name")!;
   const wsWords = root.querySelector<HTMLElement>(".ws-words")!;
 
@@ -97,7 +115,10 @@ export function createWindowView(
   let previewAutoFit = true;
   let previewText = "";
   let previewPathOrName: string | null = null;
+  let previewFrame: HTMLIFrameElement | null = null;
   let lastMode: ViewMode | null = null;
+  let boardDestroy: (() => void) | null = null;
+  let boardRenderToken = 0;
 
   root.addEventListener("mousedown", () => h.onFocusWindow(windowId));
   editorPane.addEventListener("mousedown", () => {
@@ -139,14 +160,34 @@ export function createWindowView(
     document.addEventListener("mouseup", onUp);
   });
 
-  const editor = createEditor(editorPane, (tabId, text) => h.onDocChange(windowId, tabId, text));
+  const editor = createEditor(editorSurface, (tabId, text) =>
+    h.onDocChange(windowId, tabId, text),
+  );
+  formatToolbar
+    .querySelectorAll<HTMLButtonElement>("[data-format]")
+    .forEach((button) => {
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => {
+        editor.applyMarkdownFormat(
+          button.dataset.format as MarkdownFormat,
+        );
+      });
+    });
 
   function render(): void {
     const w = getWindow(windowId);
     if (!w) return;
+    const active = w.tabs.find((tab) => tab.id === w.activeTabId);
+    const activeName = active?.path ?? active?.name;
+    const isBoard = isExcalidrawFile(activeName);
     // mode class
-    root.classList.remove("window-mode-editor", "window-mode-preview", "window-mode-split");
-    root.classList.add(`window-mode-${w.mode}`);
+    root.classList.remove(
+      "window-mode-editor",
+      "window-mode-preview",
+      "window-mode-split",
+    );
+    root.classList.add(isBoard ? "window-mode-preview" : `window-mode-${w.mode}`);
+    root.classList.toggle("window-document-board", isBoard);
     if (
       lastMode !== null &&
       lastMode !== w.mode &&
@@ -164,7 +205,10 @@ export function createWindowView(
     root.querySelector(".wt-lines")!.classList.toggle("active", lineNums);
     const sub = root.querySelector(".wt-sub");
     if (sub) sub.classList.toggle("active", getState().windows.length > 1);
-    const active = w.tabs.find((tab) => tab.id === w.activeTabId);
+    formatToolbar.classList.toggle(
+      "hidden",
+      !active || !isMarkdownFile(active.path ?? active.name),
+    );
     wsName.textContent = active?.path ?? active?.name ?? "";
     // tabs
     tabbarEl.innerHTML = "";
@@ -210,19 +254,62 @@ export function createWindowView(
   ): void {
     previewText = text;
     previewPathOrName = pathOrName;
+    if (isExcalidrawFile(pathOrName)) {
+      const token = ++boardRenderToken;
+      boardDestroy?.();
+      boardDestroy = null;
+      previewPane.innerHTML =
+        '<div class="board-loading">Loading Excalidraw…</div>';
+      wsWords.textContent = "Excalidraw board";
+      void import("./excalidrawview")
+        .then(({ mountExcalidrawBoard }) =>
+          mountExcalidrawBoard(previewPane, text, (serialized) => {
+            editor.setText(serialized);
+          }),
+        )
+        .then((destroy) => {
+          if (token !== boardRenderToken) {
+            destroy();
+            return;
+          }
+          boardDestroy = destroy;
+        })
+        .catch((error) => {
+          if (token !== boardRenderToken) return;
+          previewPane.innerHTML = "";
+          const message = document.createElement("div");
+          message.className = "board-error";
+          message.textContent =
+            error instanceof Error ? error.message : String(error);
+          previewPane.appendChild(message);
+        });
+      return;
+    }
+    boardRenderToken += 1;
+    boardDestroy?.();
+    boardDestroy = null;
+    previewFrame = null;
     previewPane.replaceChildren();
     if (isHtmlFile(pathOrName)) {
-      const autoFit =
-        previewAutoFit && getWindow(windowId)?.mode === "split";
       const frame = document.createElement("iframe");
       frame.className = "html-preview-frame";
       frame.title = `Preview of ${pathOrName ?? "HTML document"}`;
-      frame.setAttribute("sandbox", "allow-forms allow-scripts");
-      frame.srcdoc = htmlWithPreviewZoom(text, previewZoom, autoFit);
+      // allow-same-origin (no scripts) lets the parent read contentDocument to
+      // apply zoom/fit live; untrusted HTML still can't run scripts.
+      frame.setAttribute("sandbox", "allow-same-origin");
+      frame.srcdoc = htmlWithPreviewZoom(text, previewZoom);
       frame.addEventListener("focus", () => {
         focusedPane = "preview";
       });
+      frame.addEventListener("load", () => {
+        if (previewAutoFit && getWindow(windowId)?.mode === "split") {
+          fitHtmlPreview();
+        } else {
+          applyHtmlZoom(previewZoom);
+        }
+      });
       previewPane.appendChild(frame);
+      previewFrame = frame;
     } else {
       const article = document.createElement("article");
       article.className = "doc";
@@ -235,14 +322,57 @@ export function createWindowView(
     wsWords.textContent = `${count} ${count === 1 ? "word" : "words"}`;
   }
 
-  function setPreviewZoom(next: number): void {
-    previewZoom = Math.max(0.25, Math.min(2, next));
+  function updateZoomLabel(): void {
     root.querySelector<HTMLElement>(".wt-preview-reset")!.textContent =
       previewAutoFit &&
       isHtmlFile(previewPathOrName) &&
       getWindow(windowId)?.mode === "split"
         ? "Fit"
         : `${Math.round(previewZoom * 100)}%`;
+  }
+
+  // Set the live preview iframe's zoom without reloading it.
+  function applyHtmlZoom(zoom: number): void {
+    const style = previewFrame?.contentDocument?.querySelector(
+      "[data-mdflow-preview-zoom]",
+    );
+    if (style) style.textContent = `html{zoom:${zoom}!important}`;
+  }
+
+  // Scale the HTML preview to fit the pane (used in split auto-fit mode).
+  function fitHtmlPreview(): void {
+    const doc = previewFrame?.contentDocument;
+    if (!doc) return;
+    applyHtmlZoom(1);
+    requestAnimationFrame(() => {
+      const target =
+        doc.querySelector<HTMLElement>("#frame,[data-mdflow-fit],svg,canvas,img") ??
+        doc.body;
+      if (!target) return;
+      const width = Math.max(target.scrollWidth, target.offsetWidth ?? 0, 1);
+      const height = Math.max(target.scrollHeight, target.offsetHeight ?? 0, 1);
+      const scale = Math.max(
+        0.1,
+        Math.min(previewPane.clientWidth / width, previewPane.clientHeight / height, 1),
+      );
+      previewZoom = scale;
+      applyHtmlZoom(scale);
+      updateZoomLabel();
+    });
+  }
+
+  function setPreviewZoom(next: number): void {
+    previewZoom = Math.max(0.25, Math.min(2, next));
+    updateZoomLabel();
+    // HTML preview: update in place (no iframe reload, no white flash).
+    if (isHtmlFile(previewPathOrName) && previewFrame) {
+      if (previewAutoFit && getWindow(windowId)?.mode === "split") {
+        fitHtmlPreview();
+      } else {
+        applyHtmlZoom(previewZoom);
+      }
+      return;
+    }
     renderPreview(previewText, previewPathOrName);
   }
 
@@ -251,6 +381,18 @@ export function createWindowView(
     root.style.setProperty("--editor-zoom", String(editorZoom));
     editor.requestMeasure();
   }
+
+  const previewResizeObserver = new ResizeObserver(() => {
+    if (
+      isHtmlFile(previewPathOrName) &&
+      previewFrame &&
+      previewAutoFit &&
+      getWindow(windowId)?.mode === "split"
+    ) {
+      fitHtmlPreview();
+    }
+  });
+  previewResizeObserver.observe(previewPane);
 
   root
     .querySelectorAll<HTMLElement>("[data-preview-zoom]")
@@ -276,6 +418,7 @@ export function createWindowView(
     render,
     renderPreview,
     adjustFocusedZoom: (delta) => {
+      if (isExcalidrawFile(previewPathOrName)) return;
       if (focusedPane === "editor") {
         setEditorZoom(editorZoom + delta);
       } else {
@@ -284,6 +427,7 @@ export function createWindowView(
       }
     },
     resetFocusedZoom: () => {
+      if (isExcalidrawFile(previewPathOrName)) return;
       if (focusedPane === "editor") {
         setEditorZoom(1);
       } else {
@@ -293,10 +437,20 @@ export function createWindowView(
     },
     requestMeasure: () => editor.requestMeasure(),
     focus: () => {
+      if (isExcalidrawFile(previewPathOrName)) {
+        focusedPane = "preview";
+        previewPane.focus();
+        return;
+      }
       focusedPane = "editor";
       editor.focus();
     },
-    destroy: () => root.remove(),
+    destroy: () => {
+      boardRenderToken += 1;
+      boardDestroy?.();
+      previewResizeObserver.disconnect();
+      root.remove();
+    },
     setLineNumbersFlag: (on: boolean) => {
       lineNums = on;
     },

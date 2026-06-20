@@ -5,6 +5,14 @@ use tauri::menu::{
 use tauri::{AppHandle, Runtime};
 
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let default_markdown =
+        MenuItemBuilder::with_id("default.markdown", "As Markdown Editor").build(app)?;
+    let default_pdf =
+        MenuItemBuilder::with_id("default.pdf", "As PDF Reader").build(app)?;
+    let default_menu = SubmenuBuilder::new(app, "Set MDflow as Default")
+        .items(&[&default_markdown, &default_pdf])
+        .build()?;
+
     let app_menu = SubmenuBuilder::new(app, "MDflow")
         .about(Some(AboutMetadata {
             name: Some("MDflow".into()),
@@ -12,6 +20,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             comments: Some("A fast, lightweight markdown editor".into()),
             ..Default::default()
         }))
+        .separator()
+        .item(&default_menu)
         .separator()
         .services()
         .separator()
@@ -40,22 +50,25 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let close = MenuItemBuilder::with_id("file.close", "Close Tab")
         .accelerator("CmdOrCtrl+W")
         .build(app)?;
-    let export_pdf = MenuItemBuilder::with_id("export.pdf", "PDF…").build(app)?;
-    let export_docx =
-        MenuItemBuilder::with_id("export.docx", "Word (DOCX)…").build(app)?;
-    let export_html = MenuItemBuilder::with_id("export.html", "HTML…").build(app)?;
-    let export_png =
-        MenuItemBuilder::with_id("export.png", "Image (PNG)…").build(app)?;
-    let export_jpg =
-        MenuItemBuilder::with_id("export.jpg", "Image (JPG)…").build(app)?;
+    let export_md_pdf =
+        MenuItemBuilder::with_id("export.md.pdf", "PDF…").build(app)?;
+    let export_md_docx =
+        MenuItemBuilder::with_id("export.md.docx", "Word (DOCX)…").build(app)?;
+    let export_markdown = SubmenuBuilder::new(app, "Markdown")
+        .items(&[&export_md_pdf, &export_md_docx])
+        .build()?;
+    let export_html_png =
+        MenuItemBuilder::with_id("export.html.png", "PNG Image…").build(app)?;
+    let export_html_jpg =
+        MenuItemBuilder::with_id("export.html.jpg", "JPG Image…").build(app)?;
+    let export_html_pdf =
+        MenuItemBuilder::with_id("export.html.pdf", "PDF…").build(app)?;
+    let export_html = SubmenuBuilder::new(app, "HTML")
+        .items(&[&export_html_png, &export_html_jpg, &export_html_pdf])
+        .build()?;
     let export = SubmenuBuilder::new(app, "Export")
-        .items(&[
-            &export_pdf,
-            &export_docx,
-            &export_html,
-            &export_png,
-            &export_jpg,
-        ])
+        .item(&export_html)
+        .item(&export_markdown)
         .build()?;
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&new)
@@ -101,7 +114,13 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let window_menu = SubmenuBuilder::new(app, "Window").minimize().build()?;
 
     let help = MenuItemBuilder::with_id("help.guide", "MDflow Help").build(app)?;
-    let help_menu = SubmenuBuilder::new(app, "Help").item(&help).build()?;
+    let check_updates =
+        MenuItemBuilder::with_id("help.check_updates", "Check for Updates…").build(app)?;
+    let help_menu = SubmenuBuilder::new(app, "Help")
+        .item(&help)
+        .separator()
+        .item(&check_updates)
+        .build()?;
 
     MenuBuilder::new(app)
         .items(&[

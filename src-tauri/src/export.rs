@@ -44,8 +44,12 @@ fn run_pandoc(
     markdown: &str,
     args: &[String],
 ) -> Result<(), String> {
+    // Launched from a macOS .app the working directory is "/", which is
+    // read-only; pandoc and the typst PDF engine create temp files in the CWD,
+    // so run them from a writable temp directory.
     let mut child = Command::new(pandoc)
         .args(args)
+        .current_dir(std::env::temp_dir())
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
