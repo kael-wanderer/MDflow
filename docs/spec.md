@@ -143,13 +143,13 @@ the running app — not designed in a vacuum beforehand — using the UI/UX skil
 ### Set-as-default app (cross-cutting, macOS)
 
 The MDflow menu offers "Set MDflow as Default ▸ As Markdown Editor / As PDF Reader".
-Wiring it fully needs document-type (UTI) declarations in `Info.plist` plus a macOS
-`LSSetDefaultRoleHandlerForContentType` call. Until those land, the menu explains how
-to set the default via Finder ▸ Get Info. **Follow-up:** declare the doc types and add
-the native default-handler command.
+The macOS bundle declares Markdown, plain-text, and PDF document types. The menu uses
+LaunchServices to register MDflow for the editor or viewer role, with a System
+Settings/Finder fallback if macOS declines the change. Finder-opened documents are
+delivered to the running frontend, including files received during cold launch.
 
 Milestone order after M2 may be resequenced as priorities shift; M1 and M2 are fixed.
-M9–M11 were requested 2026-06-20; M9 and M10 are complete. M11 (jsMind) is next.
+M9–M11 were requested 2026-06-20 and are complete.
 
 ## Testing
 

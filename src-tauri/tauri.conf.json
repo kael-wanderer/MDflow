@@ -39,6 +39,25 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown", "txt"],
+        "contentTypes": [
+          "net.daringfireball.markdown",
+          "public.plain-text"
+        ],
+        "name": "Markdown and Text Document",
+        "role": "Editor",
+        "rank": "Default"
+      },
+      {
+        "ext": ["pdf"],
+        "contentTypes": ["com.adobe.pdf"],
+        "name": "PDF Document",
+        "role": "Viewer",
+        "rank": "Default"
+      }
     ]
   }
 }

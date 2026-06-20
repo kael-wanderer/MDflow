@@ -2155,6 +2155,7 @@ dependencies = [
 name = "mdflow"
 version = "0.1.0"
 dependencies = [
+ "core-foundation",
  "portable-pty",
  "serde",
  "serde_json",

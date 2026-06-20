@@ -92,6 +92,7 @@ src/
 src-tauri/src/
   lib.rs       Tauri builder: command registry + plugins (dialog, updater)
   ai.rs        command-provider process streaming
+  defaults.rs  macOS LaunchServices default-handler registration
   export.rs    Pandoc/Typst rendered-HTML to PDF/DOCX export
   files.rs     file IO/management, recursive walk, settings, byte IO
   pty.rs       portable PTY lifecycle and terminal streaming
@@ -100,6 +101,11 @@ src-tauri/src/
 Data flow: edit → 300ms debounce → `renderMarkdown` → preview pane + word count.
 `Cmd+S` → `saveFile` → IPC `save_file`. `Cmd+O` → dialog → IPC `read_file` → editor.
 View mode + zoom persist to `localStorage` (`mdflow.ui`).
+
+The macOS bundle declares Markdown, plain-text, and PDF document types. Finder opens
+arrive through Tauri's opened event, are queued until the frontend listener is ready,
+then use the same document-opening workflow as File ▸ Open. The application menu can
+register MDflow as the Markdown/text editor or PDF viewer through LaunchServices.
 
 Special-pane document types: `.excalidraw` files open as an editable Excalidraw board
 (single pane, React-isolated); `.mind` files open as an editable jsMind mindmap board

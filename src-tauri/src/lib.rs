@@ -1,10 +1,41 @@
 mod ai;
+mod defaults;
 mod export;
 mod files;
 mod menu;
 mod pty;
 
-use tauri::Emitter;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
+
+#[derive(Default)]
+struct OpenPathState {
+    inner: Mutex<OpenPathQueue>,
+}
+
+#[derive(Default)]
+struct OpenPathQueue {
+    frontend_ready: bool,
+    pending: Vec<String>,
+}
+
+#[tauri::command]
+fn take_open_paths(state: tauri::State<'_, OpenPathState>) -> Vec<String> {
+    let mut queue = state.inner.lock().expect("open-path state poisoned");
+    queue.frontend_ready = true;
+    std::mem::take(&mut queue.pending)
+}
+
+fn dispatch_open_path(app: &tauri::AppHandle, path: String) {
+    let state = app.state::<OpenPathState>();
+    let mut queue = state.inner.lock().expect("open-path state poisoned");
+    if queue.frontend_ready {
+        drop(queue);
+        let _ = app.emit("open-path", path);
+    } else {
+        queue.pending.push(path);
+    }
+}
 
 #[tauri::command]
 fn set_soft_wrap(app: tauri::AppHandle, on: bool) {
@@ -25,6 +56,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
+        .manage(OpenPathState::default())
         .setup(|app| {
             #[cfg(desktop)]
             app.handle()
@@ -50,6 +82,8 @@ pub fn run() {
             export::export_pdf_html,
             export::export_docx_html,
             export::export_html,
+            defaults::set_default_handler,
+            defaults::open_default_apps_settings,
             files::read_file,
             files::read_file_bytes,
             files::save_file,
@@ -69,9 +103,20 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
+            take_open_paths,
             set_soft_wrap,
             restart_app,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running MDflow");
+        .build(tauri::generate_context!())
+        .expect("error while building MDflow")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        dispatch_open_path(app, path.to_string_lossy().into_owned());
+                    }
+                }
+            }
+        });
 }

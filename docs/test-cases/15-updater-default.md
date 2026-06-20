@@ -48,11 +48,29 @@ signed release feed and public key in `tauri.conf.json`.
 ### DEF-01 — Set as Default ▸ Markdown
 
 - Steps: MDflow ▸ Set MDflow as Default ▸ As Markdown Editor.
-- Expected: An informational dialog explains the current Finder-based setup.
+- Expected: A success dialog appears. Finder ▸ Get Info reports MDflow as the default
+  application for `.md`, `.markdown`, and `.txt` documents.
 - Status: [ ]  Notes:
 
 ### DEF-02 — Set as Default ▸ PDF
 
 - Steps: MDflow ▸ Set MDflow as Default ▸ As PDF Reader.
-- Expected: Same informational behavior for PDF.
+- Expected: A success dialog appears. Finder ▸ Get Info reports MDflow as the default
+  application for PDF documents.
+- Status: [ ]  Notes:
+
+### DEF-03 — Open associated file from Finder
+
+- Steps: Quit MDflow; double-click an `.md` file. With MDflow running, double-click a
+  different `.markdown` or `.txt` file, then a PDF.
+- Expected: Cold launch opens the first document. Later files open immediately in the
+  existing MDflow window; text documents use tabs and PDF uses the PDF reader.
+- Status: [ ]  Notes:
+
+### DEF-04 — Registration fallback
+
+- Steps: Exercise the menu on a macOS configuration that rejects the LaunchServices
+  change, or temporarily force the native command to return an error.
+- Expected: System Settings opens to Default Apps when available, and the dialog also
+  explains Finder ▸ Get Info ▸ Open with ▸ Change All.
 - Status: [ ]  Notes:

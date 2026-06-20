@@ -1001,11 +1001,21 @@ const settingsPanel = createSettingsPanel({
   onCheckForUpdates: () => void checkForUpdates(),
 });
 
-async function setAsDefault(kind: "Markdown" | "PDF"): Promise<void> {
-  await message(
-    `To make MDflow your default ${kind} app, this build needs its document types registered with macOS first. That setup is planned — for now, set the default via Finder ▸ Get Info ▸ Open with ▸ Change All.`,
-    { title: `Set as Default ${kind} App`, kind: "info" },
-  );
+async function setAsDefault(role: "markdown" | "pdf"): Promise<void> {
+  const label = role === "pdf" ? "PDF" : "Markdown";
+  try {
+    await invoke("set_default_handler", { role });
+    await message(`MDflow is now your default ${label} app.`, {
+      title: "Set as Default",
+      kind: "info",
+    });
+  } catch (error) {
+    await invoke("open_default_apps_settings").catch(() => {});
+    await message(
+      `macOS did not allow changing the default automatically. Choose MDflow in System Settings ▸ Apps ▸ Default Apps, or use Finder ▸ Get Info ▸ Open with ▸ Change All.\n\n${exportError(error)}`,
+      { title: "Set as Default", kind: "info" },
+    );
+  }
 }
 
 function openExportMenu(x: number, y: number): void {
@@ -1188,9 +1198,9 @@ listen<string>("menu", (event) => {
     case "view.softwrap":
       return toggleSoftWrap();
     case "default.markdown":
-      return void setAsDefault("Markdown");
+      return void setAsDefault("markdown");
     case "default.pdf":
-      return void setAsDefault("PDF");
+      return void setAsDefault("pdf");
     case "help.guide":
       return openHelp();
     case "help.check_updates":
@@ -1304,5 +1314,15 @@ async function boot(): Promise<void> {
     renderAll();
   }
 }
+
+void listen<string>("open-path", (event) => {
+  void doOpenPath(event.payload);
+}).then(() =>
+  invoke<string[]>("take_open_paths").then((paths) => {
+    for (const path of paths) {
+      void doOpenPath(path);
+    }
+  }),
+).catch(() => {});
 
 void boot();

@@ -39,8 +39,7 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
     Line Numbers); root folder row with caret + New File / New Folder / Refresh /
     Collapse All; collapsible tree
 [x] Gear panel: fixed size (no per-tab jump), narrower columns
-[x] MDflow ▸ Set MDflow as Default ▸ Markdown / PDF menu (informational until the
-    native UTI/Info.plist wiring lands — see spec)
+[x] MDflow ▸ Set MDflow as Default ▸ Markdown / PDF menu
 [x] Reading/preview toolbar icon swapped to an open-book glyph
 [x] Removed stray .DS_Store files; de-duplicated .gitignore
 [x] Export bug fixes (2026-06-20):
@@ -88,6 +87,11 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
     - Migrates legacy boolean settings without changing existing user intent
     - Manual never checks in the background; Automatic obeys the 24-hour guard
     - Both modes keep explicit Check for Updates and always prompt before install
+[x] Set-as-default app (2026-06-20):
+    - macOS bundle declares Markdown, text, and PDF document associations
+    - Finder-opened files reach the existing open workflow at launch and while running
+    - Menu registers Markdown/text editor and PDF viewer roles through LaunchServices
+    - Failed registration opens Default Apps settings and shows Finder instructions
 
 ## Backlog (specced 2026-06-20)
 
@@ -95,7 +99,7 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
 [x] M9 — Proper HTML editing mode for .html files
 [x] M10 — Excalidraw single-pane view bound to .excalidraw (lazy React mount)
 [x] M11 — jsMind visual mindmap single-pane view
-[ ] Set-as-default: declare doc types in Info.plist + native default-handler command
+[x] Set-as-default: declare doc types in Info.plist + native default-handler command
 
 ## Code Tasks
 
