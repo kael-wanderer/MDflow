@@ -51,7 +51,7 @@ export async function mountMindmapBoard(
   jm.show(mind);
 
   let accepting = false;
-  let last = "";
+  let last = serializeMindmap(jm.get_data("node_tree"));
   const timer = window.setTimeout(() => {
     accepting = true;
   }, 250);
