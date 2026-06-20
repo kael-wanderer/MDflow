@@ -12,6 +12,7 @@ export type CommandProvider = {
   label: string;
   type: "command";
   run: string;
+  bypassRun?: string;
 };
 
 export type Provider = HttpProvider | CommandProvider;
@@ -27,7 +28,10 @@ export type AISettings = {
   terminals: TerminalEntry[];
   defaultProvider: string;
   defaultTerminal: string;
+  permissionMode: PermissionMode;
 };
+
+export type PermissionMode = "ask" | "bypass";
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
   providers: [
@@ -52,12 +56,15 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
       label: "Claude Code",
       type: "command",
       run: "claude -p {prompt}",
+      bypassRun: "claude --dangerously-skip-permissions -p {prompt}",
     },
     {
       id: "codex",
       label: "Codex",
       type: "command",
       run: "codex exec {prompt}",
+      bypassRun:
+        "codex exec --dangerously-bypass-approvals-and-sandbox {prompt}",
     },
     { id: "pi", label: "Pi", type: "command", run: "pi {prompt}" },
   ],
@@ -67,6 +74,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
   ],
   defaultProvider: "ollama",
   defaultTerminal: "claude-term",
+  permissionMode: "ask",
 };
 
 export const DEFAULT_AI_SETTINGS_JSON = JSON.stringify(
@@ -109,6 +117,8 @@ function parseProvider(raw: unknown): Provider | null {
       label: value.label,
       type: "command",
       run: value.run,
+      bypassRun:
+        typeof value.bypassRun === "string" ? value.bypassRun : undefined,
     };
   }
 
@@ -154,6 +164,8 @@ export function parseAISettings(raw: string): AISettings {
     : DEFAULT_AI_SETTINGS.terminals;
   const requestedProvider = stringValue(data.defaultProvider);
   const requestedTerminal = stringValue(data.defaultTerminal);
+  const permissionMode: PermissionMode =
+    data.permissionMode === "bypass" ? "bypass" : "ask";
 
   return {
     providers,
@@ -168,5 +180,6 @@ export function parseAISettings(raw: string): AISettings {
     )
       ? requestedTerminal
       : terminals[0].id,
+    permissionMode,
   };
 }

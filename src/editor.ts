@@ -31,7 +31,7 @@ const theme = EditorView.theme(
     "&": { height: "100%", backgroundColor: "transparent", color: "var(--text)" },
     ".cm-scroller": {
       fontFamily: "var(--win-font, var(--font-mono))",
-      fontSize: "calc(var(--win-size, 15px) * var(--zoom, 1))",
+      fontSize: "calc(var(--win-size, 15px) * var(--editor-zoom, 1))",
       lineHeight: "1.65",
       padding: "var(--pane-pad) 0",
     },

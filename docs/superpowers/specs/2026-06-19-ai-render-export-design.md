@@ -13,9 +13,11 @@ implemented in a single pass.
 
 ## What does success look like?
 
-- Gear opens a small menu: **Editor Settings** (`settings.json`) and **AI Settings** (`ai.json`).
+- Gear opens an in-app settings panel for **Theme, Font, Size, Session, and Agent**.
+  The raw `settings.json` and `ai.json` files remain available as advanced actions.
 - A right-side **AI panel** (✦ button) with a **Chat** tab and a **Terminal** tab.
-- Chat: doc/selection context, streamed replies, copy / insert-at-cursor / apply-as-diff.
+- Chat: provider and permission-mode selectors, doc/selection context, streamed
+  replies, copy / insert-at-cursor / apply-as-diff.
 - Terminal: an embedded terminal running a configured agent CLI interactively.
 - Preview renders **mermaid** diagrams, **KaTeX** math, and **raw HTML**.
 - `.pdf` files open in a read tab (pdf.js).
@@ -28,7 +30,8 @@ implemented in a single pass.
 - Per-hunk diff acceptance (apply-as-diff is all-or-nothing in v1; diff is shown).
 - Bundling pandoc/typst (user installs via `brew install pandoc typst`).
 - Cloud sync of settings or chat history (chat history is in-memory per session).
-- Provider auth UIs (keys/commands are edited as JSON in `ai.json`).
+- Secure OS keychain storage. API keys entered in the Agent panel are still stored
+  in the app-config `ai.json` file in this version.
 
 ## Tech stack
 
@@ -65,8 +68,17 @@ Six phases, ordered so each builds on the last and is independently shippable:
 
 ### Phase A — Settings rework
 
-- Gear button opens a small popup menu (reuse the existing `contextmenu.ts`) with
-  **Editor Settings** and **AI Settings**; each opens its file as an editor tab.
+- Gear button opens a compact layered panel with five top-level sections:
+  **Theme, Font, Size, Session, Agent**.
+- Theme accepts both canonical IDs (`everforest-dark`) and friendly names
+  (`Everforest Dark`). Installed choices are System, Light, Dark, Catppuccin Mocha,
+  Everforest Dark, and Nord.
+- Font and Size support separate Explorer, Main, and Sub targets, presets, and a
+  custom input.
+- Session exposes the restore-last-session toggle.
+- Agent has **Local agent, Local model, API model** sections. Existing providers can
+  be selected as the default, and new command or HTTP providers can be added.
+- **Open settings.json** and **Open ai.json** remain in the footer for advanced edits.
 - New Rust `get_ai_settings(default: String) -> SettingsFile` (same shape as
   `get_settings`) creating `<app config dir>/ai.json` from a default template.
 - `ai.json` shape:
@@ -78,8 +90,11 @@ Six phases, ordered so each builds on the last and is independently shippable:
       { "id": "lmstudio", "label": "LM Studio", "type": "http",
         "baseUrl": "http://localhost:1234/v1", "model": "local-model", "key": "" },
       { "id": "claude", "label": "Claude Code", "type": "command",
-        "run": "claude -p {prompt}" },
-      { "id": "codex", "label": "Codex", "type": "command", "run": "codex exec {prompt}" },
+        "run": "claude -p {prompt}",
+        "bypassRun": "claude --dangerously-skip-permissions -p {prompt}" },
+      { "id": "codex", "label": "Codex", "type": "command",
+        "run": "codex exec {prompt}",
+        "bypassRun": "codex exec --dangerously-bypass-approvals-and-sandbox {prompt}" },
       { "id": "pi", "label": "Pi", "type": "command", "run": "pi {prompt}" }
     ],
     "terminals": [
@@ -87,7 +102,8 @@ Six phases, ordered so each builds on the last and is independently shippable:
       { "id": "codex-term", "label": "Codex", "run": "codex" }
     ],
     "defaultProvider": "ollama",
-    "defaultTerminal": "claude-term"
+    "defaultTerminal": "claude-term",
+    "permissionMode": "ask"
   }
   ```
 - `{prompt}` is substituted with the user's message + injected doc context. `key`
@@ -118,10 +134,12 @@ visibility + width persist like the explorer. Two tabs:
 | Rust `ai.rs` | `ai_run(run, prompt) -> stream` (spawn `command` provider, emit chunks); PTY commands `pty_open/pty_write/pty_resize/pty_kill` emitting `pty-data`. | manual |
 | `editor.ts` (extend) | `getSelection()`, `replaceRange(from,to,text)`, `setText(text)` for apply/insert. | — |
 
-Chat flow: pick provider → type → `conversation` builds messages with doc/selection
-context → http (`fetch` stream) or command (`ai_run` subprocess) → render live →
-actions **Copy / Insert at cursor / Apply** (Apply shows `diff.ts` result, accept
-replaces doc/selection, reject discards).
+Chat flow: pick provider and **Ask before doing / Bypass approvals** mode → type →
+`conversation` builds messages with doc/selection context → http (`fetch` stream)
+or command (`ai_run` subprocess) → render live → actions **Copy / Insert at cursor /
+Apply**. Bypass mode uses a provider-specific `bypassRun` command when configured.
+Apply shows the `diff.ts` result; accept replaces the document or selection and
+reject discards it.
 
 Terminal flow: pick terminal entry → `pty_open(run)` → xterm I/O over `pty-data` /
 `pty_write`; resize on layout change; killed on panel close. The agent edits files
@@ -153,7 +171,8 @@ Extend `preview.ts` (or add `preview-plugins.ts`):
 
 ## Data flow
 
-1. Gear → menu → open `settings.json` or `ai.json`.
+1. Gear → settings panel → apply appearance/session/agent changes immediately and
+   persist them to app config. Raw JSON remains available from the panel footer.
 2. ✦ → AI panel. Chat: provider → stream → actions. Terminal: PTY session in xterm.
 3. Preview render pipeline now post-processes mermaid + KaTeX and allows raw HTML.
 4. Open `.pdf` → pdf.js view. Export → pandoc/typst (PDF/DOCX/HTML) or canvas (PNG/JPG).
@@ -163,11 +182,16 @@ Extend `preview.ts` (or add `preview-plugins.ts`):
 - Missing provider key/command → inline chat notice. http/subprocess error → error bubble.
 - Missing pandoc/typst → modal with the exact brew install command.
 - Malformed `ai.json` → defaults (never throws); file is visibly open to fix.
+- Friendly theme labels are normalized to canonical theme IDs. Unknown names show an
+  inline validation message in the settings panel and fall back safely when loaded
+  from JSON.
 - mermaid/KaTeX render error → show the error text in place of the diagram/formula, not a crash.
 
 ## Testing
 
-- **TDD (pure):** `aisettings.parseAISettings`; `providers` (http request shape, SSE/JSON
+- **TDD (pure):** `settings.parseSettings` friendly-name normalization;
+  `aisettings.parseAISettings` including permission mode and bypass commands;
+  `providers` (http request shape, SSE/JSON
   parse, `{prompt}` substitution); `conversation` (context + selection priority);
   `diff` (line LCS add/remove/replace); mermaid block extraction; KaTeX delimiter scan.
 - **Manual smoke:** chat stream (http + command), apply-as-diff, terminal session,

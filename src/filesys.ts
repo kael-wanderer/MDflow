@@ -57,6 +57,10 @@ export function copyPath(path: string): Promise<void> {
   return writeText(path);
 }
 
+export function copyText(text: string): Promise<void> {
+  return writeText(text);
+}
+
 export function listFilesRecursive(folder: string): Promise<string[]> {
   return invoke<string[]>("list_files_recursive", { folder });
 }

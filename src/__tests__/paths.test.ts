@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { joinPath, parentPath } from "../paths";
+import {
+  breadcrumbsPath,
+  joinPath,
+  parentPath,
+  relativePath,
+} from "../paths";
 
 describe("paths", () => {
   it("parentPath returns the containing dir", () => {
@@ -14,5 +19,17 @@ describe("paths", () => {
     expect(joinPath("/", "c.md")).toBe("/c.md");
     expect(joinPath("C:\\a", "c.md")).toBe("C:\\a\\c.md");
     expect(joinPath("C:\\", "c.md")).toBe("C:\\c.md");
+  });
+
+  it("builds relative and breadcrumb paths", () => {
+    expect(relativePath("/project", "/project/docs/spec.md")).toBe(
+      "docs/spec.md",
+    );
+    expect(relativePath("C:\\project", "C:\\project\\docs\\spec.md")).toBe(
+      "docs/spec.md",
+    );
+    expect(
+      breadcrumbsPath("/project", "/project/docs/spec.md"),
+    ).toBe("docs › spec.md");
   });
 });

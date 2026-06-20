@@ -39,6 +39,7 @@ describe("parseAISettings", () => {
     ]);
     expect(settings.terminals).toHaveLength(1);
     expect(settings.defaultProvider).toBe("a");
+    expect(settings.permissionMode).toBe("ask");
   });
 
   it("falls back defaultProvider to first provider when unknown", () => {
@@ -49,5 +50,26 @@ describe("parseAISettings", () => {
       defaultProvider: "missing",
     });
     expect(parseAISettings(raw).defaultProvider).toBe("x");
+  });
+
+  it("keeps bypass command and permission mode", () => {
+    const settings = parseAISettings(
+      JSON.stringify({
+        providers: [
+          {
+            id: "x",
+            label: "X",
+            type: "command",
+            run: "x {prompt}",
+            bypassRun: "x --yes {prompt}",
+          },
+        ],
+        permissionMode: "bypass",
+      }),
+    );
+    expect(settings.permissionMode).toBe("bypass");
+    expect(settings.providers[0]).toMatchObject({
+      bypassRun: "x --yes {prompt}",
+    });
   });
 });

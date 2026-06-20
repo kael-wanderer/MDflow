@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Provider } from "./aisettings";
+import type { PermissionMode, Provider } from "./aisettings";
 import {
   buildHttpBody,
   parseSSEDelta,
@@ -54,11 +54,16 @@ async function streamCommand(
   provider: Extract<Provider, { type: "command" }>,
   messages: ChatMessage[],
   onChunk: (text: string) => void,
+  permissionMode: PermissionMode,
 ): Promise<void> {
   const prompt = messages
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
     .join("\n\n");
-  const args = substitutePrompt(provider.run, prompt);
+  const run =
+    permissionMode === "bypass" && provider.bypassRun
+      ? provider.bypassRun
+      : provider.run;
+  const args = substitutePrompt(run, prompt);
   const requestId = `ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const unlisteners: UnlistenFn[] = [];
   let resolveStream: () => void = () => {};
@@ -108,8 +113,9 @@ export function streamChat(
   provider: Provider,
   messages: ChatMessage[],
   onChunk: (text: string) => void,
+  permissionMode: PermissionMode = "ask",
 ): Promise<void> {
   return provider.type === "http"
     ? streamHttp(provider, messages, onChunk)
-    : streamCommand(provider, messages, onChunk);
+    : streamCommand(provider, messages, onChunk, permissionMode);
 }

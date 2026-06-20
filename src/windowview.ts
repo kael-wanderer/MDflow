@@ -12,6 +12,12 @@ import type { ViewMode } from "./state";
 export type WindowHandlers = {
   onActivateTab: (windowId: string, tabId: string) => void;
   onCloseTab: (windowId: string, tabId: string) => void;
+  onTabContextMenu: (
+    windowId: string,
+    tabId: string,
+    x: number,
+    y: number,
+  ) => void;
   onSetMode: (windowId: string, mode: ViewMode) => void;
   onToggleLineNumbers: () => void;
   onToggleSub: () => void;
@@ -24,8 +30,8 @@ export type WindowView = {
   editor: EditorHandle;
   render: () => void;
   renderPreview: (text: string, pathOrName?: string | null) => void;
-  adjustPreviewZoom: (delta: number) => void;
-  resetPreviewZoom: () => void;
+  adjustFocusedZoom: (delta: number) => void;
+  resetFocusedZoom: () => void;
   requestMeasure: () => void;
   focus: () => void;
   destroy: () => void;
@@ -85,6 +91,8 @@ export function createWindowView(
   const wsWords = root.querySelector<HTMLElement>(".ws-words")!;
 
   let lineNums = true;
+  let focusedPane: "editor" | "preview" = "editor";
+  let editorZoom = 1;
   let previewZoom = 1;
   let previewAutoFit = true;
   let previewText = "";
@@ -92,6 +100,12 @@ export function createWindowView(
   let lastMode: ViewMode | null = null;
 
   root.addEventListener("mousedown", () => h.onFocusWindow(windowId));
+  editorPane.addEventListener("mousedown", () => {
+    focusedPane = "editor";
+  });
+  previewPane.addEventListener("mousedown", () => {
+    focusedPane = "preview";
+  });
 
   root.querySelectorAll<HTMLElement>("[data-mode]").forEach((btn) =>
     btn.addEventListener("click", () => h.onSetMode(windowId, btn.dataset.mode as ViewMode))
@@ -157,10 +171,26 @@ export function createWindowView(
     tabbarEl.classList.toggle("empty", w.tabs.length === 0);
     for (const t of w.tabs) {
       const tab = document.createElement("div");
-      tab.className = "tab" + (t.id === w.activeTabId ? " active" : "");
+      tab.className =
+        "tab" +
+        (t.id === w.activeTabId ? " active" : "") +
+        (t.pinned ? " pinned" : "");
       tab.addEventListener("click", () => h.onActivateTab(windowId, t.id));
+      tab.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        h.onTabContextMenu(
+          windowId,
+          t.id,
+          event.clientX,
+          event.clientY,
+        );
+      });
       const dot = document.createElement("span");
-      dot.className = "tab-dot" + (t.dirty ? " dirty" : "");
+      dot.className =
+        "tab-dot" +
+        (t.dirty ? " dirty" : "") +
+        (t.pinned ? " pinned" : "");
+      dot.textContent = t.pinned ? "•" : "";
       const name = document.createElement("span");
       name.className = "tab-name";
       name.textContent = t.name;
@@ -189,6 +219,9 @@ export function createWindowView(
       frame.title = `Preview of ${pathOrName ?? "HTML document"}`;
       frame.setAttribute("sandbox", "allow-forms allow-scripts");
       frame.srcdoc = htmlWithPreviewZoom(text, previewZoom, autoFit);
+      frame.addEventListener("focus", () => {
+        focusedPane = "preview";
+      });
       previewPane.appendChild(frame);
     } else {
       const article = document.createElement("article");
@@ -211,6 +244,12 @@ export function createWindowView(
         ? "Fit"
         : `${Math.round(previewZoom * 100)}%`;
     renderPreview(previewText, previewPathOrName);
+  }
+
+  function setEditorZoom(next: number): void {
+    editorZoom = Math.max(0.5, Math.min(2, next));
+    root.style.setProperty("--editor-zoom", String(editorZoom));
+    editor.requestMeasure();
   }
 
   root
@@ -236,16 +275,27 @@ export function createWindowView(
     editor,
     render,
     renderPreview,
-    adjustPreviewZoom: (delta) => {
-      previewAutoFit = false;
-      setPreviewZoom(previewZoom + delta);
+    adjustFocusedZoom: (delta) => {
+      if (focusedPane === "editor") {
+        setEditorZoom(editorZoom + delta);
+      } else {
+        previewAutoFit = false;
+        setPreviewZoom(previewZoom + delta);
+      }
     },
-    resetPreviewZoom: () => {
-      previewAutoFit = true;
-      setPreviewZoom(1);
+    resetFocusedZoom: () => {
+      if (focusedPane === "editor") {
+        setEditorZoom(1);
+      } else {
+        previewAutoFit = true;
+        setPreviewZoom(1);
+      }
     },
     requestMeasure: () => editor.requestMeasure(),
-    focus: () => editor.focus(),
+    focus: () => {
+      focusedPane = "editor";
+      editor.focus();
+    },
     destroy: () => root.remove(),
     setLineNumbersFlag: (on: boolean) => {
       lineNums = on;

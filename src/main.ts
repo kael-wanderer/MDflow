@@ -9,8 +9,10 @@ import {
   type AISettings,
 } from "./ai/aisettings";
 import { createAIPanel, type AIPanel } from "./ai/panel";
-import { showContextMenu } from "./contextmenu";
+import { showComparison } from "./compareview";
+import { showContextMenu, type MenuItem } from "./contextmenu";
 import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
+import { revealExplorerPath } from "./explorer";
 import {
   getInitialFile,
   openFile,
@@ -23,19 +25,29 @@ import {
   getSettingsFile,
   listFilesRecursive,
   pickFolder,
+  copyText,
+  revealInFinder,
 } from "./filesys";
 import { createPalette, type PaletteItem } from "./palette";
-import { joinPath } from "./paths";
+import { breadcrumbsPath, joinPath, relativePath } from "./paths";
 import { renderPdf } from "./pdfview";
 import { initResize } from "./resize";
 import {
   applySettings,
   DEFAULT_SETTINGS_JSON,
   parseSettings,
+  type Settings,
 } from "./settings";
+import { createSettingsPanel } from "./settingspanel";
 import { loadState, saveState, type ViewMode } from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
-import { nextActiveAfterClose, type TabMeta } from "./tabops";
+import {
+  nextActiveAfterClose,
+  otherTabIds,
+  savedTabIds,
+  tabIdsRightOf,
+  type TabMeta,
+} from "./tabops";
 import { findTabByPath } from "./windowops";
 import { createWindowView, type WindowView } from "./windowview";
 import helpDoc from "../HELP.md?raw";
@@ -96,6 +108,23 @@ function openAISettings(): void {
   if (aiSettingsPath) void doOpenPath(aiSettingsPath);
 }
 
+function saveSettingsFromPanel(settings: Settings): void {
+  currentSettings = settings;
+  applySettings(currentSettings);
+  requestWindowMeasure();
+  if (settingsPath) {
+    void writeFile(settingsPath, JSON.stringify(settings, null, 2));
+  }
+}
+
+function saveAISettingsFromPanel(settings: AISettings): void {
+  currentAISettings = settings;
+  aiPanel?.render();
+  if (aiSettingsPath) {
+    void writeFile(aiSettingsPath, JSON.stringify(settings, null, 2));
+  }
+}
+
 function commandItems(): PaletteItem[] {
   const command = (
     id: string,
@@ -152,6 +181,12 @@ const palette = createPalette(() => [...fileItems(), ...commandItems()]);
 const handlers = {
   onActivateTab: (wid: string, tid: string) => activateTab(wid, tid),
   onCloseTab: (wid: string, tid: string) => void closeTab(wid, tid),
+  onTabContextMenu: (
+    wid: string,
+    tid: string,
+    x: number,
+    y: number,
+  ) => showTabContextMenu(wid, tid, x, y),
   onSetMode: (wid: string, m: ViewMode) => setMode(wid, m),
   onToggleLineNumbers: () => toggleLineNumbers(),
   onToggleSub: () => toggleSub(),
@@ -163,6 +198,122 @@ const handlers = {
   },
   onDocChange: (wid: string, tid: string, text: string) => onDocChange(wid, tid, text),
 };
+
+async function closeTabs(windowId: string, tabIds: string[]): Promise<void> {
+  for (const tabId of tabIds) {
+    if (!(await closeTab(windowId, tabId))) break;
+  }
+}
+
+function pinTab(windowId: string, tabId: string): void {
+  const windowState = getWindow(windowId);
+  if (!windowState) return;
+  const target = windowState.tabs.find((tab) => tab.id === tabId);
+  if (!target) return;
+  const pinned = !target.pinned;
+  const updated = { ...target, pinned };
+  const rest = windowState.tabs.filter((tab) => tab.id !== tabId);
+  patchWindow(windowId, {
+    tabs: pinned ? [updated, ...rest] : [...rest, updated],
+  });
+  renderAll();
+}
+
+function showTabContextMenu(
+  windowId: string,
+  tabId: string,
+  x: number,
+  y: number,
+): void {
+  const windowState = getWindow(windowId);
+  const tab = windowState?.tabs.find((candidate) => candidate.id === tabId);
+  if (!windowState || !tab) return;
+  const folder = getState().folder;
+  const pathItems: MenuItem[] = tab.path
+    ? [
+        "separator",
+        {
+          label: "Copy Path",
+          action: () => void copyText(tab.path!),
+        },
+        {
+          label: "Copy Relative Path",
+          action: () =>
+            void copyText(folder ? relativePath(folder, tab.path!) : tab.path!),
+        },
+        {
+          label: "Copy Breadcrumbs Path",
+          action: () =>
+            void copyText(breadcrumbsPath(folder, tab.path!)),
+        },
+      ]
+    : [];
+  showContextMenu(x, y, [
+    ...(tab.path
+      ? [
+          {
+            label: "Reveal in Finder",
+            action: () => void revealInFinder(tab.path!),
+          } satisfies MenuItem,
+          {
+            label: "Reveal in Explorer View",
+            action: () => {
+              if (!getState().explorerVisible) {
+                document.getElementById("ab-explorer")?.click();
+              }
+              void revealExplorerPath(tab.path!);
+            },
+          } satisfies MenuItem,
+          "separator" as const,
+        ]
+      : []),
+    {
+      label: tab.pinned ? "Unpin" : "Pin",
+      action: () => pinTab(windowId, tabId),
+    },
+    "separator",
+    {
+      label: "Split Right",
+      action: () =>
+        void moveTabToWindow(windowId, tabId, windowId === "main" ? "sub" : "main"),
+    },
+    {
+      label: "Split & Move",
+      children: [
+        {
+          label: "Main Window",
+          disabled: windowId === "main",
+          action: () => void moveTabToWindow(windowId, tabId, "main"),
+        },
+        {
+          label: "Sub Window",
+          disabled: windowId === "sub",
+          action: () => void moveTabToWindow(windowId, tabId, "sub"),
+        },
+      ],
+    },
+    "separator",
+    { label: "Close", action: () => void closeTab(windowId, tabId) },
+    {
+      label: "Close Others",
+      action: () => void closeTabs(windowId, otherTabIds(windowState.tabs, tabId)),
+    },
+    {
+      label: "Close to the Right",
+      action: () => void closeTabs(windowId, tabIdsRightOf(windowState.tabs, tabId)),
+    },
+    {
+      label: "Close Saved",
+      action: () => void closeTabs(windowId, savedTabIds(windowState.tabs)),
+    },
+    {
+      label: "Close All",
+      action: () =>
+        void closeTabs(windowId, windowState.tabs.map((candidate) => candidate.id)),
+    },
+    ...pathItems,
+  ]);
+}
 
 function makeView(windowId: string, isMain: boolean): WindowView {
   const v = createWindowView(windowsHost, windowId, isMain, handlers);
@@ -505,6 +656,72 @@ function toggleSoftWrap(): void {
   void invoke("set_soft_wrap", { on: ui.softWrap });
 }
 
+function ensureSubWindow(): void {
+  const state = getState();
+  if (state.windows.length > 1) return;
+  setState({
+    windows: [
+      ...state.windows,
+      { id: "sub", tabs: [], activeTabId: null, mode: "split" },
+    ],
+  });
+  addSplitter();
+  makeView("sub", false);
+  applySettings(currentSettings);
+  renderAll();
+  requestWindowMeasure();
+}
+
+async function moveTabToWindow(
+  sourceId: string,
+  tabId: string,
+  targetId: "main" | "sub",
+): Promise<void> {
+  if (sourceId === targetId) {
+    activateTab(sourceId, tabId);
+    return;
+  }
+  if (targetId === "sub") ensureSubWindow();
+  const source = getWindow(sourceId);
+  const target = getWindow(targetId);
+  const tab = source?.tabs.find((candidate) => candidate.id === tabId);
+  if (!source || !target || !tab) return;
+
+  const sourceView = views.get(sourceId)!;
+  const targetView = views.get(targetId)!;
+  const text = sourceView.editor.getText(tabId);
+  const sourceNext = nextActiveAfterClose(
+    source.tabs,
+    tabId,
+    source.activeTabId,
+  );
+  sourceView.editor.closeState(tabId);
+  patchWindow(sourceId, {
+    tabs: source.tabs.filter((candidate) => candidate.id !== tabId),
+    activeTabId: sourceNext,
+  });
+  if (sourceNext) {
+    sourceView.editor.switchTo(sourceNext);
+    const nextTab = getWindow(sourceId)?.tabs.find(
+      (candidate) => candidate.id === sourceNext,
+    );
+    sourceView.renderPreview(
+      sourceView.editor.getText(sourceNext),
+      nextTab?.path ?? nextTab?.name,
+    );
+  } else {
+    sourceView.renderPreview("");
+  }
+
+  const movedId = nextId();
+  targetView.editor.openState(movedId, text);
+  patchWindow(targetId, {
+    tabs: [...target.tabs, { ...tab, id: movedId }],
+    activeTabId: movedId,
+  });
+  activateTab(targetId, movedId);
+}
+
 async function toggleSub(): Promise<void> {
   const s = getState();
   if (s.windows.length > 1) {
@@ -536,12 +753,9 @@ async function toggleSub(): Promise<void> {
       activateTab("main", moved[0].id);
     }
   } else {
-    setState({ windows: [...s.windows, { id: "sub", tabs: [], activeTabId: null, mode: "split" }], activeWindowId: "sub" });
-    addSplitter();
-    makeView("sub", false);
-    applySettings(currentSettings);
+    ensureSubWindow();
+    setState({ activeWindowId: "sub" });
     renderAll();
-    requestWindowMeasure();
   }
 }
 
@@ -576,6 +790,7 @@ const aiPanelElement = document.getElementById("ai-panel")!;
 function buildAIPanel(): void {
   aiPanel = createAIPanel(aiPanelElement, {
     getSettings: () => currentAISettings,
+    onSettingsChange: saveAISettingsFromPanel,
     getDoc: () => {
       const view = activeView();
       const tab = activeMeta();
@@ -624,17 +839,50 @@ function toggleAI(): void {
 }
 
 async function openInSub(path: string): Promise<void> {
-  if (getState().windows.length < 2) await toggleSub();
-  // move if already open in main
+  ensureSubWindow();
   const found = findTabByPath(getState().windows, path);
   if (found && found.windowId === "main") {
-    const closed = await closeTab("main", found.tab.id);
-    if (!closed) return;
+    await moveTabToWindow("main", found.tab.id, "sub");
+    return;
+  }
+  if (found) {
+    activateTab(found.windowId, found.tab.id);
+    return;
   }
   const contents = await invoke<string>("read_file", { path });
   openInWindow("sub", { path, name: basename(path), text: contents });
 }
 (window as any).mdflowOpenInSub = (p: string) => void openInSub(p);
+
+async function compareFiles(
+  selectedPath: string,
+  path: string,
+): Promise<void> {
+  try {
+    const [selectedText, text] = await Promise.all([
+      invoke<string>("read_file", { path: selectedPath }),
+      invoke<string>("read_file", { path }),
+    ]);
+    showComparison(
+      document.getElementById("editorarea")!,
+      {
+        name: basename(selectedPath),
+        path: selectedPath,
+        text: selectedText,
+      },
+      {
+        name: basename(path),
+        path,
+        text,
+      },
+    );
+  } catch (error) {
+    await message(
+      error instanceof Error ? error.message : String(error),
+      { title: "Compare files", kind: "error" },
+    );
+  }
+}
 
 
 
@@ -648,15 +896,19 @@ document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
 document.documentElement.style.setProperty("--ai-w", `${ui.aiWidth}px`);
 applyAIVisibility();
 
+const settingsPanel = createSettingsPanel({
+  getSettings: () => currentSettings,
+  getAISettings: () => currentAISettings,
+  onSettingsChange: saveSettingsFromPanel,
+  onAISettingsChange: saveAISettingsFromPanel,
+  onOpenSettingsFile: openSettings,
+  onOpenAISettingsFile: openAISettings,
+});
+
 initActivityBar(
   requestWindowMeasure,
   () => palette.open(),
-  (x, y) => {
-    showContextMenu(x, y, [
-      { label: "Editor Settings", action: openSettings },
-      { label: "AI Settings", action: openAISettings },
-    ]);
-  },
+  (x, y) => settingsPanel.open(x, y),
   toggleAI,
 );
 initResize((explorerWidth) => setState({ explorerWidth }));
@@ -687,7 +939,24 @@ aiResize.addEventListener("mousedown", (event) => {
   document.addEventListener("mousemove", onMove);
   document.addEventListener("mouseup", onUp);
 });
-initExplorer((path) => void doOpenPath(path), handleExplorerPathChange);
+initExplorer(
+  (path) => void doOpenPath(path),
+  handleExplorerPathChange,
+  {
+    onOpenPreview: (path) => {
+      void doOpenPath(path).then(() => {
+        const windowId = getState().activeWindowId;
+        setMode(windowId, "preview");
+      });
+    },
+    onOpenSide: (path) => void openInSub(path),
+    onCompare: (selectedPath, path) =>
+      void compareFiles(selectedPath, path),
+    onAddToChat: (path) => {
+      void doOpenPath(path).then(() => setAIVisible(true));
+    },
+  },
+);
 
 makeView("main", true);
 if (ui.aiVisible) buildAIPanel();
@@ -775,17 +1044,17 @@ window.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey) {
     if (e.key === "+" || e.key === "=") {
       e.preventDefault();
-      activeView().adjustPreviewZoom(0.1);
+      activeView().adjustFocusedZoom(0.1);
       return;
     }
     if (e.key === "-" || e.key === "_") {
       e.preventDefault();
-      activeView().adjustPreviewZoom(-0.1);
+      activeView().adjustFocusedZoom(-0.1);
       return;
     }
     if (e.key === "0") {
       e.preventDefault();
-      activeView().resetPreviewZoom();
+      activeView().resetFocusedZoom();
       return;
     }
   }

@@ -6,6 +6,7 @@ import type { ChatMessage } from "./providers";
 
 export type AIPanelDeps = {
   getSettings: () => AISettings;
+  onSettingsChange: (settings: AISettings) => void;
   getDoc: () => { text: string; selection: string };
   onApply: (newText: string) => void;
   onInsert: (text: string) => void;
@@ -45,8 +46,7 @@ export function createAIPanel(
     });
   });
 
-  function currentProvider(): Provider | undefined {
-    const settings = deps.getSettings();
+  function currentProvider(settings = deps.getSettings()): Provider | undefined {
     return (
       settings.providers.find(
         (provider) => provider.id === settings.defaultProvider,
@@ -133,6 +133,19 @@ export function createAIPanel(
     body.innerHTML = `
       <div class="ai-messages"></div>
       <div class="ai-input-row">
+        <div class="ai-control-row">
+          <label>
+            <span>Agent</span>
+            <select class="ai-provider"></select>
+          </label>
+          <label>
+            <span>Permission</span>
+            <select class="ai-permission">
+              <option value="ask">Ask before doing</option>
+              <option value="bypass">Bypass approvals</option>
+            </select>
+          </label>
+        </div>
         <label class="ai-edit">
           <input type="checkbox" class="ai-editmode" ${
             editMode ? "checked" : ""
@@ -145,6 +158,32 @@ export function createAIPanel(
     const messagesElement =
       body.querySelector<HTMLElement>(".ai-messages")!;
     const input = body.querySelector<HTMLTextAreaElement>(".ai-input")!;
+    const settings = deps.getSettings();
+    const providerSelect =
+      body.querySelector<HTMLSelectElement>(".ai-provider")!;
+    for (const provider of settings.providers) {
+      const option = document.createElement("option");
+      option.value = provider.id;
+      option.textContent = provider.label;
+      option.selected = provider.id === settings.defaultProvider;
+      providerSelect.appendChild(option);
+    }
+    providerSelect.addEventListener("change", () => {
+      deps.onSettingsChange({
+        ...deps.getSettings(),
+        defaultProvider: providerSelect.value,
+      });
+    });
+    const permissionSelect =
+      body.querySelector<HTMLSelectElement>(".ai-permission")!;
+    permissionSelect.value = settings.permissionMode;
+    permissionSelect.addEventListener("change", () => {
+      deps.onSettingsChange({
+        ...deps.getSettings(),
+        permissionMode:
+          permissionSelect.value === "bypass" ? "bypass" : "ask",
+      });
+    });
     body
       .querySelector<HTMLInputElement>(".ai-editmode")!
       .addEventListener("change", (event) => {
@@ -166,7 +205,8 @@ export function createAIPanel(
 
     const send = async (): Promise<void> => {
       const prompt = input.value.trim();
-      const provider = currentProvider();
+      const currentSettings = deps.getSettings();
+      const provider = currentProvider(currentSettings);
       if (!prompt) return;
       if (!provider) {
         addBubble(
@@ -189,11 +229,16 @@ export function createAIPanel(
       const replyElement = addBubble("assistant", "");
       let reply = "";
       try {
-        await streamChat(provider, messages, (chunk) => {
-          reply += chunk;
-          replyElement.textContent = reply;
-          messagesElement.scrollTop = messagesElement.scrollHeight;
-        });
+        await streamChat(
+          provider,
+          messages,
+          (chunk) => {
+            reply += chunk;
+            replyElement.textContent = reply;
+            messagesElement.scrollTop = messagesElement.scrollHeight;
+          },
+          currentSettings.permissionMode,
+        );
         history.push(
           { role: "user", content: prompt },
           { role: "assistant", content: reply },
