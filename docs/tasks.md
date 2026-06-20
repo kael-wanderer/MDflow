@@ -92,6 +92,15 @@ Run the remaining native GUI checklists in `docs/review.md`. Then build M11
     - Finder-opened files reach the existing open workflow at launch and while running
     - Menu registers Markdown/text editor and PDF viewer roles through LaunchServices
     - Failed registration opens Default Apps settings and shows Finder instructions
+[x] Menu bar rebuild (2026-06-20):
+    - View menu: Show/Hide Explorer ⌘B, Show/Hide Preview ⌘P, Reading View ⌘E,
+      Show/Hide Line Numbers, Soft Wrap ▸ Off/Window Width/Page Guide, zoom,
+      Font / Text Size / Explorer Text Size / Theme submenus (active value checked)
+    - Soft-wrap modes (off/window/guide + wrapColumn) and submenus persist to
+      settings.json; sync_view_menu reflects settings into the menu checks
+    - Window menu: Enter Full Screen ⌃⌘F, Move to Left/Right Half (window_tile)
+    - Palette is ⌘K only (⌘P freed for Show/Hide Preview)
+    - Test cases: docs/test-cases/17-menu-bar.md (MENU-01..17)
 
 ## Backlog (specced 2026-06-20)
 

@@ -37,3 +37,4 @@ Acceptance / smoke test cases, **one file per feature**. Run them against a dev 
 | [14-mindmap.md](14-mindmap.md) | Mindmap board / jsMind (M11) |
 | [15-updater-default.md](15-updater-default.md) | Manual/Automatic update checks and Set-as-Default menu |
 | [16-compare.md](16-compare.md) | Two-file compare / diff |
+| [17-menu-bar.md](17-menu-bar.md) | View + Window native menus, Soft Wrap modes, submenus, window tiling |

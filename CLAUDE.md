@@ -81,7 +81,7 @@ src/
   windowview.ts per-window tabs, toolbar, editor, preview, and status
   explorer.ts  lazy folder tree + file management
   fuzzy.ts     subsequence fuzzy match + ranking — fuzzyMatch(), rankItems()
-  palette.ts   ⌘K/⌘P command/file overlay — createPalette()
+  palette.ts   ⌘K command/file overlay — createPalette()
   settings.ts  settings.json model — parseSettings(), applySettings()
   updater.ts   signed update checks, prompts, restart, and daily schedule
   themes.css   light/dark/catppuccin-mocha/everforest-dark/nord palettes
@@ -101,6 +101,15 @@ src-tauri/src/
 Data flow: edit → 300ms debounce → `renderMarkdown` → preview pane + word count.
 `Cmd+S` → `saveFile` → IPC `save_file`. `Cmd+O` → dialog → IPC `read_file` → editor.
 View mode + zoom persist to `localStorage` (`mdflow.ui`).
+
+The native **View** menu has: Show/Hide Explorer `⌘B`, Show/Hide Preview `⌘P`,
+Reading View `⌘E`, Show/Hide Line Numbers, Soft Wrap ▸ (Off / Window Width / Page
+Guide), Zoom In/Out/Reset, and Font / Text Size / Explorer Text Size / Theme submenus
+(active value checked). Soft Wrap and the Font/Size/Theme submenus drive
+`settings.json`; `sync_view_menu` reflects the current settings into the menu checks.
+The **Window** menu adds Enter Full Screen `⌃⌘F`, Move to Left/Right Half (tile to the
+active monitor via `window_tile`). The command/file palette is **`⌘K` only** (`⌘P` is
+the preview toggle).
 
 The macOS bundle declares Markdown, plain-text, and PDF document types. Finder opens
 arrive through Tauri's opened event, are queued until the frontend listener is ready,
