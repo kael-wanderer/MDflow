@@ -1,5 +1,13 @@
 import { parseMindmap, serializeMindmap } from "./mindmap-document";
-import { SHAPES, normalizeShape, type MindShape } from "./mindmap-style";
+import {
+  SHAPES,
+  FILL_SWATCHES,
+  TEXT_SWATCHES,
+  clampFontSize,
+  normalizeShape,
+  readNodeStyle,
+  type MindShape,
+} from "./mindmap-style";
 
 export type MindmapHandle = {
   destroy: () => void;
@@ -96,6 +104,12 @@ export async function mountMindmapBoard(
   canvas.className = "mm-canvas";
   const bar = document.createElement("div");
   bar.className = "mm-toolbar";
+  const nodeRow = document.createElement("div");
+  nodeRow.className = "mm-row";
+  const formatRow = document.createElement("div");
+  formatRow.className = "mm-row mm-format";
+  formatRow.hidden = true;
+  bar.append(nodeRow, formatRow);
   wrap.append(canvas, bar);
   host.append(wrap);
 
@@ -159,12 +173,123 @@ export async function mountMindmapBoard(
     button.addEventListener("click", onClick);
     return button;
   };
-  bar.append(
+  nodeRow.append(
     makeButton("+ Child", addChild),
     makeButton("+ Sibling", addSibling),
     makeButton("Rename", renameSelected),
     makeButton("Delete", removeSelected),
   );
+  const selectedNode = (): MindNode | null => jm.get_selected_node();
+
+  const setShape = (shape: MindShape): void => {
+    const node = selectedNode();
+    if (!node) return;
+    (node.data ??= {})["mm-shape"] = shape;
+    applyShapeClass(node.id, shape);
+    persist();
+    updateFormatRow();
+  };
+  const setFill = (color: string): void => {
+    const node = selectedNode();
+    if (!node) return;
+    jm.set_node_color(node.id, color, null);
+    reapplyShapes();
+    persist();
+    updateFormatRow();
+  };
+  const setText = (color: string): void => {
+    const node = selectedNode();
+    if (!node) return;
+    jm.set_node_color(node.id, null, color);
+    reapplyShapes();
+    persist();
+    updateFormatRow();
+  };
+  const bumpSize = (delta: number): void => {
+    const node = selectedNode();
+    if (!node) return;
+    const style = readNodeStyle(node.data);
+    const size = clampFontSize(style.fontSize + delta);
+    jm.set_node_font_style(node.id, size, style.bold ? "bold" : null);
+    reapplyShapes();
+    persist();
+    updateFormatRow();
+  };
+  const toggleBold = (): void => {
+    const node = selectedNode();
+    if (!node) return;
+    const style = readNodeStyle(node.data);
+    jm.set_node_font_style(node.id, style.fontSize, style.bold ? null : "bold");
+    reapplyShapes();
+    persist();
+    updateFormatRow();
+  };
+
+  const shapeButtons = SHAPES.map((shape) => {
+    const button = makeButton(shape, () => setShape(shape));
+    button.dataset.shape = shape;
+    return button;
+  });
+  for (const button of shapeButtons) formatRow.appendChild(button);
+
+  const fillInput = document.createElement("input");
+  fillInput.type = "color";
+  fillInput.className = "mm-color";
+  fillInput.title = "Fill color";
+  fillInput.addEventListener("input", () => setFill(fillInput.value));
+  for (const color of FILL_SWATCHES) {
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = "mm-swatch";
+    swatch.style.background = color;
+    swatch.title = `Fill ${color}`;
+    swatch.addEventListener("click", () => setFill(color));
+    formatRow.appendChild(swatch);
+  }
+  formatRow.appendChild(fillInput);
+
+  const textInput = document.createElement("input");
+  textInput.type = "color";
+  textInput.className = "mm-color";
+  textInput.title = "Text color";
+  textInput.addEventListener("input", () => setText(textInput.value));
+  for (const color of TEXT_SWATCHES) {
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = "mm-swatch mm-swatch-text";
+    swatch.style.background = color;
+    swatch.title = `Text ${color}`;
+    swatch.addEventListener("click", () => setText(color));
+    formatRow.appendChild(swatch);
+  }
+  formatRow.appendChild(textInput);
+
+  const sizeDown = makeButton("A-", () => bumpSize(-2));
+  const sizeLabel = document.createElement("span");
+  sizeLabel.className = "mm-size";
+  const sizeUp = makeButton("A+", () => bumpSize(2));
+  const boldButton = makeButton("B", toggleBold);
+  boldButton.classList.add("mm-bold");
+  formatRow.append(sizeDown, sizeLabel, sizeUp, boldButton);
+
+  function updateFormatRow(): void {
+    const node = selectedNode();
+    if (!node) {
+      formatRow.hidden = true;
+      return;
+    }
+    formatRow.hidden = false;
+    const style = readNodeStyle(node.data);
+    for (const button of shapeButtons) {
+      button.classList.toggle("active", button.dataset.shape === style.shape);
+    }
+    if (style.fill) fillInput.value = style.fill;
+    if (style.text) textInput.value = style.text;
+    sizeLabel.textContent = `${style.fontSize}px`;
+    boldButton.classList.toggle("active", style.bold);
+  }
+  updateFormatRow();
+
   const themeObserver = new MutationObserver(() => {
     jm.view.opts.line_color = themeColor("--border", "#777");
     jm.view.show_lines();
@@ -187,6 +312,7 @@ export async function mountMindmapBoard(
   };
   const listener = (): void => {
     reapplyShapes();
+    updateFormatRow();
     if (accepting) persist();
   };
   jm.add_event_listener(listener);
