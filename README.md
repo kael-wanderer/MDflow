@@ -127,6 +127,7 @@ src-tauri/src/
   lib.rs           Tauri builder: command registry + plugins
   files.rs         file IPC, settings/ai-settings files, recursive walk
   ai.rs            command-provider streaming
+  secrets.rs       API keys in the OS keychain (keyring crate)
   pty.rs           embedded-terminal PTY
   export.rs        pandoc/typst export
   menu.rs          native menu bar
