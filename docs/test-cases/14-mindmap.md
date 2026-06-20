@@ -80,3 +80,31 @@ JSON; default root topic "Central Idea".
 - Expected: Canvas, nodes, selection, expanders, text, and connector lines remain
   legible and update to the active palette without remounting the board.
 - Status: [ ]  Notes:
+
+### MIND-FMT-01 — Format row appears on selection
+- Steps: Open a `.mind`; click a node.
+- Expected: A second toolbar row appears with shape buttons, fill/text swatches +
+  custom pickers, A-/A+ size, and B (bold). Deselecting hides the row.
+- Status: [ ]  Notes:
+
+### MIND-FMT-02 — Shapes
+- Steps: Select a node; click rect, rounded, pill, circle in turn.
+- Expected: The node re-renders in each shape; circle is a fixed round node.
+- Status: [ ]  Notes:
+
+### MIND-FMT-03 — Colors
+- Steps: Select a node; click a fill swatch, then a custom fill; a text swatch,
+  then a custom text color.
+- Expected: Fill and text colors update independently and immediately.
+- Status: [ ]  Notes:
+
+### MIND-FMT-04 — Size and bold
+- Steps: Select a node; click A+ a few times, A- once; toggle B twice.
+- Expected: Font size grows/shrinks within 10–40px; bold toggles on/off.
+- Status: [ ]  Notes:
+
+### MIND-FMT-05 — Persistence + export
+- Steps: Format several nodes (shape/color/size/bold); Save; close the tab;
+  reopen the file; then export PNG.
+- Expected: All formatting is restored on reopen and visible in the PNG.
+- Status: [ ]  Notes:

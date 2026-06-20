@@ -77,7 +77,7 @@ src/
   excalidraw-document.ts Excalidraw JSON validation and safe serialization
   excalidrawview.ts lazy loader for the isolated board runtime
   mindmap-document.ts jsMind node_tree JSON parse/serialize
-  mindmapview.ts   lazy jsMind board loader (editable, screenshot-capable)
+  mindmapview.ts   lazy jsMind board loader (editable, screenshot-capable; per-node shape/color/size/bold in node data)
   windowview.ts per-window tabs, toolbar, editor, preview, and status
   explorer.ts  lazy folder tree + file management
   fuzzy.ts     subsequence fuzzy match + ranking — fuzzyMatch(), rankItems()
@@ -118,7 +118,9 @@ register MDflow as the Markdown/text editor or PDF viewer through LaunchServices
 
 Special-pane document types: `.excalidraw` files open as an editable Excalidraw board
 (single pane, React-isolated); `.mind` files open as an editable jsMind mindmap board
-(single pane, drag-drop node editing, similar layout shape). Dedicated activity-bar
+(single pane, drag-drop node editing, similar layout shape). Mindmap nodes support
+per-node shape (rect/rounded/pill/circle), fill/text color, font size, and bold, stored
+in node `data` and persisted in the `.mind` file (no format change). Dedicated activity-bar
 buttons create untitled boards of either type. jsMind nodes and connector lines derive
 their colors from the active MDflow theme and update when the theme changes.
 

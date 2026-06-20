@@ -263,6 +263,8 @@ Design: `docs/superpowers/specs/2026-06-20-m10-excalidraw-design.md`
 [x] Export mindmap to PNG, JPG, and PDF via canvas capture
 [x] Automated frontend tests, production build, and interactive browser smoke
 [x] Theme-aware jsMind board styling and live connector recoloring
+[x] Rich node editor: per-node shape (rect/rounded/pill/circle), fill/text color,
+    font size, bold; stored in node data; persists in .mind (no format change)
 [ ] Native GUI smoke test (native launch and user verification)
 
 ### Workflow
