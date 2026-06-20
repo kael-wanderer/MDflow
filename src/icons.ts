@@ -7,6 +7,7 @@ const BY_EXTENSION: Record<string, string> = {
   htm: "html",
   pdf: "pdf",
   excalidraw: "excalidraw",
+  mind: "mind",
 };
 
 export function fileIcon(name: string, isDir: boolean): string {

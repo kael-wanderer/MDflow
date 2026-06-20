@@ -31,7 +31,7 @@ import {
 import { createPalette, type PaletteItem } from "./palette";
 import { breadcrumbsPath, joinPath, relativePath } from "./paths";
 import { renderPdf } from "./pdfview";
-import { isExcalidrawFile, isHtmlFile } from "./document-kind";
+import { isExcalidrawFile, isHtmlFile, isMindmapFile } from "./document-kind";
 import type { EditorDocumentKind } from "./editor";
 import { renderMarkdown } from "./preview";
 import { initResize } from "./resize";
@@ -75,7 +75,7 @@ function basename(path: string): string {
 }
 
 function editorKind(pathOrName: string | null): EditorDocumentKind {
-  if (isExcalidrawFile(pathOrName)) return "plain";
+  if (isExcalidrawFile(pathOrName) || isMindmapFile(pathOrName)) return "plain";
   return isHtmlFile(pathOrName) ? "html" : "markdown";
 }
 

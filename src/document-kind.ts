@@ -8,6 +8,12 @@ export function isExcalidrawFile(
   return /\.excalidraw$/i.test(pathOrName ?? "");
 }
 
+export function isMindmapFile(
+  pathOrName: string | null | undefined,
+): boolean {
+  return /\.mind$/i.test(pathOrName ?? "");
+}
+
 export function isMarkdownFile(pathOrName: string | null | undefined): boolean {
   if (!pathOrName || !/[.]/.test(pathOrName.split(/[\\/]/).pop() ?? "")) {
     return true;
