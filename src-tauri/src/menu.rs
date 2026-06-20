@@ -1,8 +1,38 @@
 use tauri::menu::{
-    AboutMetadata, CheckMenuItem, CheckMenuItemBuilder, Menu, MenuBuilder, MenuItemBuilder,
-    SubmenuBuilder,
+    AboutMetadata, CheckMenuItem, CheckMenuItemBuilder, IsMenuItem, Menu, MenuBuilder,
+    MenuItemBuilder, Submenu, SubmenuBuilder,
 };
 use tauri::{AppHandle, Runtime};
+
+pub const FONT_OPTIONS: &[(&str, &str)] = &[
+    ("System", ""),
+    ("Inter", "Inter"),
+    ("Georgia", "Georgia"),
+    ("Merriweather", "Merriweather"),
+    ("JetBrains Mono", "JetBrains Mono"),
+    ("Iosevka Nerd Font Mono", "Iosevka Nerd Font Mono"),
+];
+
+pub const SIZE_OPTIONS: &[u32] = &[12, 14, 16, 18, 20, 24];
+
+pub const THEME_OPTIONS: &[(&str, &str)] = &[
+    ("System", "system"),
+    ("Light", "light"),
+    ("Dark", "dark"),
+    ("Catppuccin Mocha", "catppuccin-mocha"),
+    ("Everforest Dark", "everforest-dark"),
+    ("Nord", "nord"),
+];
+
+fn check_submenu<R: Runtime>(
+    app: &AppHandle<R>,
+    title: &str,
+    items: &[CheckMenuItem<R>],
+) -> tauri::Result<Submenu<R>> {
+    let refs: Vec<&dyn IsMenuItem<R>> =
+        items.iter().map(|i| i as &dyn IsMenuItem<R>).collect();
+    SubmenuBuilder::new(app, title).items(&refs).build()
+}
 
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let default_markdown =
@@ -91,25 +121,102 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .select_all()
         .build()?;
 
-    let split = MenuItemBuilder::with_id("view.split", "Split")
+    let toggle_explorer = MenuItemBuilder::with_id("view.toggle_explorer", "Show/Hide Explorer")
         .accelerator("CmdOrCtrl+B")
         .build(app)?;
-    let editor = MenuItemBuilder::with_id("view.editor", "Editor")
+    let toggle_preview = MenuItemBuilder::with_id("view.toggle_preview", "Show/Hide Preview")
+        .accelerator("CmdOrCtrl+P")
+        .build(app)?;
+    let reading = MenuItemBuilder::with_id("view.reading", "Reading View")
         .accelerator("CmdOrCtrl+E")
         .build(app)?;
-    let read = MenuItemBuilder::with_id("view.read", "Read").build(app)?;
-    let soft = CheckMenuItemBuilder::with_id("view.softwrap", "Soft Wrap")
+    let toggle_lines =
+        MenuItemBuilder::with_id("view.toggle_lines", "Show/Hide Line Numbers").build(app)?;
+
+    let wrap_off = CheckMenuItemBuilder::with_id("view.wrap.off", "Off").build(app)?;
+    let wrap_window = CheckMenuItemBuilder::with_id("view.wrap.window", "Window Width")
         .checked(true)
         .build(app)?;
-    let view_menu = SubmenuBuilder::new(app, "View")
-        .item(&split)
-        .item(&editor)
-        .item(&read)
-        .separator()
-        .item(&soft)
+    let wrap_guide = CheckMenuItemBuilder::with_id("view.wrap.guide", "Page Guide").build(app)?;
+    let wrap_menu = SubmenuBuilder::new(app, "Soft Wrap")
+        .items(&[&wrap_off, &wrap_window, &wrap_guide])
         .build()?;
 
-    let window_menu = SubmenuBuilder::new(app, "Window").minimize().build()?;
+    let zoom_in = MenuItemBuilder::with_id("view.zoom_in", "Zoom In")
+        .accelerator("CmdOrCtrl+=")
+        .build(app)?;
+    let zoom_out = MenuItemBuilder::with_id("view.zoom_out", "Zoom Out")
+        .accelerator("CmdOrCtrl+-")
+        .build(app)?;
+    let zoom_reset = MenuItemBuilder::with_id("view.zoom_reset", "Reset Zoom")
+        .accelerator("CmdOrCtrl+0")
+        .build(app)?;
+
+    let mut font_items = Vec::new();
+    for (label, value) in FONT_OPTIONS {
+        font_items.push(
+            CheckMenuItemBuilder::with_id(format!("view.font.{value}"), *label)
+                .checked(*value == "")
+                .build(app)?,
+        );
+    }
+    let font_menu = check_submenu(app, "Font", &font_items)?;
+
+    let mut size_items = Vec::new();
+    for n in SIZE_OPTIONS {
+        size_items.push(CheckMenuItemBuilder::with_id(format!("view.size.{n}"), n.to_string()).build(app)?);
+    }
+    let size_menu = check_submenu(app, "Text Size", &size_items)?;
+
+    let mut explorer_size_items = Vec::new();
+    for n in SIZE_OPTIONS {
+        explorer_size_items.push(
+            CheckMenuItemBuilder::with_id(format!("view.explorer_size.{n}"), n.to_string()).build(app)?,
+        );
+    }
+    let explorer_size_menu = check_submenu(app, "Explorer Text Size", &explorer_size_items)?;
+
+    let mut theme_items = Vec::new();
+    for (label, value) in THEME_OPTIONS {
+        theme_items.push(
+            CheckMenuItemBuilder::with_id(format!("view.theme.{value}"), *label)
+                .checked(*value == "dark")
+                .build(app)?,
+        );
+    }
+    let theme_menu = check_submenu(app, "Theme", &theme_items)?;
+
+    let view_menu = SubmenuBuilder::new(app, "View")
+        .item(&toggle_explorer)
+        .item(&toggle_preview)
+        .item(&reading)
+        .item(&toggle_lines)
+        .item(&wrap_menu)
+        .separator()
+        .item(&zoom_in)
+        .item(&zoom_out)
+        .item(&zoom_reset)
+        .separator()
+        .item(&font_menu)
+        .item(&size_menu)
+        .item(&explorer_size_menu)
+        .item(&theme_menu)
+        .build()?;
+
+    let fullscreen = MenuItemBuilder::with_id("window.fullscreen", "Enter Full Screen")
+        .accelerator("Ctrl+Cmd+F")
+        .build(app)?;
+    let left_half =
+        MenuItemBuilder::with_id("window.left_half", "Move to Left Half").build(app)?;
+    let right_half =
+        MenuItemBuilder::with_id("window.right_half", "Move to Right Half").build(app)?;
+    let window_menu = SubmenuBuilder::new(app, "Window")
+        .item(&fullscreen)
+        .item(&left_half)
+        .item(&right_half)
+        .separator()
+        .minimize()
+        .build()?;
 
     let help = MenuItemBuilder::with_id("help.guide", "MDflow Help").build(app)?;
     let check_updates =
@@ -132,13 +239,29 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build()
 }
 
-/// Find the "Soft Wrap" check item by walking the submenus.
-pub fn soft_wrap_item<R: Runtime>(app: &AppHandle<R>) -> Option<CheckMenuItem<R>> {
+/// Find a check menu item anywhere in the menu tree by id.
+pub fn find_check_item<R: Runtime>(app: &AppHandle<R>, id: &str) -> Option<CheckMenuItem<R>> {
     let menu = app.menu()?;
     for kind in menu.items().ok()? {
         if let Some(sub) = kind.as_submenu() {
-            if let Some(item) = sub.get("view.softwrap") {
-                return item.as_check_menuitem().cloned();
+            if let Some(found) = find_in_submenu(sub, id) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+fn find_in_submenu<R: Runtime>(sub: &Submenu<R>, id: &str) -> Option<CheckMenuItem<R>> {
+    for kind in sub.items().ok()? {
+        if let Some(item) = kind.as_check_menuitem() {
+            if item.id().0.as_str() == id {
+                return Some(item.clone());
+            }
+        }
+        if let Some(inner) = kind.as_submenu() {
+            if let Some(found) = find_in_submenu(inner, id) {
+                return Some(found);
             }
         }
     }

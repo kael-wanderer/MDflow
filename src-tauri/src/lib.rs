@@ -38,10 +38,58 @@ fn dispatch_open_path(app: &tauri::AppHandle, path: String) {
 }
 
 #[tauri::command]
-fn set_soft_wrap(app: tauri::AppHandle, on: bool) {
-    if let Some(item) = menu::soft_wrap_item(&app) {
-        let _ = item.set_checked(on);
+fn sync_view_menu(
+    app: tauri::AppHandle,
+    wrap: String,
+    theme: String,
+    font: String,
+    size: u32,
+    explorer_size: u32,
+) {
+    let set = |id: String, on: bool| {
+        if let Some(item) = menu::find_check_item(&app, &id) {
+            let _ = item.set_checked(on);
+        }
+    };
+    for mode in ["off", "window", "guide"] {
+        set(format!("view.wrap.{mode}"), mode == wrap);
     }
+    for (_, value) in menu::THEME_OPTIONS {
+        set(format!("view.theme.{value}"), *value == theme);
+    }
+    for (_, value) in menu::FONT_OPTIONS {
+        set(format!("view.font.{value}"), *value == font);
+    }
+    for n in menu::SIZE_OPTIONS {
+        set(format!("view.size.{n}"), *n == size);
+    }
+    for n in menu::SIZE_OPTIONS {
+        set(format!("view.explorer_size.{n}"), *n == explorer_size);
+    }
+}
+
+#[tauri::command]
+fn window_fullscreen_toggle(window: tauri::Window) {
+    let current = window.is_fullscreen().unwrap_or(false);
+    let _ = window.set_fullscreen(!current);
+}
+
+#[tauri::command]
+fn window_tile(window: tauri::Window, side: String) {
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+    let pos = monitor.position();
+    let size = monitor.size();
+    let half_w = size.width / 2;
+    let x = if side == "right" {
+        pos.x + half_w as i32
+    } else {
+        pos.x
+    };
+    let _ = window.set_fullscreen(false);
+    let _ = window.set_position(tauri::PhysicalPosition::new(x, pos.y));
+    let _ = window.set_size(tauri::PhysicalSize::new(half_w, size.height));
 }
 
 #[tauri::command]
@@ -66,14 +114,7 @@ pub fn run() {
             Ok(())
         })
         .on_menu_event(|app, event| {
-            let id = event.id().0.as_str();
-            if id == "view.softwrap" {
-                if let Some(item) = menu::soft_wrap_item(app) {
-                    let cur = item.is_checked().unwrap_or(true);
-                    let _ = item.set_checked(!cur);
-                }
-            }
-            let _ = app.emit("menu", id);
+            let _ = app.emit("menu", event.id().0.as_str());
         })
         .invoke_handler(tauri::generate_handler![
             ai::ai_run,
@@ -104,7 +145,9 @@ pub fn run() {
             pty::pty_resize,
             pty::pty_kill,
             take_open_paths,
-            set_soft_wrap,
+            sync_view_menu,
+            window_fullscreen_toggle,
+            window_tile,
             restart_app,
         ])
         .build(tauri::generate_context!())
