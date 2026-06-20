@@ -19,6 +19,8 @@ import {
 
 export type EditorDocumentKind = "markdown" | "html" | "plain";
 
+export type SoftWrapMode = "off" | "window" | "guide";
+
 export type EditorHandle = {
   openState(id: string, text: string, kind?: EditorDocumentKind): void;
   switchTo(id: string): void;
@@ -30,6 +32,7 @@ export type EditorHandle = {
   replaceRange(from: number, to: number, text: string): void;
   setText(text: string): void;
   setSoftWrap(on: boolean): void;
+  setSoftWrapMode(mode: SoftWrapMode, column: number): void;
   setLineNumbers(on: boolean): void;
   requestMeasure(): void;
   focus(): void;
@@ -92,8 +95,22 @@ export function createEditor(
 ): EditorHandle {
   const states = new Map<string, EditorState>();
   let activeId: string | null = null;
-  let softWrap = true;
+  let softWrapMode: SoftWrapMode = "window";
+  let wrapColumn = 80;
   let lineNums = true;
+
+  function wrapExtension(): Extension {
+    if (softWrapMode === "off") return [];
+    if (softWrapMode === "window") return EditorView.lineWrapping;
+    return [
+      EditorView.lineWrapping,
+      EditorView.theme({
+        ".cm-content": {
+          backgroundImage: `linear-gradient(to right, transparent calc(${wrapColumn}ch), var(--faint, rgba(128,128,128,0.25)) calc(${wrapColumn}ch), var(--faint, rgba(128,128,128,0.25)) calc(${wrapColumn}ch + 1px), transparent calc(${wrapColumn}ch + 1px))`,
+        },
+      }),
+    ];
+  }
 
   const baseExtensions = (
     id: string,
@@ -106,7 +123,7 @@ export function createEditor(
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     language.of(languageExtension(kind)),
     syntaxHighlighting(mdHighlight, { fallback: true }),
-    wrap.of(softWrap ? EditorView.lineWrapping : []),
+    wrap.of(wrapExtension()),
     theme,
     EditorView.updateListener.of((update) => {
       if (update.docChanged) onChange(id, update.state.doc.toString());
@@ -121,7 +138,7 @@ export function createEditor(
   const reapplyToggles = (): void => {
     view.dispatch({
       effects: [
-        wrap.reconfigure(softWrap ? EditorView.lineWrapping : []),
+        wrap.reconfigure(wrapExtension()),
         gutter.reconfigure(lineNums ? lineNumbers() : []),
       ],
     });
@@ -210,7 +227,12 @@ export function createEditor(
       });
     },
     setSoftWrap(on) {
-      softWrap = on;
+      softWrapMode = on ? "window" : "off";
+      reapplyToggles();
+    },
+    setSoftWrapMode(mode, column) {
+      softWrapMode = mode;
+      wrapColumn = column;
       reapplyToggles();
     },
     setLineNumbers(on) {
