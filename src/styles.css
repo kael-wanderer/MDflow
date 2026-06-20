@@ -294,6 +294,30 @@ body.resizing-panes iframe {
   background: var(--accent-press, var(--accent));
 }
 
+.window-document-board jmnode.mm-shape-rect {
+  border-radius: 2px;
+}
+
+.window-document-board jmnode.mm-shape-rounded {
+  border-radius: 8px;
+}
+
+.window-document-board jmnode.mm-shape-pill {
+  border-radius: 999px;
+}
+
+.window-document-board jmnode.mm-shape-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  padding: 6px;
+  text-align: center;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
 .window-document-board jmexpander {
   color: var(--muted, #9298a8);
   border-color: transparent;

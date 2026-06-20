@@ -1,4 +1,5 @@
 import { parseMindmap, serializeMindmap } from "./mindmap-document";
+import { SHAPES, normalizeShape, type MindShape } from "./mindmap-style";
 
 export type MindmapHandle = {
   destroy: () => void;
@@ -32,7 +33,11 @@ type ScreenshotPlugin = {
   clear: (c: HTMLCanvasElement) => void;
 };
 
-type MindNode = { id: string; parent?: MindNode | null };
+type MindNode = {
+  id: string;
+  parent?: MindNode | null;
+  data?: Record<string, unknown>;
+};
 
 type JsMindInstance = {
   show: (mind: unknown) => void;
@@ -48,6 +53,14 @@ type JsMindInstance = {
     topic: string,
   ) => MindNode | null;
   remove_node: (node: MindNode) => void;
+  get_node: (id: string) => MindNode | null;
+  set_node_color: (id: string, bg: string | null, fg: string | null) => void;
+  set_node_font_style: (
+    id: string,
+    size: number | null,
+    weight: string | null,
+    style?: string | null,
+  ) => void;
   mind: { root: MindNode };
   view: {
     opts: { line_color: string };
@@ -95,6 +108,21 @@ export async function mountMindmapBoard(
     },
   });
   jm.show(mind);
+
+  const applyShapeClass = (id: string, shape: MindShape): void => {
+    const el = canvas.querySelector(`jmnode[nodeid="${CSS.escape(id)}"]`);
+    if (!el) return;
+    for (const s of SHAPES) el.classList.toggle(`mm-shape-${s}`, s === shape);
+  };
+  const reapplyShapes = (): void => {
+    for (const el of canvas.querySelectorAll<HTMLElement>("jmnode")) {
+      const id = el.getAttribute("nodeid");
+      if (!id) continue;
+      const node = jm.get_node(id);
+      applyShapeClass(id, normalizeShape(node?.data?.["mm-shape"]));
+    }
+  };
+  reapplyShapes();
 
   let nodeSeq = 0;
   const newNodeId = (): string => `mm${Date.now()}${nodeSeq++}`;
@@ -151,12 +179,15 @@ export async function mountMindmapBoard(
   const timer = window.setTimeout(() => {
     accepting = true;
   }, 250);
-  const listener = (): void => {
-    if (!accepting) return;
+  const persist = (): void => {
     const serialized = serializeMindmap(jm.get_data("node_tree"));
     if (serialized === last) return;
     last = serialized;
     onChange(serialized);
+  };
+  const listener = (): void => {
+    reapplyShapes();
+    if (accepting) persist();
   };
   jm.add_event_listener(listener);
 
