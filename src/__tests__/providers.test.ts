@@ -12,7 +12,6 @@ const provider: HttpProvider = {
   type: "http",
   baseUrl: "u",
   model: "m",
-  key: "",
 };
 
 describe("buildHttpBody", () => {

@@ -5,6 +5,7 @@ import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
 import {
   DEFAULT_AI_SETTINGS_JSON,
+  extractLegacyKeys,
   parseAISettings,
   type AISettings,
 } from "./ai/aisettings";
@@ -103,7 +104,30 @@ async function loadAISettings(): Promise<void> {
   try {
     const file = await getAISettingsFile(DEFAULT_AI_SETTINGS_JSON);
     aiSettingsPath = file.path;
-    currentAISettings = parseAISettings(file.contents);
+    const { cleaned, keys } = extractLegacyKeys(file.contents);
+    if (keys.length) {
+      for (const { id, secret } of keys) {
+        try {
+          await invoke("set_secret", { id, secret });
+        } catch {
+          /* Leave the plaintext key for a later migration attempt. */
+        }
+      }
+      const stored = await Promise.all(
+        keys.map(({ id }) => invoke<boolean>("has_secret", { id })),
+      );
+      if (stored.every(Boolean)) {
+        await writeFile(aiSettingsPath, cleaned);
+        currentAISettings = parseAISettings(cleaned);
+      } else {
+        currentAISettings = parseAISettings(file.contents);
+      }
+    } else {
+      if (cleaned !== file.contents) {
+        await writeFile(aiSettingsPath, cleaned);
+      }
+      currentAISettings = parseAISettings(cleaned);
+    }
     aiPanel?.render();
   } catch {
     aiSettingsPath = "";

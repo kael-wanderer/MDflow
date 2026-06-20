@@ -238,7 +238,7 @@ export function extractLegacyKeys(raw: string): {
     ) {
       keys.push({ id: provider.id, secret: provider.key });
     }
-    if (Object.hasOwn(provider, "key")) {
+    if (Object.prototype.hasOwnProperty.call(provider, "key")) {
       delete provider.key;
       changed = true;
     }

@@ -16,7 +16,8 @@ async function streamHttp(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (provider.key) headers.Authorization = `Bearer ${provider.key}`;
+  const key = await invoke<string | null>("get_secret", { id: provider.id });
+  if (key) headers.Authorization = `Bearer ${key}`;
   const response = await fetch(
     `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`,
     {
