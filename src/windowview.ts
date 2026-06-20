@@ -4,6 +4,7 @@ import {
   isExcalidrawFile,
   isHtmlFile,
   isMarkdownFile,
+  isMindmapFile,
 } from "./document-kind";
 import { glyphs } from "./glyphs";
 import { renderMarkdown } from "./preview";
@@ -36,6 +37,7 @@ export type WindowView = {
   adjustFocusedZoom: (delta: number) => void;
   resetFocusedZoom: () => void;
   requestMeasure: () => void;
+  captureBoard: () => Promise<HTMLCanvasElement> | null;
   focus: () => void;
   destroy: () => void;
   setLineNumbersFlag: (on: boolean) => void;
@@ -118,6 +120,7 @@ export function createWindowView(
   let previewFrame: HTMLIFrameElement | null = null;
   let lastMode: ViewMode | null = null;
   let boardDestroy: (() => void) | null = null;
+  let boardCapture: (() => Promise<HTMLCanvasElement>) | null = null;
   let boardRenderToken = 0;
 
   root.addEventListener("mousedown", () => h.onFocusWindow(windowId));
@@ -179,7 +182,7 @@ export function createWindowView(
     if (!w) return;
     const active = w.tabs.find((tab) => tab.id === w.activeTabId);
     const activeName = active?.path ?? active?.name;
-    const isBoard = isExcalidrawFile(activeName);
+    const isBoard = isExcalidrawFile(activeName) || isMindmapFile(activeName);
     // mode class
     root.classList.remove(
       "window-mode-editor",
@@ -258,6 +261,7 @@ export function createWindowView(
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
+      boardCapture = null;
       previewPane.innerHTML =
         '<div class="board-loading">Loading Excalidraw…</div>';
       wsWords.textContent = "Excalidraw board";
@@ -285,9 +289,43 @@ export function createWindowView(
         });
       return;
     }
+    if (isMindmapFile(pathOrName)) {
+      const token = ++boardRenderToken;
+      boardDestroy?.();
+      boardDestroy = null;
+      boardCapture = null;
+      previewPane.innerHTML = '<div class="board-loading">Loading mindmap…</div>';
+      wsWords.textContent = "Mindmap";
+      void import("./mindmapview")
+        .then(({ mountMindmapBoard }) =>
+          mountMindmapBoard(previewPane, text, (serialized) => {
+            editor.setText(serialized);
+          }),
+        )
+        .then((handle) => {
+          if (token !== boardRenderToken) {
+            handle.destroy();
+            return;
+          }
+          previewPane.innerHTML = "";
+          boardDestroy = handle.destroy;
+          boardCapture = handle.capture;
+        })
+        .catch((error) => {
+          if (token !== boardRenderToken) return;
+          previewPane.innerHTML = "";
+          const message = document.createElement("div");
+          message.className = "board-error";
+          message.textContent =
+            error instanceof Error ? error.message : String(error);
+          previewPane.appendChild(message);
+        });
+      return;
+    }
     boardRenderToken += 1;
     boardDestroy?.();
     boardDestroy = null;
+    boardCapture = null;
     previewFrame = null;
     previewPane.replaceChildren();
     if (isHtmlFile(pathOrName)) {
@@ -436,6 +474,7 @@ export function createWindowView(
       }
     },
     requestMeasure: () => editor.requestMeasure(),
+    captureBoard: () => (boardCapture ? boardCapture() : null),
     focus: () => {
       if (isExcalidrawFile(previewPathOrName)) {
         focusedPane = "preview";
