@@ -113,7 +113,12 @@ pub fn get_ai_settings(
 
     let dir: PathBuf = app.path().app_config_dir().map_err(|error| error.to_string())?;
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
-    let file = dir.join("ai.json");
+    let file = dir.join("agent.json");
+    // Migrate the legacy ai.json name to agent.json on first run.
+    let legacy = dir.join("ai.json");
+    if !file.exists() && legacy.exists() {
+        let _ = fs::rename(&legacy, &file);
+    }
     if !file.exists() {
         fs::write(&file, &default).map_err(|error| error.to_string())?;
     }

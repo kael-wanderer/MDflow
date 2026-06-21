@@ -134,8 +134,8 @@ buttons create untitled boards of either type. jsMind nodes and connector lines 
 their colors from the active MDflow theme and update when the theme changes.
 
 Editor settings live at `<app config dir>/settings.json`; AI providers and terminals
-live at `<app config dir>/ai.json`, while API keys live in the OS keychain and never
-in that file. The Gear button opens either file as a normal tab, and saving applies
+live at `<app config dir>/agent.json` (legacy `ai.json` is auto-migrated on first
+run), while API keys live in the OS keychain and never in that file. The Gear button opens either file as a normal tab, and saving applies
 the relevant configuration. Agent settings are split into CLI Agents and Models
 (local and hosted) tabs; CLI Agent rows can be edited inline.
 

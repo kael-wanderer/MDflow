@@ -40,7 +40,7 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
   selectors, document/selection context, streamed replies, copy / insert-at-cursor /
   apply-as-diff) and a **Terminal** tab (an embedded terminal running an agent CLI).
 - **Settings** — an in-app panel (Theme, Font, Size, Session, Update, Agent) plus raw
-  `settings.json` / `ai.json` for advanced edits.
+  `settings.json` / `agent.json` for advanced edits.
 - **Updates** — manual checks from Help and optional once-daily automatic checks;
   installation always requires confirmation.
 - **Themes** — System, Light, Dark, Catppuccin Mocha, Everforest Dark, Nord — recoloring
@@ -83,8 +83,8 @@ cd src-tauri && cargo check  # fast backend compile-check
 
 ## Configuring the AI panel
 
-AI providers are configured in `ai.json` (in the app config directory; open it from the
-gear menu → **Open ai.json**). The Agent panel has **CLI Agents** and **Models** tabs;
+AI providers are configured in `agent.json` (in the app config directory; open it from the
+gear menu → **Open agent.json**). The Agent panel has **CLI Agents** and **Models** tabs;
 Models combines local and hosted endpoints. OpenAI, Anthropic, and OpenRouter
 templates ship by default. Each provider is one of:
 
@@ -96,7 +96,7 @@ templates ship by default. Each provider is one of:
 `terminals` entries define interactive commands for the Terminal tab.
 
 > **Security note:** API keys are stored in your macOS Keychain under service
-> `com.kael.mdflow`, never in `ai.json`.
+> `com.kael.mdflow`, never in `agent.json`.
 
 ## Architecture
 

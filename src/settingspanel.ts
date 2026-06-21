@@ -878,7 +878,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       <div class="settings-content"></div>
       <footer class="settings-footer">
         <button type="button" data-raw="settings">Open settings.json</button>
-        <button type="button" data-raw="ai">Open ai.json</button>
+        <button type="button" data-raw="ai">Open agent.json</button>
       </footer>`;
     const nav = panel.querySelector<HTMLElement>(".settings-tabs")!;
     for (const [id, label] of tabs) {
