@@ -56,10 +56,19 @@ async function streamCommand(
   messages: ChatMessage[],
   onChunk: (text: string) => void,
   permissionMode: PermissionMode,
+  cwd: string | null,
+  attachmentPaths: string[],
 ): Promise<void> {
-  const prompt = messages
-    .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
-    .join("\n\n");
+  const preamble = attachmentPaths.length
+    ? `Attached files (read them from disk as needed):\n${attachmentPaths
+        .map((path) => `- ${path}`)
+        .join("\n")}\n\n`
+    : "";
+  const prompt =
+    preamble +
+    messages
+      .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+      .join("\n\n");
   const run =
     permissionMode === "bypass" && provider.bypassRun
       ? provider.bypassRun
@@ -103,7 +112,7 @@ async function streamCommand(
         },
       ),
     );
-    await invoke("ai_run", { requestId, args });
+    await invoke("ai_run", { requestId, args, cwd });
     await streamComplete;
   } finally {
     cleanUp();
@@ -115,8 +124,16 @@ export function streamChat(
   messages: ChatMessage[],
   onChunk: (text: string) => void,
   permissionMode: PermissionMode = "ask",
+  options: { cwd?: string | null; attachmentPaths?: string[] } = {},
 ): Promise<void> {
   return provider.type === "http"
     ? streamHttp(provider, messages, onChunk)
-    : streamCommand(provider, messages, onChunk, permissionMode);
+    : streamCommand(
+        provider,
+        messages,
+        onChunk,
+        permissionMode,
+        options.cwd ?? null,
+        options.attachmentPaths ?? [],
+      );
 }

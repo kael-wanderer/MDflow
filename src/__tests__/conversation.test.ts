@@ -60,4 +60,35 @@ describe("buildMessages", () => {
       true,
     );
   });
+
+  it("inlines attached file contents as system messages", () => {
+    const output = buildMessages({
+      history: [],
+      prompt: "summarize",
+      docText: "",
+      selection: "",
+      editMode: false,
+      files: [{ name: "notes.txt", content: "hello world" }],
+    });
+    const fileMsg = output.find((m) =>
+      m.content.includes('Attached file "notes.txt"'),
+    );
+    expect(fileMsg?.role).toBe("system");
+    expect(fileMsg?.content).toContain("hello world");
+    expect(output[output.length - 1]).toEqual({
+      role: "user",
+      content: "summarize",
+    });
+  });
+
+  it("omits the file block when no files are attached", () => {
+    const output = buildMessages({
+      history: [],
+      prompt: "hi",
+      docText: "",
+      selection: "",
+      editMode: false,
+    });
+    expect(output.some((m) => m.content.includes("Attached file"))).toBe(false);
+  });
 });

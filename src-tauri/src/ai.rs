@@ -49,6 +49,7 @@ pub fn ai_run(
     app: tauri::AppHandle,
     request_id: String,
     args: Vec<String>,
+    cwd: Option<String>,
 ) -> Result<(), String> {
     if args.is_empty() {
         return Err("Empty command".into());
@@ -61,6 +62,9 @@ pub fn ai_run(
         .stderr(Stdio::piped());
     if let Some(path) = login_shell_path() {
         command.env("PATH", path);
+    }
+    if let Some(dir) = cwd.filter(|value| !value.is_empty()) {
+        command.current_dir(dir);
     }
     let mut child = command.spawn().map_err(|error| {
         let message = format!("Failed to start: {error}");

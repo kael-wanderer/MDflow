@@ -737,6 +737,15 @@ async function initNativeFileDrop(): Promise<void> {
     }
 
     const point = dropPoint(event.payload.position);
+    const onAIPanel = (
+      document.elementFromPoint(point.x, point.y) as HTMLElement | null
+    )?.closest("#ai-panel");
+    if (onAIPanel && !document.body.classList.contains("ai-hidden")) {
+      aiPanel?.addAttachments(event.payload.paths);
+      clearDropHighlight();
+      cancelDropExpansion();
+      return;
+    }
     const explorerTarget = explorerTargetAt(point);
     clearDropHighlight();
     cancelDropExpansion();
@@ -1260,6 +1269,20 @@ function buildAIPanel(): void {
     },
     onClose: () => setAIVisible(false),
     getSendAccelerator: () => resolvedAccel("ai.send"),
+    getWorkingDir: () => {
+      const folder = getState().folder;
+      if (folder) return folder;
+      const path = activeMeta()?.path;
+      return path ? path.replace(/[\\/][^\\/]*$/, "") || null : null;
+    },
+    getFileList: () => {
+      const folder = getState().folder;
+      if (!folder) return [];
+      return fileList.map((rel) => ({
+        path: joinPath(folder, rel),
+        name: basename(rel),
+      }));
+    },
   });
 }
 

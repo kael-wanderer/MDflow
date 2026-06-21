@@ -1,8 +1,11 @@
+import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import type { AISettings, Provider } from "./aisettings";
 import { streamChat } from "./client";
-import { buildMessages } from "./conversation";
+import { buildMessages, type AttachedFile } from "./conversation";
 import { lineDiff } from "./diff";
 import { matchAccelerator } from "../keymap";
+import { rankItems } from "../fuzzy";
 import type { ChatMessage } from "./providers";
 
 export type AIPanelDeps = {
@@ -13,12 +16,31 @@ export type AIPanelDeps = {
   onInsert: (text: string) => void;
   onClose: () => void;
   getSendAccelerator: () => string;
+  getWorkingDir: () => string | null;
+  getFileList: () => { path: string; name: string }[];
 };
 
 export type AIPanel = {
   render: () => void;
   resize: () => void;
+  addAttachments: (paths: string[]) => void;
 };
+
+const TEXT_EXTENSIONS = new Set([
+  "md", "markdown", "txt", "text", "json", "jsonc", "csv", "tsv", "yaml", "yml",
+  "toml", "ini", "cfg", "conf", "html", "htm", "xml", "svg", "css", "scss",
+  "js", "jsx", "ts", "tsx", "mjs", "cjs", "py", "rb", "rs", "go", "java", "c",
+  "h", "cpp", "hpp", "cs", "sh", "bash", "zsh", "sql", "log", "env",
+]);
+
+function fileBasename(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+function isTextAttachment(path: string): boolean {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return TEXT_EXTENSIONS.has(ext);
+}
 
 export function createAIPanel(
   panelElement: HTMLElement,
@@ -30,6 +52,14 @@ export function createAIPanel(
     .querySelector<HTMLElement>(".ai-close")!
     .addEventListener("click", deps.onClose);
   const history: ChatMessage[] = [];
+  let referencedFiles: string[] = [];
+  let refreshAttachments: () => void = () => {};
+  const addAttachments = (paths: string[]): void => {
+    for (const path of paths) {
+      if (!referencedFiles.includes(path)) referencedFiles.push(path);
+    }
+    refreshAttachments();
+  };
   let activeTab: "chat" | "terminal" = "chat";
   let editMode = false;
   let renderVersion = 0;
@@ -147,6 +177,7 @@ export function createAIPanel(
               <option value="bypass">Bypass approvals</option>
             </select>
           </label>
+          <button class="ai-attach" type="button" title="Attach files">📎</button>
         </div>
         <label class="ai-edit">
           <input type="checkbox" class="ai-editmode" ${
@@ -154,12 +185,15 @@ export function createAIPanel(
           } />
           Edit mode
         </label>
-        <textarea class="ai-input" rows="3" placeholder="Ask about this document…"></textarea>
+        <div class="ai-attachments"></div>
+        <div class="ai-input-wrap">
+          <div class="ai-mention" hidden></div>
+          <textarea class="ai-input" rows="3" placeholder="Ask about this document… (@ to mention a file)"></textarea>
+        </div>
         <button class="ai-send" type="button">Send</button>
       </div>`;
     const messagesElement =
       body.querySelector<HTMLElement>(".ai-messages")!;
-    const input = body.querySelector<HTMLTextAreaElement>(".ai-input")!;
     const settings = deps.getSettings();
     const providerSelect =
       body.querySelector<HTMLSelectElement>(".ai-provider")!;
@@ -192,6 +226,100 @@ export function createAIPanel(
         editMode = (event.target as HTMLInputElement).checked;
       });
 
+    const input = body.querySelector<HTMLTextAreaElement>(".ai-input")!;
+    const attachments = body.querySelector<HTMLElement>(".ai-attachments")!;
+    const mention = body.querySelector<HTMLElement>(".ai-mention")!;
+
+    function renderAttachments(): void {
+      attachments.replaceChildren();
+      for (const path of referencedFiles) {
+        const chip = document.createElement("span");
+        chip.className = "ai-chip";
+        const name = document.createElement("span");
+        name.textContent = fileBasename(path);
+        name.title = path;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "✕";
+        remove.addEventListener("click", () => {
+          referencedFiles = referencedFiles.filter((p) => p !== path);
+          renderAttachments();
+        });
+        chip.append(name, remove);
+        attachments.appendChild(chip);
+      }
+    }
+    refreshAttachments = renderAttachments;
+    renderAttachments();
+
+    body
+      .querySelector<HTMLButtonElement>(".ai-attach")!
+      .addEventListener("click", () => {
+        void open({ multiple: true }).then((selected) => {
+          if (!selected) return;
+          addAttachments(Array.isArray(selected) ? selected : [selected]);
+        });
+      });
+
+    // @mention: fuzzy file picker triggered by an @token at the caret.
+    let mentionItems: { path: string; name: string }[] = [];
+    let mentionIndex = 0;
+    let mentionRange: { start: number; end: number } | null = null;
+
+    const hideMention = (): void => {
+      mention.hidden = true;
+      mentionItems = [];
+      mentionRange = null;
+    };
+
+    const renderMention = (): void => {
+      mention.replaceChildren();
+      mentionItems.forEach((item, index) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = `ai-mention-item${index === mentionIndex ? " active" : ""}`;
+        option.textContent = item.name;
+        option.title = item.path;
+        option.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          chooseMention(index);
+        });
+        mention.appendChild(option);
+      });
+      mention.hidden = mentionItems.length === 0;
+    };
+
+    const chooseMention = (index: number): void => {
+      const item = mentionItems[index];
+      if (!item || !mentionRange) return;
+      const value = input.value;
+      input.value =
+        value.slice(0, mentionRange.start) + value.slice(mentionRange.end);
+      input.selectionStart = input.selectionEnd = mentionRange.start;
+      addAttachments([item.path]);
+      hideMention();
+      input.focus();
+    };
+
+    const updateMention = (): void => {
+      const caret = input.selectionStart ?? input.value.length;
+      const before = input.value.slice(0, caret);
+      const match = /(?:^|\s)@([^\s@]*)$/.exec(before);
+      if (!match) {
+        hideMention();
+        return;
+      }
+      const query = match[1];
+      mentionRange = { start: caret - query.length - 1, end: caret };
+      const files = deps.getFileList();
+      mentionItems = rankItems(query, files, (file) => file.name).slice(0, 8);
+      mentionIndex = 0;
+      renderMention();
+    };
+
+    input.addEventListener("input", updateMention);
+    input.addEventListener("blur", () => window.setTimeout(hideMention, 120));
+
     const addBubble = (role: string, text: string): HTMLElement => {
       const element = window.document.createElement("div");
       element.className = `ai-bubble ai-${role}`;
@@ -219,7 +347,42 @@ export function createAIPanel(
       }
 
       input.value = "";
-      addBubble("user", prompt);
+      const attached = [...referencedFiles];
+      const attachLine = attached.length
+        ? `\n\n📎 ${attached.map(fileBasename).join(", ")}`
+        : "";
+      addBubble("user", prompt + attachLine);
+
+      // CLI agents read files themselves (pass paths + run in the folder);
+      // HTTP models can't, so inline text-file contents and skip the rest.
+      let files: AttachedFile[] = [];
+      let attachmentPaths: string[] = [];
+      if (provider.type === "command") {
+        attachmentPaths = attached;
+      } else if (attached.length) {
+        const skipped: string[] = [];
+        for (const path of attached) {
+          if (!isTextAttachment(path)) {
+            skipped.push(fileBasename(path));
+            continue;
+          }
+          try {
+            const content = await invoke<string>("read_file", { path });
+            files.push({ name: fileBasename(path), content });
+          } catch {
+            skipped.push(fileBasename(path));
+          }
+        }
+        if (skipped.length) {
+          addBubble(
+            "error",
+            `Skipped (not readable as text for this model): ${skipped.join(", ")}. Use a CLI agent for images/PDFs.`,
+          );
+        }
+      }
+      referencedFiles = [];
+      refreshAttachments();
+
       const document = deps.getDoc();
       const messages = buildMessages({
         history,
@@ -227,6 +390,7 @@ export function createAIPanel(
         docText: document.text,
         selection: document.selection,
         editMode,
+        files,
       });
       const replyElement = addBubble("assistant", "");
       let reply = "";
@@ -240,6 +404,7 @@ export function createAIPanel(
             messagesElement.scrollTop = messagesElement.scrollHeight;
           },
           currentSettings.permissionMode,
+          { cwd: deps.getWorkingDir(), attachmentPaths },
         );
         history.push(
           { role: "user", content: prompt },
@@ -263,6 +428,31 @@ export function createAIPanel(
     input.addEventListener("keydown", (event) => {
       // Don't send while an IME composition is active (e.g. Enter to confirm).
       if (event.isComposing) return;
+      if (!mention.hidden && mentionItems.length) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          mentionIndex = (mentionIndex + 1) % mentionItems.length;
+          renderMention();
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          mentionIndex =
+            (mentionIndex - 1 + mentionItems.length) % mentionItems.length;
+          renderMention();
+          return;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          event.preventDefault();
+          chooseMention(mentionIndex);
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          hideMention();
+          return;
+        }
+      }
       if (matchAccelerator(event, deps.getSendAccelerator())) {
         event.preventDefault();
         void send();
@@ -325,5 +515,15 @@ export function createAIPanel(
   return {
     render,
     resize: () => terminalView?.resize(),
+    addAttachments: (paths) => {
+      if (activeTab !== "chat") {
+        activeTab = "chat";
+        tabs.forEach((tab) =>
+          tab.classList.toggle("active", tab.dataset.tab === "chat"),
+        );
+        render();
+      }
+      addAttachments(paths);
+    },
   };
 }

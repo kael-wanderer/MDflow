@@ -5,12 +5,15 @@ const CHAT_SYSTEM =
 const EDIT_SYSTEM =
   "You are editing a markdown document. Return only the revised text with no commentary, no code fences, no explanation.";
 
+export type AttachedFile = { name: string; content: string };
+
 export function buildMessages(options: {
   history: ChatMessage[];
   prompt: string;
   docText: string;
   selection: string;
   editMode: boolean;
+  files?: AttachedFile[];
 }): ChatMessage[] {
   const messages: ChatMessage[] = [
     {
@@ -26,6 +29,12 @@ export function buildMessages(options: {
     messages.push({
       role: "system",
       content: `${label}:\n\n${context}`,
+    });
+  }
+  for (const file of options.files ?? []) {
+    messages.push({
+      role: "system",
+      content: `Attached file "${file.name}":\n\n${file.content}`,
     });
   }
   messages.push(...options.history);

@@ -61,11 +61,11 @@ src/
   ai/
     aisettings.ts AI provider/terminal settings model and parser
     client.ts     HTTP SSE + native command streaming client
-    conversation.ts document/selection context builder
+    conversation.ts document/selection/attached-file context builder
     diff.ts       LCS line diff for edit review
-    panel.ts      Chat/Terminal panel and apply/insert actions
+    panel.ts      Chat/Terminal panel, file attachments + @mention, apply/insert
     providers.ts  provider request/SSE/command helpers
-    terminal.ts   xterm view bound to the native PTY
+    terminal.ts   xterm view bound to the native PTY (configurable font/size)
   capture.ts   rendered HTML/node capture to PNG canvas or SVG string
   export-options.ts context-aware export menu model by document type
   export-render.ts rendered standalone HTML builder for PDF/DOCX export
@@ -147,6 +147,14 @@ Restore Defaults. Menu-scoped accelerators are pushed to the native menu at
 runtime via the `set_accelerators` command (`item.set_accelerator`); app-scoped
 shortcuts (palette, AI send) and the JS fallback handlers match against the
 resolved keymap.
+
+The AI Chat tab accepts file references via a 📎 picker, drag-drop onto the panel,
+or `@`-mention (fuzzy picker over the open folder). CLI agents receive the file
+**paths** (and run with cwd = the open folder, so they can read attachments and
+write output files); HTTP models get text-file contents inlined and skip
+binary/image files. The Terminal tab has a live terminal picker; terminals (and
+their font/size) are edited in the settings Agent ▸ Terminals section. `ai_run`
+takes an optional `cwd`.
 
 Document PDF/DOCX export requires Pandoc and Typst:
 
