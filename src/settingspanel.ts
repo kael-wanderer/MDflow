@@ -414,6 +414,50 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
         actions.appendChild(setKey);
       }
 
+      if (provider.type === "command") {
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "agent-edit";
+        edit.textContent = "Edit";
+        edit.addEventListener("click", () => {
+          if (rowEl.querySelector(".agent-editform")) return;
+          const editForm = document.createElement("form");
+          editForm.className = "agent-editform agent-form";
+          editForm.innerHTML = `
+            <label>Name<input name="label" required /></label>
+            <label>Command<input name="run" placeholder="claude -p {prompt}" required /></label>
+            <label>Bypass command<input name="bypass" placeholder="Optional command for bypass mode" /></label>
+            <button type="submit">Save</button>`;
+          editForm.querySelector<HTMLInputElement>('[name="label"]')!.value =
+            provider.label;
+          editForm.querySelector<HTMLInputElement>('[name="run"]')!.value =
+            provider.run;
+          editForm.querySelector<HTMLInputElement>('[name="bypass"]')!.value =
+            provider.bypassRun ?? "";
+          editForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const data = new FormData(editForm);
+            const label = String(data.get("label") ?? "").trim();
+            const run = String(data.get("run") ?? "").trim();
+            if (!label || !run) return;
+            updateAI((next) => {
+              const target = next.providers.find(
+                (candidate) => candidate.id === provider.id,
+              );
+              if (target && target.type === "command") {
+                target.label = label;
+                target.run = run;
+                target.bypassRun =
+                  String(data.get("bypass") ?? "").trim() || undefined;
+              }
+            });
+          });
+          rowEl.appendChild(editForm);
+          editForm.querySelector("input")?.focus();
+        });
+        actions.appendChild(edit);
+      }
+
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "agent-remove";
