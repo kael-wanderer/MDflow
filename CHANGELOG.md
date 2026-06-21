@@ -6,6 +6,13 @@ All notable changes to MDflow are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-06-21
+
+### Changed
+
+- CI: release workflow actions bumped to v5 (Node 24), clearing the Node 20
+  deprecation warning.
+
 ## [0.2.1] — 2026-06-21
 
 ### Changed
