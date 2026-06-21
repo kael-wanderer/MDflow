@@ -41,6 +41,8 @@ All notable changes to MDflow are documented here. The format is based on
 - Opening Gear → Agent → Models no longer prompts for the macOS login Keychain
   password. Saved-key presence is tracked locally, so the Keychain is only read
   when a key is actually used.
+- Switching from a resized split to Editor-only now fills the pane instead of
+  leaving a blank gap where the preview was.
 
 ## [0.2.2] — 2026-06-21
 

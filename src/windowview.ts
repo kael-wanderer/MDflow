@@ -327,6 +327,12 @@ export function createWindowView(
     );
     root.classList.add(`window-mode-${effectiveMode}`);
     root.classList.toggle("window-document-board", isBoard);
+    // Drop any seam-resize inline flex outside split mode so the single visible
+    // pane fills the row instead of keeping its split width.
+    if (effectiveMode !== "split") {
+      editorPane.style.flex = "";
+      previewPane.style.flex = "";
+    }
     if (
       lastMode !== null &&
       lastMode !== effectiveMode &&
