@@ -32,8 +32,12 @@ pub fn pty_open(
             pixel_height: 0,
         })
         .map_err(|error| error.to_string())?;
-    let mut builder = CommandBuilder::new("sh");
-    builder.arg("-c");
+    // Use the user's login + interactive shell so the PTY inherits their real
+    // PATH (and aliases) from their profile; a bare `sh -c` has a minimal PATH
+    // and can't find tools like `claude` installed under ~/.local/bin, npm, brew.
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let mut builder = CommandBuilder::new(shell);
+    builder.arg("-lic");
     builder.arg(&cmd);
     if let Some(home) = std::env::var_os("HOME") {
         builder.cwd(home);
