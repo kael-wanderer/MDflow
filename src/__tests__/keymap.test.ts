@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   acceleratorFromEvent,
+  conflictingIds,
   formatAccelerator,
   matchAccelerator,
   menuAccelerators,
@@ -80,5 +81,22 @@ describe("resolveAccelerator / menuAccelerators", () => {
     const map = menuAccelerators({});
     expect(map["file.save"]).toBe("CmdOrCtrl+S");
     expect(map["palette.open"]).toBeUndefined();
+  });
+});
+
+describe("conflictingIds", () => {
+  it("reports no conflicts for the default keymap", () => {
+    expect(conflictingIds({}).size).toBe(0);
+  });
+
+  it("flags both commands when an override collides", () => {
+    const conflicts = conflictingIds({ "file.save": "CmdOrCtrl+O" });
+    expect(conflicts.has("file.save")).toBe(true);
+    expect(conflicts.has("file.open")).toBe(true);
+  });
+
+  it("ignores unbound (empty) accelerators", () => {
+    const conflicts = conflictingIds({ "file.save": "", "file.open": "" });
+    expect(conflicts.size).toBe(0);
   });
 });

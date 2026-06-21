@@ -45,6 +45,23 @@ export function resolveAccelerator(command: KeymapCommand, overrides: Keymap): s
     : command.default;
 }
 
+/** Ids of commands whose resolved accelerator collides with another command. */
+export function conflictingIds(overrides: Keymap): Set<string> {
+  const byAccel = new Map<string, string[]>();
+  for (const command of KEYMAP_COMMANDS) {
+    const accel = resolveAccelerator(command, overrides);
+    if (!accel) continue;
+    const list = byAccel.get(accel) ?? [];
+    list.push(command.id);
+    byAccel.set(accel, list);
+  }
+  const conflicts = new Set<string>();
+  for (const ids of byAccel.values()) {
+    if (ids.length > 1) for (const id of ids) conflicts.add(id);
+  }
+  return conflicts;
+}
+
 /** Resolved accelerators for every menu-scoped command (id -> accelerator). */
 export function menuAccelerators(overrides: Keymap): Keymap {
   const map: Keymap = {};

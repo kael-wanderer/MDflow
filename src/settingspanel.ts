@@ -8,6 +8,7 @@ import {
 } from "./settings";
 import {
   acceleratorFromEvent,
+  conflictingIds,
   formatAccelerator,
   KEYMAP_COMMANDS,
   resolveAccelerator,
@@ -615,6 +616,14 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     });
     content.appendChild(restore);
 
+    const conflicts = conflictingIds(settings.keymap);
+    if (conflicts.size) {
+      const warn = document.createElement("p");
+      warn.className = "keymap-warning";
+      warn.textContent = "⚠ Some shortcuts are assigned to more than one command.";
+      content.appendChild(warn);
+    }
+
     const categories = [...new Set(KEYMAP_COMMANDS.map((c) => c.category))];
     for (const category of categories) {
       renderSubhead(content, category);
@@ -635,6 +644,13 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
         keyBtn.type = "button";
         keyBtn.className = "keymap-key";
         keyBtn.classList.toggle("recording", recordingId === command.id);
+        keyBtn.classList.toggle(
+          "conflict",
+          conflicts.has(command.id) && recordingId !== command.id,
+        );
+        if (conflicts.has(command.id)) {
+          keyBtn.title = "This shortcut is also used by another command";
+        }
         keyBtn.textContent =
           recordingId === command.id ? "Press keys…" : formatAccelerator(accel);
         keyBtn.addEventListener("click", () => {

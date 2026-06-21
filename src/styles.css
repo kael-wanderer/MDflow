@@ -2192,6 +2192,17 @@ body.resizing-ai {
   color: var(--accent);
 }
 
+.keymap-key.conflict {
+  border-color: #e0a046;
+  color: #e0a046;
+}
+
+.keymap-warning {
+  margin: 6px 2px;
+  color: #e0a046;
+  font-size: 11px;
+}
+
 .keymap-reset {
   padding: 3px 6px;
   border: none;
