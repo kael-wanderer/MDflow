@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { PermissionMode, Provider } from "./aisettings";
 import {
   buildHttpBody,
+  chatContentText,
   parseSSEDelta,
   substitutePrompt,
   type ChatMessage,
@@ -12,6 +13,7 @@ async function streamHttp(
   provider: Extract<Provider, { type: "http" }>,
   messages: ChatMessage[],
   onChunk: (text: string) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -24,6 +26,7 @@ async function streamHttp(
       method: "POST",
       headers,
       body: JSON.stringify(buildHttpBody(provider, messages)),
+      signal,
     },
   );
   if (!response.ok || !response.body) {
@@ -58,6 +61,7 @@ async function streamCommand(
   permissionMode: PermissionMode,
   cwd: string | null,
   attachmentPaths: string[],
+  signal?: AbortSignal,
 ): Promise<void> {
   const preamble = attachmentPaths.length
     ? `Attached files (read them from disk as needed):\n${attachmentPaths
@@ -67,7 +71,10 @@ async function streamCommand(
   const prompt =
     preamble +
     messages
-      .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+      .map(
+        (message) =>
+          `${message.role.toUpperCase()}: ${chatContentText(message.content)}`,
+      )
       .join("\n\n");
   const run =
     permissionMode === "bypass" && provider.bypassRun
@@ -85,6 +92,11 @@ async function streamCommand(
   const cleanUp = (): void => {
     unlisteners.splice(0).forEach((unlisten) => unlisten());
   };
+  const abort = (): void => {
+    void invoke("ai_cancel", { requestId });
+    rejectStream(new DOMException("AI request cancelled.", "AbortError"));
+  };
+  signal?.addEventListener("abort", abort, { once: true });
 
   try {
     unlisteners.push(
@@ -115,6 +127,7 @@ async function streamCommand(
     await invoke("ai_run", { requestId, args, cwd });
     await streamComplete;
   } finally {
+    signal?.removeEventListener("abort", abort);
     cleanUp();
   }
 }
@@ -124,10 +137,14 @@ export function streamChat(
   messages: ChatMessage[],
   onChunk: (text: string) => void,
   permissionMode: PermissionMode = "ask",
-  options: { cwd?: string | null; attachmentPaths?: string[] } = {},
+  options: {
+    cwd?: string | null;
+    attachmentPaths?: string[];
+    signal?: AbortSignal;
+  } = {},
 ): Promise<void> {
   return provider.type === "http"
-    ? streamHttp(provider, messages, onChunk)
+    ? streamHttp(provider, messages, onChunk, options.signal)
     : streamCommand(
         provider,
         messages,
@@ -135,5 +152,6 @@ export function streamChat(
         permissionMode,
         options.cwd ?? null,
         options.attachmentPaths ?? [],
+        options.signal,
       );
 }

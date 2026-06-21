@@ -18,12 +18,13 @@ struct PtyData {
     data: String,
 }
 
-#[tauri::command]
-pub fn pty_open(
-    app: tauri::AppHandle,
+#[derive(Clone, serde::Serialize)]
+struct PtyExit {
     id: String,
-    cmd: String,
-) -> Result<(), String> {
+}
+
+#[tauri::command]
+pub fn pty_open(app: tauri::AppHandle, id: String, cmd: String) -> Result<(), String> {
     let pair = native_pty_system()
         .openpty(PtySize {
             rows: 24,
@@ -79,8 +80,7 @@ pub fn pty_open(
                         "pty-data",
                         PtyData {
                             id: id.clone(),
-                            data: String::from_utf8_lossy(&buffer[..length])
-                                .to_string(),
+                            data: String::from_utf8_lossy(&buffer[..length]).to_string(),
                         },
                     );
                 }
@@ -94,6 +94,7 @@ pub fn pty_open(
                 data: "\r\n[process exited]\r\n".into(),
             },
         );
+        let _ = stream_app.emit("pty-exit", PtyExit { id: id.clone() });
         if let Ok(mut handles) = stream_app.state::<PtyState>().0.lock() {
             handles.remove(&id);
         }
@@ -102,11 +103,7 @@ pub fn pty_open(
 }
 
 #[tauri::command]
-pub fn pty_write(
-    app: tauri::AppHandle,
-    id: String,
-    data: String,
-) -> Result<(), String> {
+pub fn pty_write(app: tauri::AppHandle, id: String, data: String) -> Result<(), String> {
     let state = app.state::<PtyState>();
     let mut handles = state
         .0
@@ -123,12 +120,7 @@ pub fn pty_write(
 }
 
 #[tauri::command]
-pub fn pty_resize(
-    app: tauri::AppHandle,
-    id: String,
-    rows: u16,
-    cols: u16,
-) -> Result<(), String> {
+pub fn pty_resize(app: tauri::AppHandle, id: String, rows: u16, cols: u16) -> Result<(), String> {
     let state = app.state::<PtyState>();
     let handles = state
         .0

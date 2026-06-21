@@ -18,8 +18,13 @@ import { getWindow, getState } from "./store";
 import type { ViewMode } from "./state";
 import type { MarkdownFormat } from "./markdown-format";
 import { THEME_OPTIONS, type ThemeName } from "./settings";
-import { renderPdf } from "./pdfview";
+import { renderPdf, scrollPdfToPage, type PdfFindHandle } from "./pdfview";
 import { FILE_ICON_TEXT, fileIcon } from "./icons";
+import {
+  activateTextMatch,
+  clearTextHighlights,
+  highlightText,
+} from "./preview-find";
 
 export type WindowHandlers = {
   onActivateTab: (windowId: string, tabId: string) => void;
@@ -57,6 +62,8 @@ export type WindowView = {
   focus: () => void;
   destroy: () => void;
   setLineNumbersFlag: (on: boolean) => void;
+  openPdfPage: (page: number) => void;
+  openFind: () => boolean;
 };
 
 export function countWords(text: string): number {
@@ -104,12 +111,21 @@ export function createWindowView(
           <button type="button" data-format="code" title="Inline code" aria-label="Inline code">&lt;/&gt;</button>
           <button type="button" data-format="quote" title="Quote" aria-label="Quote">❯</button>
           <button type="button" data-format="bullet" title="Bullet list" aria-label="Bullet list">•</button>
+          <button type="button" data-format="task" title="Task list" aria-label="Task list">☑</button>
+          <button type="button" data-format="table" title="Insert table" aria-label="Insert table">▦</button>
           <button type="button" data-format="rule" title="Horizontal rule" aria-label="Horizontal rule">—</button>
         </div>
         <div class="editor-surface"></div>
       </div>
       <div class="seam"></div>
       <div class="pane pane-preview"></div>
+      <div class="preview-find hidden" role="search">
+        <input type="text" aria-label="Find in reading view" placeholder="Find" />
+        <span class="preview-find-status">0/0</span>
+        <button type="button" data-find="previous" title="Previous match">↑</button>
+        <button type="button" data-find="next" title="Next match">↓</button>
+        <button type="button" data-find="close" title="Close">×</button>
+      </div>
     </div>
     <div class="window-status">
       <span class="ws-name"></span>
@@ -155,6 +171,10 @@ export function createWindowView(
   let previewAutoFit = true;
   let previewText = "";
   let previewPathOrName: string | null = null;
+  let pdfTargetPage: number | undefined;
+  let pdfFind: PdfFindHandle | null = null;
+  let textFindMatches: HTMLElement[] = [];
+  let textFindIndex = -1;
   let previewFrame: HTMLIFrameElement | null = null;
   let lastMode: ViewMode | null = null;
   let boardDestroy: (() => void) | null = null;
@@ -167,6 +187,70 @@ export function createWindowView(
     reset: () => void;
   } | null = null;
   let boardRenderToken = 0;
+  const findBar = root.querySelector<HTMLElement>(".preview-find")!;
+  const findInput = findBar.querySelector<HTMLInputElement>("input")!;
+  const findStatus =
+    findBar.querySelector<HTMLElement>(".preview-find-status")!;
+
+  const updateFindStatus = (count: number, active: number): void => {
+    findStatus.textContent = `${active}/${count}`;
+  };
+  const runFind = (): void => {
+    if (pdfFind) {
+      const count = pdfFind.setQuery(findInput.value);
+      updateFindStatus(count, count ? 1 : 0);
+      return;
+    }
+    const article = previewPane.querySelector<HTMLElement>("article.doc");
+    textFindMatches = article ? highlightText(article, findInput.value) : [];
+    textFindIndex = textFindMatches.length ? 0 : -1;
+    const result = activateTextMatch(textFindMatches, textFindIndex);
+    updateFindStatus(result.count, result.active);
+  };
+  const moveFind = (delta: number): void => {
+    if (pdfFind) {
+      const result = pdfFind.move(delta);
+      updateFindStatus(result.count, result.active);
+      return;
+    }
+    if (!textFindMatches.length) return;
+    textFindIndex =
+      (textFindIndex + delta + textFindMatches.length) %
+      textFindMatches.length;
+    const result = activateTextMatch(textFindMatches, textFindIndex);
+    updateFindStatus(result.count, result.active);
+  };
+  const closeFind = (): void => {
+    findBar.classList.add("hidden");
+    pdfFind?.clear();
+    const article = previewPane.querySelector<HTMLElement>("article.doc");
+    if (article) clearTextHighlights(article);
+    textFindMatches = [];
+    textFindIndex = -1;
+    previewPane.focus();
+  };
+  findInput.addEventListener("input", runFind);
+  findInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      moveFind(event.shiftKey ? -1 : 1);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeFind();
+    }
+  });
+  findBar.querySelector('[data-find="previous"]')!.addEventListener(
+    "click",
+    () => moveFind(-1),
+  );
+  findBar.querySelector('[data-find="next"]')!.addEventListener(
+    "click",
+    () => moveFind(1),
+  );
+  findBar.querySelector('[data-find="close"]')!.addEventListener(
+    "click",
+    closeFind,
+  );
 
   root.addEventListener("mousedown", () => h.onFocusWindow(windowId));
   editorPane.addEventListener("mousedown", () => {
@@ -340,13 +424,23 @@ export function createWindowView(
       boardCapture = null;
       boardZoom = null;
       previewFrame = null;
+      pdfFind = null;
       previewPane.innerHTML = '<div class="board-loading">Loading PDF…</div>';
       wsWords.textContent = "PDF";
-      void renderPdf(previewPane, pathOrName!).catch((error) => {
-        if (token !== boardRenderToken) return;
-        previewPane.textContent =
-          error instanceof Error ? error.message : String(error);
-      });
+      void renderPdf(previewPane, pathOrName!, pdfTargetPage)
+        .then((handle) => {
+          if (token !== boardRenderToken) {
+            handle.clear();
+            return;
+          }
+          pdfFind = handle;
+          if (!findBar.classList.contains("hidden") && findInput.value) runFind();
+        })
+        .catch((error) => {
+          if (token !== boardRenderToken) return;
+          previewPane.textContent =
+            error instanceof Error ? error.message : String(error);
+        });
       return;
     }
     if (isExcalidrawFile(pathOrName)) {
@@ -435,6 +529,7 @@ export function createWindowView(
     boardCapture = null;
     boardZoom = null;
     previewFrame = null;
+    pdfFind = null;
     previewPane.replaceChildren();
     if (!isMarkdownFile(pathOrName) && !isHtmlFile(pathOrName)) {
       const count = countWords(text);
@@ -618,6 +713,40 @@ export function createWindowView(
     },
     setLineNumbersFlag: (on: boolean) => {
       lineNums = on;
+    },
+    openPdfPage: (page: number) => {
+      pdfTargetPage = page;
+      let attempts = 0;
+      const scrollWhenReady = (): void => {
+        attempts += 1;
+        if (!scrollPdfToPage(previewPane, page) && attempts < 40) {
+          window.setTimeout(scrollWhenReady, 100);
+        }
+      };
+      scrollWhenReady();
+    },
+    openFind: () => {
+      const state = getWindow(windowId);
+      const tab = state?.tabs.find((item) => item.id === state.activeTabId);
+      const effectiveMode = normalizeDocumentViewMode(
+        tab?.path ?? tab?.name,
+        state?.mode ?? "editor",
+      );
+      if (
+        !isPdfFile(previewPathOrName) &&
+        effectiveMode !== "preview" &&
+        focusedPane !== "preview"
+      ) {
+        return false;
+      }
+      if (!isPdfFile(previewPathOrName) && !isMarkdownFile(previewPathOrName)) {
+        return false;
+      }
+      findBar.classList.remove("hidden");
+      findInput.focus();
+      findInput.select();
+      if (findInput.value) runFind();
+      return true;
     },
   };
 }

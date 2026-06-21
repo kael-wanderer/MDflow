@@ -7,22 +7,40 @@ import "@xterm/xterm/css/xterm.css";
 export function createTerminalView(
   host: HTMLElement,
   run: string,
-  options: { fontFamily?: string; fontSize?: number } = {},
-): { resize: () => void; destroy: () => void } {
+  options: {
+    fontFamily?: string;
+    fontSize?: number;
+    onExit?: () => void;
+  } = {},
+): { resize: () => void; destroy: () => void; setTheme: () => void } {
   const id = `pty-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   // xterm renders to canvas, so CSS vars won't resolve — read computed values.
   const css = getComputedStyle(document.documentElement);
   const value = (name: string, fallback: string): string =>
     css.getPropertyValue(name).trim() || fallback;
+  const terminalTheme = (): {
+    background: string;
+    foreground: string;
+    cursor: string;
+    selectionBackground: string;
+  } => {
+    const current = getComputedStyle(document.documentElement);
+    const color = (name: string, fallback: string): string =>
+      current.getPropertyValue(name).trim() || fallback;
+    return {
+      background: "#00000000",
+      foreground: color("--text", "#ddd"),
+      cursor: color("--accent", "#7aa2f7"),
+      selectionBackground: color(
+        "--selection",
+        "rgba(120,120,160,0.35)",
+      ),
+    };
+  };
   const terminal = new Terminal({
     fontFamily: options.fontFamily?.trim() || value("--font-mono", "monospace"),
     fontSize: options.fontSize && options.fontSize > 0 ? options.fontSize : 13,
-    theme: {
-      background: "#00000000",
-      foreground: value("--text", "#ddd"),
-      cursor: value("--accent", "#7aa2f7"),
-      selectionBackground: value("--selection", "rgba(120,120,160,0.35)"),
-    },
+    theme: terminalTheme(),
   });
   const fit = new FitAddon();
   const unlisteners: UnlistenFn[] = [];
@@ -36,6 +54,12 @@ export function createTerminalView(
     if (event.payload.id === id && !destroyed) {
       terminal.write(event.payload.data);
     }
+  }).then((unlisten) => {
+    if (destroyed) unlisten();
+    else unlisteners.push(unlisten);
+  });
+  void listen<{ id: string }>("pty-exit", (event) => {
+    if (event.payload.id === id && !destroyed) options.onExit?.();
   }).then((unlisten) => {
     if (destroyed) unlisten();
     else unlisteners.push(unlisten);
@@ -74,6 +98,9 @@ export function createTerminalView(
         rows: terminal.rows,
         cols: terminal.cols,
       });
+    },
+    setTheme: () => {
+      if (!destroyed) terminal.options.theme = terminalTheme();
     },
     destroy: () => {
       if (destroyed) return;

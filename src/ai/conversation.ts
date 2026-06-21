@@ -1,11 +1,13 @@
-import type { ChatMessage } from "./providers";
+import type { ChatContentPart, ChatMessage } from "./providers";
 
 const CHAT_SYSTEM =
   "You are an assistant inside a markdown editor. Help the user understand and improve the open document. Be concise.";
 const EDIT_SYSTEM =
   "You are editing a markdown document. Return only the revised text with no commentary, no code fences, no explanation.";
 
-export type AttachedFile = { name: string; content: string };
+export type AttachedFile =
+  | { kind: "text"; name: string; content: string }
+  | { kind: "image"; name: string; dataUrl: string };
 
 export function buildMessages(options: {
   history: ChatMessage[];
@@ -32,12 +34,29 @@ export function buildMessages(options: {
     });
   }
   for (const file of options.files ?? []) {
-    messages.push({
-      role: "system",
-      content: `Attached file "${file.name}":\n\n${file.content}`,
-    });
+    if (file.kind === "text") {
+      messages.push({
+        role: "system",
+        content: `Attached file "${file.name}":\n\n${file.content}`,
+      });
+    }
   }
   messages.push(...options.history);
-  messages.push({ role: "user", content: options.prompt });
+  const images = (options.files ?? []).filter(
+    (file): file is Extract<AttachedFile, { kind: "image" }> =>
+      file.kind === "image",
+  );
+  if (images.length) {
+    const content: ChatContentPart[] = [
+      { type: "text", text: options.prompt },
+      ...images.map((file) => ({
+        type: "image_url" as const,
+        image_url: { url: file.dataUrl },
+      })),
+    ];
+    messages.push({ role: "user", content });
+  } else {
+    messages.push({ role: "user", content: options.prompt });
+  }
   return messages;
 }

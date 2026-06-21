@@ -1,9 +1,24 @@
 import type { HttpProvider } from "./aisettings";
 
+export type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | ChatContentPart[];
 };
+
+export function chatContentText(content: ChatMessage["content"]): string {
+  return typeof content === "string"
+    ? content
+    : content
+        .filter((part): part is Extract<ChatContentPart, { type: "text" }> =>
+          part.type === "text",
+        )
+        .map((part) => part.text)
+        .join("\n");
+}
 
 export function buildHttpBody(
   provider: HttpProvider,

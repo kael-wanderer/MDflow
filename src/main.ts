@@ -11,6 +11,7 @@ import {
   type AISettings,
 } from "./ai/aisettings";
 import { createAIPanel, type AIPanel } from "./ai/panel";
+import { clampAgentPanelWidth } from "./ai-layout";
 import { showComparison } from "./compareview";
 import { showContextMenu, type MenuItem } from "./contextmenu";
 import {
@@ -38,6 +39,8 @@ import {
   revealInFinder,
 } from "./filesys";
 import { createPalette, type PaletteItem } from "./palette";
+import { markdownOutline } from "./outline";
+import { addRecent, loadRecent, saveRecent } from "./recent";
 import { breadcrumbsPath, joinPath, relativePath } from "./paths";
 import {
   isExcalidrawFile,
@@ -187,6 +190,7 @@ function saveSettingsFromPanel(settings: Settings): void {
   applyKeymap();
   syncViewMenu();
   requestWindowMeasure();
+  aiPanel?.refreshTheme();
   if (settingsPath) {
     void writeFile(settingsPath, JSON.stringify(settings, null, 2));
   }
@@ -208,6 +212,7 @@ function commandItems(): PaletteItem[] {
   ): PaletteItem => ({ id, label, kind: "command", run });
   const activeWindowId = (): string => getState().activeWindowId;
 
+  const recent = loadRecent();
   return [
     command("new", "New File", newDoc),
     command("open", "Open File…", () => void doOpen()),
@@ -215,6 +220,11 @@ function commandItems(): PaletteItem[] {
       void pickFolder().then(async (folder) => {
         if (!folder) return;
         await openFolder(folder);
+        const recentItems = loadRecent();
+        saveRecent({
+          ...recentItems,
+          folders: addRecent(recentItems.folders, folder),
+        });
         await refreshFileList();
       });
     }),
@@ -240,7 +250,36 @@ function commandItems(): PaletteItem[] {
     }),
     command("settings", "Open Settings", openSettings),
     command("help", "MDflow Help", openHelp),
+    ...recent.files.map((path) =>
+      command(`recent-file:${path}`, `Open Recent File: ${basename(path)}`, () =>
+        void doOpenPath(path),
+      ),
+    ),
+    ...recent.folders.map((folder) =>
+      command(
+        `recent-folder:${folder}`,
+        `Open Recent Folder: ${basename(folder)}`,
+        () =>
+          void openFolder(folder).then(() => {
+            const items = loadRecent();
+            saveRecent({ ...items, folders: addRecent(items.folders, folder) });
+            return refreshFileList();
+          }),
+      ),
+    ),
   ];
+}
+
+function outlineItems(): PaletteItem[] {
+  const tab = activeMeta();
+  if (!tab || !/\.md(?:own)?$/i.test(tab.path ?? tab.name)) return [];
+  const editor = activeView().editor;
+  return markdownOutline(editor.getText(tab.id)).map((heading, index) => ({
+    id: `heading:${index}:${heading.line}`,
+    label: `${"· ".repeat(Math.max(0, heading.level - 1))}${heading.text}`,
+    kind: "symbol",
+    run: () => editor.gotoLine(heading.line),
+  }));
 }
 
 function fileItems(): PaletteItem[] {
@@ -254,7 +293,11 @@ function fileItems(): PaletteItem[] {
   }));
 }
 
-const palette = createPalette(() => [...fileItems(), ...commandItems()]);
+const palette = createPalette(() => [
+  ...fileItems(),
+  ...outlineItems(),
+  ...commandItems(),
+]);
 
 const handlers = {
   onActivateTab: (wid: string, tid: string) => activateTab(wid, tid),
@@ -606,6 +649,8 @@ async function doOpenPath(
   path: string,
   windowId = getState().activeWindowId,
 ): Promise<void> {
+  const recent = loadRecent();
+  saveRecent({ ...recent, files: addRecent(recent.files, path) });
   if (isPdfFile(path)) {
     openPdf(windowId, path);
     return;
@@ -871,9 +916,23 @@ function exportError(error: unknown): string {
 async function exportDocument(kind: "pdf" | "docx"): Promise<void> {
   const tab = activeMeta();
   if (!tab) return;
-  const out = await pickExportPath(kind);
-  if (!out) return;
   try {
+    const tools = await invoke<{ pandoc: boolean; typst: boolean }>(
+      "export_tools",
+    );
+    const missing = [
+      !tools.pandoc ? "Pandoc (`brew install pandoc`)" : "",
+      kind === "pdf" && !tools.typst ? "Typst (`brew install typst`)" : "",
+    ].filter(Boolean);
+    if (missing.length) {
+      await message(
+        `Install the following export tool${missing.length === 1 ? "" : "s"} first:\n\n${missing.join("\n")}`,
+        { title: "Export setup required", kind: "warning" },
+      );
+      return;
+    }
+    const out = await pickExportPath(kind);
+    if (!out) return;
     const { buildExportHtml } = await import("./export-render");
     const html = await buildExportHtml(activeView().editor.getText(tab.id), {
       rasterizeSvg: kind === "docx",
@@ -1041,6 +1100,7 @@ function syncViewMenu(): void {
     font: currentSettings.main.font,
     size: currentSettings.main.size,
     explorerSize: currentSettings.explorer.size,
+    automaticUpdates: currentSettings.updateMode === "auto",
   });
 }
 
@@ -1098,6 +1158,16 @@ function setMenuTheme(theme: string): void {
   };
   persistCurrentSettings();
   renderAll();
+  aiPanel?.refreshTheme();
+}
+
+function toggleAutomaticUpdates(): void {
+  currentSettings = {
+    ...currentSettings,
+    updateMode: currentSettings.updateMode === "auto" ? "manual" : "auto",
+  };
+  persistCurrentSettings();
+  settingsPanel.refresh();
 }
 
 function ensureSubWindow(): void {
@@ -1284,6 +1354,7 @@ function buildAIPanel(): void {
         name: basename(rel),
       }));
     },
+    historyKey: `mdflow.ai.history.${nativeWindowLabel}`,
   });
 }
 
@@ -1362,7 +1433,21 @@ setState({
 });
 document.documentElement.style.setProperty("--explorer-w", `${ui.explorerWidth}px`);
 document.body.classList.toggle("explorer-hidden", !ui.explorerVisible);
-document.documentElement.style.setProperty("--ai-w", `${ui.aiWidth}px`);
+function agentPanelWidth(width = ui.aiWidth): number {
+  return clampAgentPanelWidth(width, {
+    windowWidth: window.innerWidth,
+    explorerVisible: getState().explorerVisible,
+    explorerWidth: getState().explorerWidth,
+  });
+}
+
+function applyAgentPanelWidth(width = ui.aiWidth): void {
+  const clamped = agentPanelWidth(width);
+  ui = { ...ui, aiWidth: clamped };
+  document.documentElement.style.setProperty("--ai-w", `${clamped}px`);
+}
+
+applyAgentPanelWidth();
 applyAIVisibility();
 
 const settingsPanel = createSettingsPanel({
@@ -1439,10 +1524,15 @@ async function runNativeExport(format: ExportFormat): Promise<void> {
 
 const searchPanel = createSearchPanel(document.getElementById("search-panel")!, {
   getFolder: () => getState().folder,
-  onOpenHit: (path, line) => {
+  getFiles: () => fileList,
+  onOpenHit: (path, line, page) => {
     void doOpenPath(path).then(() => {
       const tab = activeMeta();
       const name = tab?.path ?? tab?.name ?? "";
+      if (tab && isPdfFile(name) && page) {
+        activeView().openPdfPage(page);
+        return;
+      }
       if (
         tab &&
         !isPdfFile(name) &&
@@ -1506,10 +1596,7 @@ aiResize.addEventListener("mousedown", (event) => {
   const startWidth = ui.aiWidth;
   document.body.classList.add("resizing-ai");
   const onMove = (moveEvent: MouseEvent): void => {
-    const width = Math.max(
-      240,
-      Math.min(560, startWidth + startX - moveEvent.clientX),
-    );
+    const width = agentPanelWidth(startWidth + startX - moveEvent.clientX);
     ui = { ...ui, aiWidth: width };
     document.documentElement.style.setProperty("--ai-w", `${width}px`);
     requestWindowMeasure();
@@ -1525,6 +1612,13 @@ aiResize.addEventListener("mousedown", (event) => {
   };
   document.addEventListener("mousemove", onMove);
   document.addEventListener("mouseup", onUp);
+});
+window.addEventListener("resize", () => {
+  const previous = ui.aiWidth;
+  applyAgentPanelWidth();
+  if (ui.aiWidth !== previous) persistUiState();
+  requestWindowMeasure();
+  aiPanel?.resize();
 });
 initExplorer(
   (path) => void doOpenPath(path),
@@ -1614,6 +1708,11 @@ listen<string>("menu", (event) => {
       return void pickFolder().then(async (directory) => {
         if (!directory) return;
         await openFolder(directory);
+        const recentItems = loadRecent();
+        saveRecent({
+          ...recentItems,
+          folders: addRecent(recentItems.folders, directory),
+        });
         await refreshFileList();
       });
     case "file.save":
@@ -1662,6 +1761,8 @@ listen<string>("menu", (event) => {
       return openHelp();
     case "help.check_updates":
       return void checkForUpdates();
+    case "help.automatic_updates":
+      return toggleAutomaticUpdates();
   }
 });
 
@@ -1681,6 +1782,17 @@ const appKeyActions: Record<string, () => void> = {
 };
 
 window.addEventListener("keydown", (e) => {
+  if (
+    e.key.toLowerCase() === "f" &&
+    (e.metaKey || e.ctrlKey) &&
+    !e.altKey &&
+    !e.shiftKey &&
+    activeView().openFind()
+  ) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
   for (const id of Object.keys(appKeyActions)) {
     const accel = resolvedAccel(id);
     if (accel && matchAccelerator(e, accel)) {

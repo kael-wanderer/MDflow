@@ -3,7 +3,7 @@ import { rankItems } from "./fuzzy";
 export type PaletteItem = {
   id: string;
   label: string;
-  kind: "command" | "file";
+  kind: "command" | "file" | "symbol";
   run: () => void;
 };
 
@@ -44,7 +44,12 @@ export function createPalette(provider: PaletteProvider): { open: () => void } {
       if (item.kind !== previousKind) {
         const heading = document.createElement("div");
         heading.className = "palette-heading";
-        heading.textContent = item.kind === "file" ? "Files" : "Commands";
+        heading.textContent =
+          item.kind === "file"
+            ? "Files"
+            : item.kind === "symbol"
+              ? "Outline"
+              : "Commands";
         list.appendChild(heading);
         previousKind = item.kind;
       }
@@ -54,7 +59,7 @@ export function createPalette(provider: PaletteProvider): { open: () => void } {
       row.setAttribute("role", "option");
       row.setAttribute("aria-selected", String(index === active));
       row.innerHTML = `<span class="palette-kind ${item.kind}">${
-        item.kind === "command" ? "›" : ""
+        item.kind === "command" ? "›" : item.kind === "symbol" ? "#" : ""
       }</span><span class="palette-label"></span>`;
       row.querySelector(".palette-label")!.textContent = item.label;
       row.addEventListener("mousedown", (event) => {
@@ -77,7 +82,12 @@ export function createPalette(provider: PaletteProvider): { open: () => void } {
       items.filter((item) => item.kind === "command"),
       (item) => item.label,
     );
-    filtered = [...files, ...commands];
+    const symbols = rankItems(
+      query,
+      items.filter((item) => item.kind === "symbol"),
+      (item) => item.label,
+    );
+    filtered = [...files, ...symbols, ...commands];
     active = 0;
     renderList();
   };

@@ -1,4 +1,5 @@
-use serde::Serialize;
+use regex::RegexBuilder;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -90,6 +91,16 @@ pub struct SearchHit {
     pub relative: String,
     pub line: u32,
     pub snippet: String,
+    pub match_start: usize,
+    pub match_end: usize,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchOptions {
+    pub case_sensitive: bool,
+    pub whole_word: bool,
+    pub regex: bool,
 }
 
 const SEARCH_HIT_CAP: usize = 500;
@@ -136,13 +147,65 @@ fn searchable_text(path: &Path) -> Option<String> {
     fs::read_to_string(path).ok()
 }
 
+fn search_pattern(query: &str, options: &SearchOptions) -> Option<regex::Regex> {
+    let source = if options.regex {
+        query.to_string()
+    } else {
+        regex::escape(query)
+    };
+    let source = if options.whole_word {
+        format!(r"\b(?:{source})\b")
+    } else {
+        source
+    };
+    RegexBuilder::new(&source)
+        .case_insensitive(!options.case_sensitive)
+        .build()
+        .ok()
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::{search_pattern, SearchOptions};
+
+    #[test]
+    fn search_options_control_case_word_and_regex_matching() {
+        let whole = search_pattern(
+            "cat",
+            &SearchOptions {
+                case_sensitive: false,
+                whole_word: true,
+                regex: false,
+            },
+        )
+        .unwrap();
+        assert!(whole.is_match("CAT"));
+        assert!(!whole.is_match("catalog"));
+
+        let regex = search_pattern(
+            r"v\d+",
+            &SearchOptions {
+                case_sensitive: true,
+                whole_word: false,
+                regex: true,
+            },
+        )
+        .unwrap();
+        assert!(regex.is_match("v123"));
+        assert!(!regex.is_match("V123"));
+    }
+}
+
 #[tauri::command]
-pub fn search_in_folder(folder: String, query: String) -> Vec<SearchHit> {
-    let needle = query.trim().to_lowercase();
+pub fn search_in_folder(folder: String, query: String, options: SearchOptions) -> Vec<SearchHit> {
+    let needle = query.trim();
     let mut hits = Vec::new();
     if needle.is_empty() {
         return hits;
     }
+    let Some(pattern) = search_pattern(needle, &options) else {
+        return hits;
+    };
     let root = Path::new(&folder);
     let mut files = Vec::new();
     walk_files(root, root, &mut files);
@@ -157,6 +220,13 @@ pub fn search_in_folder(folder: String, query: String) -> Vec<SearchHit> {
         {
             continue;
         }
+        if path
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"))
+        {
+            continue;
+        }
         let Some(text) = searchable_text(&path) else {
             continue;
         };
@@ -164,12 +234,21 @@ pub fn search_in_folder(folder: String, query: String) -> Vec<SearchHit> {
             if hits.len() >= SEARCH_HIT_CAP {
                 break;
             }
-            if line.to_lowercase().contains(&needle) {
+            if let Some(found) = pattern.find(line) {
+                let trimmed_start = line.len() - line.trim_start().len();
+                let snippet: String = line.trim().chars().take(200).collect();
+                let match_start = found
+                    .start()
+                    .saturating_sub(trimmed_start)
+                    .min(snippet.len());
+                let match_end = found.end().saturating_sub(trimmed_start).min(snippet.len());
                 hits.push(SearchHit {
                     path: path.to_string_lossy().into_owned(),
                     relative: relative.clone(),
                     line: (index + 1) as u32,
-                    snippet: line.trim().chars().take(200).collect(),
+                    snippet,
+                    match_start,
+                    match_end,
                 });
             }
         }
@@ -178,13 +257,13 @@ pub fn search_in_folder(folder: String, query: String) -> Vec<SearchHit> {
 }
 
 #[tauri::command]
-pub fn get_settings(
-    app: tauri::AppHandle,
-    default: String,
-) -> Result<SettingsFile, String> {
+pub fn get_settings(app: tauri::AppHandle, default: String) -> Result<SettingsFile, String> {
     use tauri::Manager;
 
-    let dir: PathBuf = app.path().app_config_dir().map_err(|error| error.to_string())?;
+    let dir: PathBuf = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     let file = dir.join("settings.json");
     if !file.exists() {
@@ -198,13 +277,13 @@ pub fn get_settings(
 }
 
 #[tauri::command]
-pub fn get_ai_settings(
-    app: tauri::AppHandle,
-    default: String,
-) -> Result<SettingsFile, String> {
+pub fn get_ai_settings(app: tauri::AppHandle, default: String) -> Result<SettingsFile, String> {
     use tauri::Manager;
 
-    let dir: PathBuf = app.path().app_config_dir().map_err(|error| error.to_string())?;
+    let dir: PathBuf = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     let file = dir.join("agent.json");
     // Migrate the legacy ai.json name to agent.json on first run.

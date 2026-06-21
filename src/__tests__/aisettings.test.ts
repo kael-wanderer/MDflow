@@ -38,7 +38,10 @@ describe("parseAISettings", () => {
       "a",
       "c",
     ]);
-    expect(settings.terminals).toHaveLength(1);
+    expect(settings.terminals.map((terminal) => terminal.id)).toEqual([
+      "t",
+      "pi-term",
+    ]);
     expect(settings.defaultProvider).toBe("a");
     expect(settings.permissionMode).toBe("ask");
   });
@@ -102,6 +105,23 @@ describe("http providers carry no key", () => {
       (provider) => provider.id === "openai",
     );
     expect(openai).not.toHaveProperty("key");
+  });
+
+  it("ships Pi as an interactive terminal program", () => {
+    expect(DEFAULT_AI_SETTINGS.terminals).toContainEqual({
+      id: "pi-term",
+      label: "Pi",
+      run: "pi",
+    });
+  });
+
+  it("parses the selected external terminal app", () => {
+    expect(
+      parseAISettings(JSON.stringify({ terminalApp: "ghostty" })).terminalApp,
+    ).toBe("ghostty");
+    expect(
+      parseAISettings(JSON.stringify({ terminalApp: "unknown" })).terminalApp,
+    ).toBe("embedded");
   });
 });
 

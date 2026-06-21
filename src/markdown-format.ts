@@ -6,7 +6,9 @@ export type MarkdownFormat =
   | "code"
   | "quote"
   | "bullet"
-  | "rule";
+  | "rule"
+  | "task"
+  | "table";
 
 export type FormatResult = {
   text: string;
@@ -147,6 +149,18 @@ function insertRule(
   return replace(text, end, end, insert, cursor, cursor);
 }
 
+function insertTable(
+  text: string,
+  from: number,
+  to: number,
+): FormatResult {
+  const selected = text.slice(from, to).trim();
+  const firstCell = selected || "Column 1";
+  const insert = `| ${firstCell} | Column 2 | Column 3 |\n| --- | --- | --- |\n|  |  |  |`;
+  const start = from + 2;
+  return replace(text, from, to, insert, start, start + firstCell.length);
+}
+
 export function applyMarkdownFormat(
   text: string,
   from: number,
@@ -170,5 +184,9 @@ export function applyMarkdownFormat(
       return toggleLinePrefix(text, from, to, "- ");
     case "rule":
       return insertRule(text, from, to);
+    case "task":
+      return toggleLinePrefix(text, from, to, "- [ ] ");
+    case "table":
+      return insertTable(text, from, to);
   }
 }

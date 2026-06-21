@@ -74,13 +74,23 @@ export type SearchHit = {
   relative: string;
   line: number;
   snippet: string;
+  match_start: number;
+  match_end: number;
+  page?: number;
+};
+
+export type SearchOptions = {
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  regex: boolean;
 };
 
 export function searchInFolder(
   folder: string,
   query: string,
+  options: SearchOptions,
 ): Promise<SearchHit[]> {
-  return invoke<SearchHit[]>("search_in_folder", { folder, query });
+  return invoke<SearchHit[]>("search_in_folder", { folder, query, options });
 }
 
 type RawSettingsFile = {

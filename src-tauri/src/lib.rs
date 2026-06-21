@@ -1,6 +1,7 @@
 mod ai;
 mod defaults;
 mod export;
+mod external_terminal;
 mod files;
 mod macos_dock;
 mod menu;
@@ -66,6 +67,7 @@ fn sync_view_menu(
     font: String,
     size: u32,
     explorer_size: u32,
+    automatic_updates: bool,
 ) {
     let set = |id: String, on: bool| {
         if let Some(item) = menu::find_check_item(&app, &id) {
@@ -87,6 +89,7 @@ fn sync_view_menu(
     for n in menu::SIZE_OPTIONS {
         set(format!("view.explorer_size.{n}"), *n == explorer_size);
     }
+    set("help.automatic_updates".into(), automatic_updates);
 }
 
 #[tauri::command]
@@ -135,6 +138,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
+        .manage(ai::AIState::default())
         .manage(OpenPathState::default())
         .manage(native_windows::FocusedWindowState::default())
         .setup(|app| {
@@ -164,11 +168,14 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             ai::ai_run,
+            ai::ai_cancel,
             export::export_pdf,
+            export::export_tools,
             export::export_docx,
             export::export_pdf_html,
             export::export_docx_html,
             export::export_html,
+            external_terminal::launch_external_terminal,
             defaults::set_default_handler,
             defaults::open_default_apps_settings,
             secrets::set_secret,

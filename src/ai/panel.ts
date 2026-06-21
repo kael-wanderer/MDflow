@@ -6,7 +6,7 @@ import { buildMessages, type AttachedFile } from "./conversation";
 import { lineDiff } from "./diff";
 import { matchAccelerator } from "../keymap";
 import { rankItems } from "../fuzzy";
-import type { ChatMessage } from "./providers";
+import { chatContentText, type ChatMessage } from "./providers";
 
 export type AIPanelDeps = {
   getSettings: () => AISettings;
@@ -18,12 +18,14 @@ export type AIPanelDeps = {
   getSendAccelerator: () => string;
   getWorkingDir: () => string | null;
   getFileList: () => { path: string; name: string }[];
+  historyKey: string;
 };
 
 export type AIPanel = {
   render: () => void;
   resize: () => void;
   addAttachments: (paths: string[]) => void;
+  refreshTheme: () => void;
 };
 
 const TEXT_EXTENSIONS = new Set([
@@ -42,6 +44,35 @@ function isTextAttachment(path: string): boolean {
   return TEXT_EXTENSIONS.has(ext);
 }
 
+const IMAGE_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
+function imageMime(path: string): string | null {
+  return IMAGE_MIME[path.split(".").pop()?.toLowerCase() ?? ""] ?? null;
+}
+
+function bytesToDataUrl(bytes: number[], mime: string): string {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.slice(index, index + 0x8000));
+  }
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+
+function loadHistory(key: string): ChatMessage[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(value) ? value.slice(-100) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function createAIPanel(
   panelElement: HTMLElement,
   deps: AIPanelDeps,
@@ -51,7 +82,10 @@ export function createAIPanel(
   panelElement
     .querySelector<HTMLElement>(".ai-close")!
     .addEventListener("click", deps.onClose);
-  const history: ChatMessage[] = [];
+  const history: ChatMessage[] = loadHistory(deps.historyKey);
+  const saveHistory = (): void => {
+    localStorage.setItem(deps.historyKey, JSON.stringify(history.slice(-100)));
+  };
   let referencedFiles: string[] = [];
   let refreshAttachments: () => void = () => {};
   const addAttachments = (paths: string[]): void => {
@@ -66,7 +100,9 @@ export function createAIPanel(
   let terminalView: {
     resize: () => void;
     destroy: () => void;
+    setTheme: () => void;
   } | null = null;
+  let activeRequest: AbortController | null = null;
 
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -330,10 +366,15 @@ export function createAIPanel(
     };
 
     for (const message of history) {
-      addBubble(message.role, message.content);
+      addBubble(message.role, chatContentText(message.content));
     }
 
+    const sendButton = body.querySelector<HTMLButtonElement>(".ai-send")!;
     const send = async (): Promise<void> => {
+      if (activeRequest) {
+        activeRequest.abort();
+        return;
+      }
       const prompt = input.value.trim();
       const currentSettings = deps.getSettings();
       const provider = currentProvider(currentSettings);
@@ -355,20 +396,38 @@ export function createAIPanel(
 
       // CLI agents read files themselves (pass paths + run in the folder);
       // HTTP models can't, so inline text-file contents and skip the rest.
-      let files: AttachedFile[] = [];
+      const files: AttachedFile[] = [];
       let attachmentPaths: string[] = [];
       if (provider.type === "command") {
         attachmentPaths = attached;
       } else if (attached.length) {
         const skipped: string[] = [];
         for (const path of attached) {
+          const mime = imageMime(path);
+          if (mime) {
+            try {
+              const bytes = await invoke<number[]>("read_file_bytes", { path });
+              files.push({
+                kind: "image",
+                name: fileBasename(path),
+                dataUrl: bytesToDataUrl(bytes, mime),
+              });
+            } catch {
+              skipped.push(fileBasename(path));
+            }
+            continue;
+          }
           if (!isTextAttachment(path)) {
             skipped.push(fileBasename(path));
             continue;
           }
           try {
             const content = await invoke<string>("read_file", { path });
-            files.push({ name: fileBasename(path), content });
+            files.push({
+              kind: "text",
+              name: fileBasename(path),
+              content,
+            });
           } catch {
             skipped.push(fileBasename(path));
           }
@@ -376,7 +435,7 @@ export function createAIPanel(
         if (skipped.length) {
           addBubble(
             "error",
-            `Skipped (not readable as text for this model): ${skipped.join(", ")}. Use a CLI agent for images/PDFs.`,
+            `Skipped unsupported attachment: ${skipped.join(", ")}. HTTP models accept text and common image formats; CLI agents can read file paths directly.`,
           );
         }
       }
@@ -394,6 +453,9 @@ export function createAIPanel(
       });
       const replyElement = addBubble("assistant", "");
       let reply = "";
+      activeRequest = new AbortController();
+      sendButton.textContent = "Cancel";
+      sendButton.classList.add("cancel");
       try {
         await streamChat(
           provider,
@@ -404,27 +466,46 @@ export function createAIPanel(
             messagesElement.scrollTop = messagesElement.scrollHeight;
           },
           currentSettings.permissionMode,
-          { cwd: deps.getWorkingDir(), attachmentPaths },
+          {
+            cwd: deps.getWorkingDir(),
+            attachmentPaths,
+            signal: activeRequest.signal,
+          },
         );
         history.push(
           { role: "user", content: prompt },
           { role: "assistant", content: reply },
         );
+        saveHistory();
         addActions(replyElement, reply, editMode, document);
       } catch (error) {
-        replyElement.remove();
+        if (reply) {
+          history.push(
+            { role: "user", content: prompt },
+            { role: "assistant", content: reply },
+          );
+          saveHistory();
+        } else {
+          replyElement.remove();
+        }
+        const cancelled =
+          error instanceof DOMException && error.name === "AbortError";
         addBubble(
-          "error",
-          error instanceof Error ? error.message : String(error),
+          cancelled ? "system" : "error",
+          cancelled
+            ? "Reply cancelled."
+            : error instanceof Error
+              ? error.message
+              : String(error),
         );
+      } finally {
+        activeRequest = null;
+        sendButton.textContent = "Send";
+        sendButton.classList.remove("cancel");
       }
     };
 
-    body
-      .querySelector<HTMLButtonElement>(".ai-send")!
-      .addEventListener("click", () => {
-        void send();
-      });
+    sendButton.addEventListener("click", () => void send());
     input.addEventListener("keydown", (event) => {
       // Don't send while an IME composition is active (e.g. Enter to confirm).
       if (event.isComposing) return;
@@ -471,9 +552,19 @@ export function createAIPanel(
     body.innerHTML = `
       <div class="ai-control-row ai-terminal-bar">
         <label>
-          <span>Terminal</span>
+          <span>Agent command</span>
           <select class="ai-terminal-select"></select>
         </label>
+        <label>
+          <span>Terminal app</span>
+          <select class="ai-terminal-app">
+            <option value="embedded">Embedded</option>
+            <option value="terminal">Apple Terminal</option>
+            <option value="ghostty">Ghostty</option>
+            <option value="cmux">cmux</option>
+          </select>
+        </label>
+        <button type="button" class="ai-terminal-restart" hidden>Restart</button>
       </div>
       <div class="ai-terminal-host"></div>`;
     const select = body.querySelector<HTMLSelectElement>(".ai-terminal-select")!;
@@ -491,13 +582,65 @@ export function createAIPanel(
       });
       render();
     });
+    const appSelect =
+      body.querySelector<HTMLSelectElement>(".ai-terminal-app")!;
+    appSelect.value = settings.terminalApp;
+    appSelect.addEventListener("change", () => {
+      deps.onSettingsChange({
+        ...deps.getSettings(),
+        terminalApp: appSelect.value as AISettings["terminalApp"],
+      });
+      render();
+    });
     const host = body.querySelector<HTMLElement>(".ai-terminal-host")!;
-    if (entry) {
+    const restart =
+      body.querySelector<HTMLButtonElement>(".ai-terminal-restart")!;
+    restart.addEventListener("click", () => render());
+    if (entry && settings.terminalApp !== "embedded") {
+      host.classList.add("ai-terminal-external");
+      const title = document.createElement("strong");
+      title.textContent = `${entry.label} in ${
+        settings.terminalApp === "terminal"
+          ? "Apple Terminal"
+          : settings.terminalApp === "ghostty"
+            ? "Ghostty"
+            : "cmux"
+      }`;
+      const detail = document.createElement("p");
+      detail.textContent =
+        "This command runs in a separate native terminal window using that terminal app's renderer.";
+      const launch = document.createElement("button");
+      launch.type = "button";
+      launch.textContent = "Open terminal";
+      launch.addEventListener("click", () => {
+        launch.disabled = true;
+        void invoke("launch_external_terminal", {
+          appName: settings.terminalApp,
+          command: entry.run,
+          cwd: deps.getWorkingDir(),
+        })
+          .catch((error) => {
+            const message = document.createElement("p");
+            message.className = "ai-terminal-launch-error";
+            message.textContent =
+              error instanceof Error ? error.message : String(error);
+            host.appendChild(message);
+          })
+          .finally(() => {
+            launch.disabled = false;
+          });
+      });
+      host.append(title, detail, launch);
+    } else if (entry) {
       const { createTerminalView } = await import("./terminal");
       if (activeTab !== "terminal" || version !== renderVersion) return;
       terminalView = createTerminalView(host, entry.run, {
         fontFamily: settings.terminalFont,
         fontSize: settings.terminalFontSize,
+        onExit: () => {
+          restart.hidden = false;
+          restart.textContent = "Restart exited process";
+        },
       });
     } else {
       host.textContent =
@@ -515,6 +658,7 @@ export function createAIPanel(
   return {
     render,
     resize: () => terminalView?.resize(),
+    refreshTheme: () => terminalView?.setTheme(),
     addAttachments: (paths) => {
       if (activeTab !== "chat") {
         activeTab = "chat";

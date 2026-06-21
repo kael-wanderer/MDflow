@@ -51,4 +51,17 @@ describe("applyMarkdownFormat", () => {
   it("inserts a horizontal rule on its own line", () => {
     expect(applyMarkdownFormat("before", 6, 6, "rule").text).toBe("before\n---");
   });
+
+  it("toggles task-list prefixes", () => {
+    const task = applyMarkdownFormat("one\ntwo", 0, 7, "task");
+    expect(task.text).toBe("- [ ] one\n- [ ] two");
+    expect(applyMarkdownFormat(task.text, task.anchor, task.head, "task").text)
+      .toBe("one\ntwo");
+  });
+
+  it("inserts a pipe table", () => {
+    const table = applyMarkdownFormat("", 0, 0, "table");
+    expect(table.text).toContain("| Column 1 | Column 2 | Column 3 |");
+    expect(table.text).toContain("| --- | --- | --- |");
+  });
 });

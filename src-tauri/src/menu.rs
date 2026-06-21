@@ -29,16 +29,14 @@ fn check_submenu<R: Runtime>(
     title: &str,
     items: &[CheckMenuItem<R>],
 ) -> tauri::Result<Submenu<R>> {
-    let refs: Vec<&dyn IsMenuItem<R>> =
-        items.iter().map(|i| i as &dyn IsMenuItem<R>).collect();
+    let refs: Vec<&dyn IsMenuItem<R>> = items.iter().map(|i| i as &dyn IsMenuItem<R>).collect();
     SubmenuBuilder::new(app, title).items(&refs).build()
 }
 
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let default_markdown =
         MenuItemBuilder::with_id("default.markdown", "As Markdown Editor").build(app)?;
-    let default_pdf =
-        MenuItemBuilder::with_id("default.pdf", "As PDF Reader").build(app)?;
+    let default_pdf = MenuItemBuilder::with_id("default.pdf", "As PDF Reader").build(app)?;
     let default_menu = SubmenuBuilder::new(app, "Set MDflow as Default")
         .items(&[&default_markdown, &default_pdf])
         .build()?;
@@ -83,17 +81,14 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let close = MenuItemBuilder::with_id("file.close", "Close Tab")
         .accelerator("CmdOrCtrl+W")
         .build(app)?;
-    let export_document_pdf =
-        MenuItemBuilder::with_id("export.document.pdf", "PDF…").build(app)?;
+    let export_document_pdf = MenuItemBuilder::with_id("export.document.pdf", "PDF…").build(app)?;
     let export_document_docx =
         MenuItemBuilder::with_id("export.document.docx", "Word (DOCX)…").build(app)?;
     let export_document = SubmenuBuilder::new(app, "Document")
         .items(&[&export_document_pdf, &export_document_docx])
         .build()?;
-    let export_image_png =
-        MenuItemBuilder::with_id("export.image.png", "PNG Image…").build(app)?;
-    let export_image_svg =
-        MenuItemBuilder::with_id("export.image.svg", "SVG Image…").build(app)?;
+    let export_image_png = MenuItemBuilder::with_id("export.image.png", "PNG Image…").build(app)?;
+    let export_image_svg = MenuItemBuilder::with_id("export.image.svg", "SVG Image…").build(app)?;
     let export_image = SubmenuBuilder::new(app, "Image")
         .items(&[&export_image_png, &export_image_svg])
         .build()?;
@@ -169,14 +164,17 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
     let mut size_items = Vec::new();
     for n in SIZE_OPTIONS {
-        size_items.push(CheckMenuItemBuilder::with_id(format!("view.size.{n}"), n.to_string()).build(app)?);
+        size_items.push(
+            CheckMenuItemBuilder::with_id(format!("view.size.{n}"), n.to_string()).build(app)?,
+        );
     }
     let size_menu = check_submenu(app, "Text Size", &size_items)?;
 
     let mut explorer_size_items = Vec::new();
     for n in SIZE_OPTIONS {
         explorer_size_items.push(
-            CheckMenuItemBuilder::with_id(format!("view.explorer_size.{n}"), n.to_string()).build(app)?,
+            CheckMenuItemBuilder::with_id(format!("view.explorer_size.{n}"), n.to_string())
+                .build(app)?,
         );
     }
     let explorer_size_menu = check_submenu(app, "Explorer Text Size", &explorer_size_items)?;
@@ -212,8 +210,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let fullscreen = MenuItemBuilder::with_id("window.fullscreen", "Enter Full Screen")
         .accelerator("Ctrl+Cmd+F")
         .build(app)?;
-    let left_half =
-        MenuItemBuilder::with_id("window.left_half", "Move to Left Half").build(app)?;
+    let left_half = MenuItemBuilder::with_id("window.left_half", "Move to Left Half").build(app)?;
     let right_half =
         MenuItemBuilder::with_id("window.right_half", "Move to Right Half").build(app)?;
     let window_menu = SubmenuBuilder::new(app, "Window")
@@ -227,10 +224,14 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let help = MenuItemBuilder::with_id("help.guide", "MDflow Help").build(app)?;
     let check_updates =
         MenuItemBuilder::with_id("help.check_updates", "Check for Updates…").build(app)?;
+    let automatic_updates =
+        CheckMenuItemBuilder::with_id("help.automatic_updates", "Automatically Check for Updates")
+            .build(app)?;
     let help_menu = SubmenuBuilder::new(app, "Help")
         .item(&help)
         .separator()
         .item(&check_updates)
+        .item(&automatic_updates)
         .build()?;
 
     MenuBuilder::new(app)

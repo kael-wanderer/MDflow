@@ -1,7 +1,11 @@
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
-use std::sync::OnceLock;
-use tauri::Emitter;
+use std::sync::{Mutex, OnceLock};
+use tauri::{Emitter, Manager};
+
+#[derive(Default)]
+pub struct AIState(Mutex<HashMap<String, u32>>);
 
 /// GUI apps on macOS launch with a minimal PATH that omits Homebrew, npm, and
 /// other user bin dirs, so `Command::new("pi")` fails with "No such file or
@@ -77,6 +81,11 @@ pub fn ai_run(
         );
         message
     })?;
+    app.state::<AIState>()
+        .0
+        .lock()
+        .map_err(|_| "AI state lock poisoned".to_string())?
+        .insert(request_id.clone(), child.id());
     let stdout = child.stdout.take().ok_or("Command stdout unavailable")?;
     let stderr = child.stderr.take().ok_or("Command stderr unavailable")?;
     let stream_app = app.clone();
@@ -105,7 +114,7 @@ pub fn ai_run(
                 let _ = stream_app.emit(
                     "ai-done",
                     Done {
-                        request_id: stream_id,
+                        request_id: stream_id.clone(),
                     },
                 );
             }
@@ -119,25 +128,63 @@ pub fn ai_run(
                 let _ = stream_app.emit(
                     "ai-error",
                     ErrorMsg {
-                        request_id: stream_id,
+                        request_id: stream_id.clone(),
                         message,
                     },
                 );
+                if let Ok(mut requests) = stream_app.state::<AIState>().0.lock() {
+                    requests.remove(&stream_id);
+                }
                 return;
             }
             Err(error) => {
                 let _ = stream_app.emit(
                     "ai-error",
                     ErrorMsg {
-                        request_id: stream_id,
+                        request_id: stream_id.clone(),
                         message: error.to_string(),
                     },
                 );
+                if let Ok(mut requests) = stream_app.state::<AIState>().0.lock() {
+                    requests.remove(&stream_id);
+                }
                 return;
             }
         }
 
         let _ = stderr_thread.join();
+        if let Ok(mut requests) = stream_app.state::<AIState>().0.lock() {
+            requests.remove(&stream_id);
+        }
     });
     Ok(())
+}
+
+#[tauri::command]
+pub fn ai_cancel(app: tauri::AppHandle, request_id: String) -> Result<(), String> {
+    let pid = app
+        .state::<AIState>()
+        .0
+        .lock()
+        .map_err(|_| "AI state lock poisoned".to_string())?
+        .remove(&request_id);
+    let Some(pid) = pid else {
+        return Ok(());
+    };
+    #[cfg(target_family = "unix")]
+    let status = Command::new("kill")
+        .args(["-TERM", &pid.to_string()])
+        .status();
+    #[cfg(target_family = "windows")]
+    let status = Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .status();
+    status
+        .map_err(|error| error.to_string())
+        .and_then(|result| {
+            result
+                .success()
+                .then_some(())
+                .ok_or("Failed to stop AI process".into())
+        })
 }

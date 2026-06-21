@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildMessages } from "../ai/conversation";
+import { chatContentText } from "../ai/providers";
 
 describe("buildMessages", () => {
   it("injects the document and the prompt", () => {
@@ -11,7 +12,7 @@ describe("buildMessages", () => {
       editMode: false,
     });
     expect(output[0].role).toBe("system");
-    expect(output.some((message) => message.content.includes("# Hi"))).toBe(
+    expect(output.some((message) => chatContentText(message.content).includes("# Hi"))).toBe(
       true,
     );
     expect(output[output.length - 1]).toEqual({
@@ -29,10 +30,10 @@ describe("buildMessages", () => {
       editMode: false,
     });
     expect(
-      output.find((message) => message.content.includes("just this")),
+      output.find((message) => chatContentText(message.content).includes("just this")),
     ).toBeTruthy();
     expect(
-      output.some((message) => message.content.includes("full doc")),
+      output.some((message) => chatContentText(message.content).includes("full doc")),
     ).toBe(false);
   });
 
@@ -44,7 +45,7 @@ describe("buildMessages", () => {
       selection: "",
       editMode: true,
     });
-    expect(output[0].content.toLowerCase()).toContain("return only");
+    expect(chatContentText(output[0].content).toLowerCase()).toContain("return only");
   });
 
   it("keeps prior history", () => {
@@ -56,7 +57,7 @@ describe("buildMessages", () => {
       selection: "",
       editMode: false,
     });
-    expect(output.some((message) => message.content === "earlier")).toBe(
+    expect(output.some((message) => chatContentText(message.content) === "earlier")).toBe(
       true,
     );
   });
@@ -68,13 +69,13 @@ describe("buildMessages", () => {
       docText: "",
       selection: "",
       editMode: false,
-      files: [{ name: "notes.txt", content: "hello world" }],
+      files: [{ kind: "text", name: "notes.txt", content: "hello world" }],
     });
     const fileMsg = output.find((m) =>
-      m.content.includes('Attached file "notes.txt"'),
+      chatContentText(m.content).includes('Attached file "notes.txt"'),
     );
     expect(fileMsg?.role).toBe("system");
-    expect(fileMsg?.content).toContain("hello world");
+    expect(chatContentText(fileMsg?.content ?? "")).toContain("hello world");
     expect(output[output.length - 1]).toEqual({
       role: "user",
       content: "summarize",
@@ -89,6 +90,30 @@ describe("buildMessages", () => {
       selection: "",
       editMode: false,
     });
-    expect(output.some((m) => m.content.includes("Attached file"))).toBe(false);
+    expect(output.some((m) => chatContentText(m.content).includes("Attached file"))).toBe(false);
+  });
+
+  it("adds image attachments as multimodal user content", () => {
+    const output = buildMessages({
+      history: [],
+      prompt: "describe",
+      docText: "",
+      selection: "",
+      editMode: false,
+      files: [
+        {
+          kind: "image",
+          name: "screen.png",
+          dataUrl: "data:image/png;base64,AA==",
+        },
+      ],
+    });
+    expect(output[output.length - 1]?.content).toEqual([
+      { type: "text", text: "describe" },
+      {
+        type: "image_url",
+        image_url: { url: "data:image/png;base64,AA==" },
+      },
+    ]);
   });
 });

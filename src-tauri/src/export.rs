@@ -2,10 +2,14 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-const PANDOC_MISSING: &str =
-    "Pandoc is required for export. Install it with: brew install pandoc";
-const TYPST_MISSING: &str =
-    "Typst is required for PDF export. Install it with: brew install typst";
+#[derive(serde::Serialize)]
+pub struct ExportTools {
+    pandoc: bool,
+    typst: bool,
+}
+
+const PANDOC_MISSING: &str = "Pandoc is required for export. Install it with: brew install pandoc";
+const TYPST_MISSING: &str = "Typst is required for PDF export. Install it with: brew install typst";
 const MD_FORMAT: &str = "markdown+task_lists+pipe_tables+grid_tables+multiline_tables+simple_tables+strikeout+footnotes";
 
 fn find_bin(name: &str, known_paths: &[&str]) -> Option<PathBuf> {
@@ -39,11 +43,15 @@ fn find_typst() -> Option<PathBuf> {
     )
 }
 
-fn run_pandoc(
-    pandoc: &PathBuf,
-    markdown: &str,
-    args: &[String],
-) -> Result<(), String> {
+#[tauri::command]
+pub fn export_tools() -> ExportTools {
+    ExportTools {
+        pandoc: find_pandoc().is_some(),
+        typst: find_typst().is_some(),
+    }
+}
+
+fn run_pandoc(pandoc: &PathBuf, markdown: &str, args: &[String]) -> Result<(), String> {
     // Launched from a macOS .app the working directory is "/", which is
     // read-only; pandoc and the typst PDF engine create temp files in the CWD,
     // so run them from a writable temp directory.
@@ -94,12 +102,7 @@ pub fn export_pdf(markdown: String, out: String) -> Result<(), String> {
 #[tauri::command]
 pub fn export_docx(markdown: String, out: String) -> Result<(), String> {
     let pandoc = find_pandoc().ok_or(PANDOC_MISSING)?;
-    let args = vec![
-        "--from".into(),
-        MD_FORMAT.into(),
-        "-o".into(),
-        out,
-    ];
+    let args = vec!["--from".into(), MD_FORMAT.into(), "-o".into(), out];
     run_pandoc(&pandoc, &markdown, &args)
 }
 

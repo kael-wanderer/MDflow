@@ -6,12 +6,39 @@ All notable changes to MDflow are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Stage 7: PDF page-text search and page navigation; advanced folder-search toggles,
+  highlighted snippets, and per-file counts.
+- `⌘F` now searches directly inside Markdown Reading mode and text-based PDFs, with
+  highlighted matches and next/previous navigation.
+- HTTP-model vision attachments, cancellable streaming replies, and per-window chat
+  history persistence.
+- Live terminal theme updates and a restart action after terminal process exit.
+- Terminal programs can now launch in Embedded mode, Apple Terminal, Ghostty, or
+  cmux; Pi is included in the built-in interactive program list.
+- Clarified terminal terminology: **Agent command** identifies what runs, while
+  **Terminal app** identifies where it runs; the AI tab is now **Agent Console**.
+- Increased the Agent Console resize ceiling from 560px to a responsive maximum of
+  80% of the MDflow window, while preserving minimum document space.
+- Markdown table/task-list toolbar actions, command-palette heading navigation, Open
+  Recent files/folders, and export dependency preflight guidance.
+
+### Changed
+
+- GitHub Actions now use Node 24-native majors (`checkout@v6`, `setup-node@v6`,
+  `upload-artifact@v7`, and `download-artifact@v8`) so release runs no longer emit
+  Node 20 action-runtime deprecation warnings.
+- Help now includes a checked **Automatically Check for Updates** item synchronized
+  with Gear → General → Updates.
+
 ## [0.2.2] — 2026-06-21
 
 ### Changed
 
-- CI: release workflow actions bumped to v5 (Node 24), clearing the Node 20
-  deprecation warning.
+- CI: release workflow actions received their preliminary v5 compatibility update.
+  The action runtime warning is fully resolved by the Node 24-native majors listed
+  under Unreleased.
 
 ## [0.2.1] — 2026-06-21
 

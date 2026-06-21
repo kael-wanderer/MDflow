@@ -31,6 +31,7 @@ export type SettingsPanelDeps = {
 export type SettingsPanel = {
   open: (x: number, y: number) => void;
   openKeys: () => void;
+  refresh: () => void;
   close: () => void;
 };
 
@@ -683,6 +684,51 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   function renderTerminalEditor(content: HTMLElement): void {
     const settings = deps.getAISettings();
 
+    renderSubhead(content, "Terminal app");
+    content.appendChild(
+      renderChoiceList([
+        {
+          label: "Embedded in MDflow",
+          selected: settings.terminalApp === "embedded",
+          run: () =>
+            updateAI((next) => {
+              next.terminalApp = "embedded";
+            }),
+        },
+        {
+          label: "Apple Terminal",
+          selected: settings.terminalApp === "terminal",
+          run: () =>
+            updateAI((next) => {
+              next.terminalApp = "terminal";
+            }),
+        },
+        {
+          label: "Ghostty",
+          selected: settings.terminalApp === "ghostty",
+          run: () =>
+            updateAI((next) => {
+              next.terminalApp = "ghostty";
+            }),
+        },
+        {
+          label: "cmux",
+          selected: settings.terminalApp === "cmux",
+          run: () =>
+            updateAI((next) => {
+              next.terminalApp = "cmux";
+            }),
+        },
+      ]),
+    );
+    const appHelp = document.createElement("p");
+    appHelp.className = "settings-help";
+    appHelp.textContent =
+      settings.terminalApp === "embedded"
+        ? "Runs inside MDflow. Font and size settings below apply to this mode."
+        : "Agent Console will offer a button that launches the selected command in this terminal app.";
+    content.appendChild(appHelp);
+
     renderSubhead(content, "Font");
     content.appendChild(
       renderChoiceList(
@@ -724,7 +770,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       ),
     );
 
-    renderSubhead(content, "Programs");
+    renderSubhead(content, "Agent commands");
     const list = document.createElement("div");
     list.className = "agent-list";
     for (const terminal of settings.terminals) {
@@ -807,7 +853,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     if (!settings.terminals.length) {
       const empty = document.createElement("p");
       empty.className = "settings-empty";
-      empty.textContent = "No terminals configured.";
+      empty.textContent = "No agent commands configured.";
       list.appendChild(empty);
     }
     content.appendChild(list);
@@ -817,7 +863,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     form.innerHTML = `
       <label>Name<input name="label" placeholder="Shell" required /></label>
       <label>Command<input name="run" placeholder="zsh" required /></label>
-      <button type="submit">Add terminal</button>`;
+      <button type="submit">Add command</button>`;
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = new FormData(form);
@@ -837,7 +883,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     const groups: Array<[AgentGroup, string]> = [
       ["command", "CLI Agents"],
       ["model", "Models"],
-      ["terminal", "Terminals"],
+      ["terminal", "Agent Console"],
     ];
     const row = document.createElement("div");
     row.className = "settings-segment agent-segment";
@@ -859,7 +905,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       activeAgentGroup === "command"
         ? "Installed agent CLIs (Claude Code, Codex, OpenCode, Pi). The agent chooses its own model and uses its own login."
         : activeAgentGroup === "terminal"
-          ? "Programs launched in the Terminal tab. Use a shell (e.g. zsh) for a plain terminal, or an agent CLI for an interactive session."
+          ? "Interactive commands launched in your selected terminal app. Examples: claude, codex, pi, zsh, or custom aliases such as codex-skip."
           : "OpenAI-compatible endpoints — local servers (Ollama, LM Studio) or hosted APIs. Keys are stored in your macOS Keychain.";
     content.appendChild(help);
     if (activeAgentGroup === "terminal") {
@@ -996,6 +1042,9 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     openKeys: () => {
       activeTab = "keys";
       openAt(window.innerWidth / 2 - 220, window.innerHeight / 2 + 240);
+    },
+    refresh: () => {
+      if (!panel.classList.contains("hidden")) render();
     },
     close,
   };

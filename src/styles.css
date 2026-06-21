@@ -102,7 +102,7 @@ body {
   font-size: 10px;
 }
 
-.window-panes { display: flex; flex: 1; min-height: 0; }
+.window-panes { position: relative; display: flex; flex: 1; min-height: 0; }
 .window .pane { min-width: 0; min-height: 0; overflow: auto; }
 .window .pane-editor {
   display: flex;
@@ -112,6 +112,73 @@ body {
   background: var(--bg-editor);
 }
 .window .pane-preview { background: var(--bg-preview); flex: 1; }
+
+.preview-find {
+  position: absolute;
+  z-index: 20;
+  top: 8px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+}
+
+.preview-find.hidden {
+  display: none;
+}
+
+.preview-find input {
+  width: 190px;
+  padding: 4px 6px;
+  color: var(--text);
+  font: 12px var(--font-ui);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+}
+
+.preview-find input:focus {
+  border-color: var(--accent);
+}
+
+.preview-find-status {
+  min-width: 38px;
+  color: var(--muted);
+  font: 11px var(--font-ui);
+  text-align: center;
+}
+
+.preview-find button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.preview-find button:hover {
+  color: var(--text);
+  background: var(--selection);
+}
+
+mark.preview-find-match {
+  color: inherit;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 2px;
+}
+
+mark.preview-find-match.active {
+  background: color-mix(in srgb, var(--accent) 70%, white 10%);
+  outline: 1px solid var(--accent);
+}
 
 .editor-surface {
   flex: 1;
@@ -933,17 +1000,39 @@ body.search-active #search-panel {
 }
 
 .search-input-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
   padding: 4px 8px 8px;
 }
 
 .search-input {
-  width: 100%;
+  min-width: 0;
+  flex: 1;
   padding: 6px 8px;
   color: var(--text);
   font: inherit;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+.search-option {
+  flex: 0 0 auto;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  color: var(--muted);
+  font: 11px/1 var(--font-ui);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.search-option:hover,
+.search-option.active {
+  color: var(--text);
+  background: var(--selection);
 }
 
 .search-input:focus {
@@ -1005,6 +1094,80 @@ body.search-active #search-panel {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.search-snippet mark {
+  color: inherit;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 2px;
+}
+
+.pdf-page-wrap {
+  position: relative;
+  scroll-margin-top: 16px;
+}
+
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  transform-origin: 0 0;
+  pointer-events: auto;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.pdf-text-layer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  user-select: text;
+}
+
+.pdf-text-layer > :not(.markedContent),
+.pdf-text-layer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform:
+    rotate(var(--rotate))
+    scaleX(var(--scale-x))
+    scale(var(--min-font-size-inv));
+}
+
+.pdf-text-layer .markedContent {
+  display: contents;
+}
+
+.pdf-text-layer .pdf-text-match {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 2px;
+}
+
+.pdf-page-wrap.pdf-find-page {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.pdf-page-wrap.pdf-find-page.active {
+  outline-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--selection);
+}
+
+.pdf-find-count {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 7px;
+  color: var(--text);
+  font: 11px var(--font-ui);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
 .explorer-title {
@@ -1453,6 +1616,10 @@ body.no-folder .explorer-empty {
   cursor: default;
 }
 
+.ai-send.cancel {
+  color: var(--danger, #e06c75);
+}
+
 .ai-control-row {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: end;
@@ -1592,6 +1759,35 @@ body.no-folder .explorer-empty {
   flex: 1;
   min-height: 0;
   padding: 6px;
+}
+
+.ai-terminal-external {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 10px;
+  padding: 24px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.ai-terminal-external p {
+  max-width: 42ch;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.ai-terminal-external button {
+  padding: 7px 12px;
+  color: var(--bg);
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+}
+
+.ai-terminal-external .ai-terminal-launch-error {
+  color: var(--danger, #e06c75);
 }
 
 .mermaid-rendered {

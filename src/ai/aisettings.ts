@@ -22,6 +22,8 @@ export type TerminalEntry = {
   run: string;
 };
 
+export type TerminalApp = "embedded" | "terminal" | "ghostty" | "cmux";
+
 export type AISettings = {
   providers: Provider[];
   terminals: TerminalEntry[];
@@ -30,6 +32,7 @@ export type AISettings = {
   permissionMode: PermissionMode;
   terminalFont: string;
   terminalFontSize: number;
+  terminalApp: TerminalApp;
 };
 
 export type PermissionMode = "ask" | "bypass";
@@ -98,6 +101,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
     { id: "claude-term", label: "Claude Code", run: "claude" },
     { id: "codex-term", label: "Codex", run: "codex" },
     { id: "opencode-term", label: "OpenCode", run: "opencode" },
+    { id: "pi-term", label: "Pi", run: "pi" },
     { id: "shell-term", label: "Shell", run: "zsh" },
   ],
   defaultProvider: "ollama",
@@ -105,6 +109,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
   permissionMode: "ask",
   terminalFont: "",
   terminalFontSize: 13,
+  terminalApp: "embedded",
 };
 
 export const DEFAULT_AI_SETTINGS_JSON = JSON.stringify(
@@ -191,6 +196,9 @@ export function parseAISettings(raw: string): AISettings {
   const terminals = parsedTerminals.length
     ? parsedTerminals
     : DEFAULT_AI_SETTINGS.terminals;
+  if (!terminals.some((terminal) => terminal.id === "pi-term")) {
+    terminals.push({ id: "pi-term", label: "Pi", run: "pi" });
+  }
   const requestedProvider = stringValue(data.defaultProvider);
   const requestedTerminal = stringValue(data.defaultTerminal);
   const permissionMode: PermissionMode =
@@ -199,6 +207,14 @@ export function parseAISettings(raw: string): AISettings {
   const terminalFontSize = Number.isFinite(rawSize)
     ? Math.min(32, Math.max(8, Math.round(rawSize)))
     : DEFAULT_AI_SETTINGS.terminalFontSize;
+  const terminalApp: TerminalApp = [
+    "embedded",
+    "terminal",
+    "ghostty",
+    "cmux",
+  ].includes(String(data.terminalApp))
+    ? (data.terminalApp as TerminalApp)
+    : "embedded";
 
   return {
     providers,
@@ -216,6 +232,7 @@ export function parseAISettings(raw: string): AISettings {
     permissionMode,
     terminalFont: stringValue(data.terminalFont),
     terminalFontSize,
+    terminalApp,
   };
 }
 

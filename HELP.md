@@ -57,11 +57,14 @@ dirty-close confirmation, tabs, and session workflows still apply.
 
 ## Search
 
-- **Find in the current document:** `⌘F` opens the editor's find/replace bar.
+- **Find in the current document:** `⌘F` opens the editor find bar, or a Reading-view
+  find bar when viewing rendered Markdown or a text-based PDF. Enter/Shift+Enter
+  moves forward/backward through highlighted matches.
 - **Find in Folder:** `⌘⇧F` (or the activity-bar Search button) searches the contents
   of every text file in the open folder, plus the text inside `.mind` and
-  `.excalidraw` drawings. Results are grouped by file — click one to open it at the
-  matching line. (PDF text is not searched yet.)
+  `.excalidraw` drawings and PDFs. Use the Aa, whole-word, and `.*` controls for
+  case-sensitive, whole-word, or regular-expression matching. Results show highlighted
+  snippets and counts per file; PDF hits open at the matching page.
 
 ## AI assistant
 
@@ -72,11 +75,16 @@ Toggle the right-side panel with the activity-bar agent button. It has two tabs:
   inserts a newline. Replies stream in, with Copy, Insert-at-cursor, and Apply-as-diff
   actions. Attach files with the 📎 button, by dragging files onto the panel, or by
   typing `@` to mention a file from the open folder. CLI agents read attached files
-  themselves and run in the open folder; other (HTTP) models receive text-file
-  contents inline.
-- **Terminal** — an embedded terminal running a configured program (an agent CLI, or a
-  plain shell). Switch programs with the picker; set the terminal font/size and manage
-  entries under **Gear → Agent → Terminals**.
+  themselves and run in the open folder; HTTP models receive text inline and common
+  image formats as vision inputs. Click **Cancel** to stop a streaming reply. Chat
+  history persists independently in each native window.
+- **Agent Console** — choose an **Agent command** such as Claude Code, Codex, Pi,
+  Shell, or a custom alias, then choose the **Terminal app** that runs it: Embedded,
+  Apple Terminal, Ghostty, or cmux. Manage commands and the default terminal app under
+  **Gear → Agent → Agent Console**. Embedded font/size and live theme settings apply
+  only to the embedded renderer.
+  Drag the divider to resize the panel. With Explorer hidden, Agent Console can use
+  up to 80% of the MDflow window while retaining a narrow document workspace.
 
 Agents, models, and terminals are configured in `agent.json` (open it from
 **Gear → Open agent.json**). API keys are stored in the macOS Keychain.
@@ -111,8 +119,9 @@ also shows the file type, cursor line/column, and word count where applicable.
 
 ## Updates
 
-Choose **Help → Check for Updates…** for a manual check. Gear → Update can enable
-automatic checks at most once per 24 hours. MDflow always asks before installation.
+Choose **Help → Check for Updates…** for a manual check. Enable automatic checks
+from Gear → General → Updates or **Help → Automatically Check for Updates**.
+MDflow checks at most once per 24 hours and always asks before installation.
 
 ## Export
 
@@ -121,5 +130,8 @@ Export options depend on the active document. Rendered PDF/DOCX export requires:
 ```bash
 brew install pandoc typst
 ```
+
+MDflow checks these tools before asking where to save and shows the missing install
+command when setup is incomplete.
 
 This help document is itself Markdown and opens as a normal MDflow tab.
