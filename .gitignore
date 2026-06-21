@@ -31,4 +31,8 @@ task_plan.md
 
 # Personal planning docs and design assets (kept out of the repo)
 docs/
-images/
+images/*
+# ...except the icons bundled into the app at build time
+!images/agent.png
+!images/excalidraw.png
+!images/mindmap.png
