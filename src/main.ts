@@ -69,6 +69,7 @@ import {
   resolveAccelerator,
 } from "./keymap";
 import { createSettingsPanel } from "./settingspanel";
+import { createSearchPanel } from "./search";
 import { checkForUpdates, startDailyUpdateChecks } from "./updater";
 import { freshState, loadState, saveState, type ViewMode } from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
@@ -1436,13 +1437,66 @@ async function runNativeExport(format: ExportFormat): Promise<void> {
   runExportFormat(format);
 }
 
+const searchPanel = createSearchPanel(document.getElementById("search-panel")!, {
+  getFolder: () => getState().folder,
+  onOpenHit: (path, line) => {
+    void doOpenPath(path).then(() => {
+      const tab = activeMeta();
+      const name = tab?.path ?? tab?.name ?? "";
+      if (
+        tab &&
+        !isPdfFile(name) &&
+        !isExcalidrawFile(name) &&
+        !isMindmapFile(name)
+      ) {
+        activeView().editor.gotoLine(line);
+      }
+    });
+  },
+});
+
+function setSearchActive(on: boolean): void {
+  document.body.classList.toggle("search-active", on);
+  const button = document.getElementById("ab-search")!;
+  button.classList.toggle("active", on);
+  button.setAttribute("aria-pressed", String(on));
+  if (on && !getState().explorerVisible) {
+    setState({ explorerVisible: true });
+    document.body.classList.remove("explorer-hidden");
+    const explorer = document.getElementById("ab-explorer")!;
+    explorer.classList.add("active");
+    explorer.setAttribute("aria-pressed", "true");
+  }
+  requestWindowMeasure();
+  if (on) {
+    searchPanel.focus();
+    searchPanel.refresh();
+  }
+}
+
+function toggleSearch(): void {
+  setSearchActive(!document.body.classList.contains("search-active"));
+}
+
 initActivityBar(
   requestWindowMeasure,
-  () => palette.open(),
+  toggleSearch,
   (x, y) => settingsPanel.open(x, y),
   toggleAI,
   openExportMenu,
   newBoard,
+);
+
+// Clicking Explorer while search is open should just return to the tree.
+document.getElementById("ab-explorer")!.addEventListener(
+  "click",
+  (event) => {
+    if (document.body.classList.contains("search-active")) {
+      event.stopImmediatePropagation();
+      setSearchActive(false);
+    }
+  },
+  true,
 );
 initResize((explorerWidth) => setState({ explorerWidth }));
 const aiResize = document.getElementById("ai-resize")!;
@@ -1616,6 +1670,7 @@ listen<string>("menu", (event) => {
 // JS-only / fallback handlers, all keyed off the resolved keymap so rebinding works.
 const appKeyActions: Record<string, () => void> = {
   "palette.open": () => palette.open(),
+  "search.find_in_files": () => toggleSearch(),
   "file.close": () => {
     const w = activeWindow();
     if (w.activeTabId) void closeTab(w.id, w.activeTabId);

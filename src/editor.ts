@@ -6,6 +6,11 @@ import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
+import {
+  highlightSelectionMatches,
+  search,
+  searchKeymap,
+} from "@codemirror/search";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
   drawSelection,
@@ -50,6 +55,7 @@ export type EditorHandle = {
   setSoftWrapMode(mode: SoftWrapMode, column: number): void;
   setLineNumbers(on: boolean): void;
   requestMeasure(): void;
+  gotoLine(line: number): void;
   focus(): void;
 };
 
@@ -187,7 +193,9 @@ export function createEditor(
     history(),
     drawSelection(),
     highlightActiveLine(),
-    keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+    keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+    search({ top: true }),
+    highlightSelectionMatches(),
     language.of(languageExtension(kind)),
     syntaxHighlighting(editorHighlight, { fallback: true }),
     wrap.of(wrapExtension()),
@@ -310,6 +318,16 @@ export function createEditor(
     },
     requestMeasure() {
       view.requestMeasure();
+    },
+    gotoLine(line) {
+      const clamped = Math.min(Math.max(line, 1), view.state.doc.lines);
+      const info = view.state.doc.line(clamped);
+      view.dispatch({
+        selection: { anchor: info.from },
+        effects: EditorView.scrollIntoView(info.from, { y: "center" }),
+        scrollIntoView: true,
+      });
+      view.focus();
     },
     focus() {
       view.focus();

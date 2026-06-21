@@ -32,6 +32,7 @@ export const KEYMAP_COMMANDS: KeymapCommand[] = [
   { id: "window.left_half", label: "Move to Left Half", category: "Window", default: "", scope: "menu" },
   { id: "window.right_half", label: "Move to Right Half", category: "Window", default: "", scope: "menu" },
   { id: "palette.open", label: "Command Palette", category: "App", default: "CmdOrCtrl+K", scope: "app" },
+  { id: "search.find_in_files", label: "Find in Folder", category: "App", default: "CmdOrCtrl+Shift+F", scope: "app" },
   { id: "ai.send", label: "Send AI Message", category: "App", default: "Enter", scope: "app" },
 ];
 

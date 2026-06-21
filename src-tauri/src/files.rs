@@ -84,6 +84,99 @@ pub fn list_files_recursive(folder: String) -> Vec<String> {
     out
 }
 
+#[derive(Serialize)]
+pub struct SearchHit {
+    pub path: String,
+    pub relative: String,
+    pub line: u32,
+    pub snippet: String,
+}
+
+const SEARCH_HIT_CAP: usize = 500;
+const SEARCH_FILE_BYTES: u64 = 2_000_000;
+
+fn collect_json_text(value: &serde_json::Value, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, child) in map {
+                if (key == "topic" || key == "text") && child.is_string() {
+                    if let Some(text) = child.as_str() {
+                        if !text.trim().is_empty() {
+                            out.push(text.to_string());
+                        }
+                    }
+                }
+                collect_json_text(child, out);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for child in items {
+                collect_json_text(child, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Searchable text for a file. Drawings (.mind/.excalidraw) yield only their
+/// node/element text; other files are read as UTF-8 (binaries fail and are skipped).
+fn searchable_text(path: &Path) -> Option<String> {
+    let ext = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    if ext == "mind" || ext == "excalidraw" {
+        let raw = fs::read_to_string(path).ok()?;
+        let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+        let mut texts = Vec::new();
+        collect_json_text(&value, &mut texts);
+        return Some(texts.join("\n"));
+    }
+    fs::read_to_string(path).ok()
+}
+
+#[tauri::command]
+pub fn search_in_folder(folder: String, query: String) -> Vec<SearchHit> {
+    let needle = query.trim().to_lowercase();
+    let mut hits = Vec::new();
+    if needle.is_empty() {
+        return hits;
+    }
+    let root = Path::new(&folder);
+    let mut files = Vec::new();
+    walk_files(root, root, &mut files);
+    for relative in files {
+        if hits.len() >= SEARCH_HIT_CAP {
+            break;
+        }
+        let path = root.join(&relative);
+        if fs::metadata(&path)
+            .map(|meta| meta.len() > SEARCH_FILE_BYTES)
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let Some(text) = searchable_text(&path) else {
+            continue;
+        };
+        for (index, line) in text.lines().enumerate() {
+            if hits.len() >= SEARCH_HIT_CAP {
+                break;
+            }
+            if line.to_lowercase().contains(&needle) {
+                hits.push(SearchHit {
+                    path: path.to_string_lossy().into_owned(),
+                    relative: relative.clone(),
+                    line: (index + 1) as u32,
+                    snippet: line.trim().chars().take(200).collect(),
+                });
+            }
+        }
+    }
+    hits
+}
+
 #[tauri::command]
 pub fn get_settings(
     app: tauri::AppHandle,

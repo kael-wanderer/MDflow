@@ -69,6 +69,20 @@ export function listFilesRecursive(folder: string): Promise<string[]> {
   return invoke<string[]>("list_files_recursive", { folder });
 }
 
+export type SearchHit = {
+  path: string;
+  relative: string;
+  line: number;
+  snippet: string;
+};
+
+export function searchInFolder(
+  folder: string,
+  query: string,
+): Promise<SearchHit[]> {
+  return invoke<SearchHit[]>("search_in_folder", { folder, query });
+}
+
 type RawSettingsFile = {
   path: string;
   contents: string;

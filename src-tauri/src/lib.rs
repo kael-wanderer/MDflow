@@ -189,6 +189,7 @@ pub fn run() {
             files::duplicate_path,
             files::copy_into_folder,
             files::list_files_recursive,
+            files::search_in_folder,
             files::get_settings,
             files::get_ai_settings,
             pty::pty_open,
