@@ -10,15 +10,19 @@ export function createTerminalView(
   options: { fontFamily?: string; fontSize?: number } = {},
 ): { resize: () => void; destroy: () => void } {
   const id = `pty-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  // xterm renders to canvas, so a CSS var won't resolve — use a real font string.
-  const monoFallback =
-    getComputedStyle(document.documentElement)
-      .getPropertyValue("--font-mono")
-      .trim() || "monospace";
+  // xterm renders to canvas, so CSS vars won't resolve — read computed values.
+  const css = getComputedStyle(document.documentElement);
+  const value = (name: string, fallback: string): string =>
+    css.getPropertyValue(name).trim() || fallback;
   const terminal = new Terminal({
-    fontFamily: options.fontFamily?.trim() || monoFallback,
+    fontFamily: options.fontFamily?.trim() || value("--font-mono", "monospace"),
     fontSize: options.fontSize && options.fontSize > 0 ? options.fontSize : 13,
-    theme: { background: "#00000000" },
+    theme: {
+      background: "#00000000",
+      foreground: value("--text", "#ddd"),
+      cursor: value("--accent", "#7aa2f7"),
+      selectionBackground: value("--selection", "rgba(120,120,160,0.35)"),
+    },
   });
   const fit = new FitAddon();
   const unlisteners: UnlistenFn[] = [];

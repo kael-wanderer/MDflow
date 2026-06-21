@@ -24,8 +24,13 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
 - **Tabs** — multi-document tabs with dirty markers, pinning, and right-click actions
   (split, move between windows, close variants, copy paths).
 - **Command palette** — `⌘K` to fuzzy-find files or run commands.
-- **Finder drag/drop** — open files by dropping onto a document pane, or copy them
-  into Explorer folders/file locations with destination feedback.
+- **Search** — in-editor find (`⌘F`) and **Find in Folder** (`⌘⇧F`): content search
+  across text files plus the text inside `.mind` / `.excalidraw` drawings, with
+  results grouped by file (click to open at the line).
+- **Customizable keyboard shortcuts** — the **Keys** settings tab (or **View →
+  Keyboard Shortcuts**) lists every command; rebind, reset, or restore defaults.
+- **Finder drag/drop** — open files by dropping onto a document pane, copy them
+  into Explorer folders/file locations, or drop onto the AI panel to attach them.
 - **Compare** — select two files and view a side-by-side diff.
 - **Rich preview** — [mermaid](https://mermaid.js.org) diagrams, [KaTeX](https://katex.org)
   math (`$…$`, `$$…$$`), and raw HTML.
@@ -37,8 +42,10 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
   pill / circle), fill & text color, font size, and bold. Styling is saved in the
   `.mind` file.
 - **AI panel** — a right-side assistant with a **Chat** tab (provider + permission-mode
-  selectors, document/selection context, streamed replies, copy / insert-at-cursor /
-  apply-as-diff) and a **Terminal** tab (an embedded terminal running an agent CLI).
+  selectors, document/selection context, file attachments via 📎 / drag-drop /
+  `@`-mention, streamed replies, copy / insert-at-cursor / apply-as-diff) and a
+  **Terminal** tab (an embedded terminal running an agent CLI, with a live picker and
+  configurable font/size).
 - **Settings** — an in-app panel (Theme, Font, Size, Session, Update, Agent) plus raw
   `settings.json` / `agent.json` for advanced edits.
 - **Updates** — manual checks from Help and optional once-daily automatic checks;
@@ -115,8 +122,10 @@ src/
   windowview.ts    per-window component (tabs, toolbar, panes, status)
   explorer.ts      file tree + context menus + CRUD
   palette.ts       ⌘K command/file overlay
-  settingspanel.ts in-app settings panel
-  settings.ts      settings.json model (themes, fonts, sizes, session)
+  search.ts        Find in Folder results panel
+  keymap.ts        shortcut registry + accelerator match/format
+  settingspanel.ts in-app settings panel (incl. Keys tab)
+  settings.ts      settings.json model (themes, fonts, sizes, session, keymap)
   updater.ts       manual and once-daily signed update checks
   compareview.ts   side-by-side diff surface
   pdfview.ts       pdf.js viewer

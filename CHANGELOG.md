@@ -8,6 +8,25 @@ All notable changes to MDflow are documented here. The format is based on
 
 ### Added
 
+- **Customizable keyboard shortcuts** — a **Keys** tab (also **View → Keyboard
+  Shortcuts**) lists every command by category with record / reset / Restore
+  Defaults; rebindings apply to the native menu and app shortcuts and persist in
+  `settings.json`.
+- **Find in Folder** (`⌘⇧F` or the activity-bar Search button) — content search
+  across text files and the text inside `.mind` / `.excalidraw` drawings, with
+  results grouped by file; click to open at the line. Plus **in-editor find**
+  (`⌘F`).
+- **AI file attachments** — reference files in Chat via a 📎 picker, drag-drop onto
+  the panel, or `@`-mention (fuzzy over the open folder). CLI agents receive file
+  paths and run with the open folder as working directory; HTTP models get
+  text-file contents inlined.
+- **Terminal improvements** — a live terminal picker in the Terminal tab, a
+  **Terminals** editor (add/edit/remove + default) with **Font / Size**, a default
+  **Shell** (zsh) entry, and terminal colors drawn from the active theme.
+- **Inline edit** for saved CLI agents in settings.
+- **Enter sends** in AI Chat (Shift+Enter inserts a newline).
+- **New Window** in the **File** menu.
+
 - **Native multi-window support** — create independent MDflow windows from
   **View → New Window** (`⌘⇧N`) or **New Window** in the macOS Dock context menu.
   Each native window has its own tabs, Explorer workspace, AI panel, and optional
@@ -81,8 +100,10 @@ All notable changes to MDflow are documented here. The format is based on
   `settings.json`.
 - Agent settings now use two tabs: **CLI Agents** and **Models**, combining local and
   hosted HTTP providers with per-provider key and removal actions.
-- API keys are now stored in the macOS Keychain via the `keyring` crate. `ai.json`
+- API keys are now stored in the macOS Keychain via the `keyring` crate. `agent.json`
   no longer holds secrets, and existing plaintext keys migrate automatically.
+- The agent config file was renamed `ai.json` → `agent.json`; an existing `ai.json`
+  is migrated automatically on first run.
 - Editor gains selection, range-replace, and set-text APIs to support AI apply / insert.
 - The command palette is now **`⌘K` only**; `⌘P` is the View ▸ Show/Hide Preview toggle.
 - New app icon (the "roomy" MDflow mark); new activity-bar icons for the AI panel,
@@ -100,12 +121,21 @@ All notable changes to MDflow are documented here. The format is based on
   Homebrew/npm-installed CLIs are found.
 - The Agent settings "Add local/API model" button could sit below the panel fold; the
   provider list now scrolls so the button stays visible.
+- File ▸ Open Folder (and other menu actions) and Check for Updates no longer fire in
+  every open window — menu events route to the focused window only.
+- Check for Updates worked only in the primary window (secondary windows hit an ACL
+  error); the updater capability now covers all windows.
+- The Terminal tab failed with "command not found" — it now launches through the login
+  shell so `PATH` (and aliases) resolve.
+- "Close Others" on many tabs no longer freezes; tabs close in a single render.
+- The preview no longer keeps a wide right margin; it fills the pane (Page Guide
+  soft-wrap centers it into a readable column).
 
 ### Notes
 
 - Export requires `pandoc` and `typst` on the system (`brew install pandoc typst`);
   they are located at runtime, not bundled.
-- API keys are stored in the macOS Keychain, not in `ai.json`.
+- API keys are stored in the macOS Keychain, not in `agent.json`.
 
 ## [0.1.0] — 2026-06-19
 
