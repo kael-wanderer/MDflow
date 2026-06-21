@@ -6,6 +6,19 @@ All notable changes to MDflow are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-21
+
+### Changed
+
+- **Signed updater feed is live.** Releases now publish signed update artifacts and a
+  valid `latest.json`, and the app ships with the updater endpoint and public key, so
+  in-app **Check for Updates** can detect, download, and install new versions.
+
+### Fixed
+
+- Removed an upstream Excalidraw public Firebase key from the vendored board bundle
+  (it was never an MDflow credential; only third-party config dead to MDflow).
+
 ## [0.2.0] — 2026-06-21
 
 ### Added
