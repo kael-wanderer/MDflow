@@ -166,6 +166,7 @@ export async function mountMindmapBoard(
     mode: "full",
     view: {
       line_color: themeColor("--muted", "#777"),
+      zoom: { min: 0.3, max: 3, step: 0.1 },
     },
   });
   jm.show(mind);

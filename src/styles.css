@@ -457,12 +457,19 @@ body.resizing-panes iframe {
 /* ---------- Preview (typeset, serif) ---------- */
 
 .doc {
-  max-width: 70ch;
-  padding: var(--pane-pad) max(var(--pane-pad), 5%) 64px;
+  max-width: none;
+  padding: var(--pane-pad) var(--pane-pad) 64px;
   font-family: var(--win-font, var(--font-serif));
   font-size: calc(var(--win-size, var(--base-size)) * var(--zoom));
   line-height: 1.72;
   color: var(--text);
+}
+
+/* Page Guide soft-wrap mode centers the preview in a readable column;
+   Off / Window Width fill the pane (no right margin). */
+body[data-wrap="guide"] .doc {
+  max-width: 70ch;
+  margin-inline: auto;
 }
 
 .doc h1,

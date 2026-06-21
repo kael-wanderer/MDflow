@@ -86,7 +86,7 @@ const nativeWindowLabel =
     : "main";
 const isPrimaryNativeWindow = nativeWindowLabel === "main";
 const startupUi = isPrimaryNativeWindow ? loadState() : freshState();
-let ui = { ...startupUi };
+let ui = { ...startupUi, aiVisible: false };
 let currentSettings = parseSettings("{}");
 let settingsPath = "";
 let aiSettingsPath = "";
@@ -280,8 +280,43 @@ const handlers = {
 };
 
 async function closeTabs(windowId: string, tabIds: string[]): Promise<void> {
+  const w = getWindow(windowId);
+  if (!w) return;
+
+  const toClose = new Set<string>();
   for (const tabId of tabIds) {
-    if (!(await closeTab(windowId, tabId))) break;
+    const t = w.tabs.find((x) => x.id === tabId);
+    if (!t) continue;
+    if (t.dirty) {
+      const approved = await confirm(`Discard unsaved changes to "${t.name}"?`, {
+        title: "Close tab",
+        kind: "warning",
+      });
+      if (!approved) break;
+    }
+    toClose.add(tabId);
+  }
+  if (toClose.size === 0) return;
+
+  const view = views.get(windowId)!;
+  for (const id of toClose) view.editor.closeState(id);
+
+  const remaining = w.tabs.filter((x) => !toClose.has(x.id));
+  let nextActive = w.activeTabId;
+  if (!nextActive || toClose.has(nextActive)) {
+    nextActive = remaining.length ? remaining[remaining.length - 1].id : null;
+  }
+  patchWindow(windowId, { tabs: remaining, activeTabId: nextActive });
+
+  if (nextActive) {
+    activateTab(windowId, nextActive);
+  } else {
+    view.renderPreview("");
+    if (windowId === getState().activeWindowId) {
+      clearDocumentSurface();
+    } else {
+      renderAll();
+    }
   }
 }
 
@@ -960,6 +995,7 @@ function toggleLineNumbers(): void {
 }
 
 function applySoftWrap(): void {
+  document.body.dataset.wrap = currentSettings.softWrapMode;
   for (const v of views.values()) {
     v.editor.setSoftWrapMode(
       currentSettings.softWrapMode,
@@ -1614,7 +1650,9 @@ async function restoreWindows(): Promise<void> {
 async function boot(): Promise<void> {
   await loadSettings();
   await loadAISettings();
-  startDailyUpdateChecks(() => currentSettings.updateMode === "auto");
+  if (isPrimaryNativeWindow) {
+    startDailyUpdateChecks(() => currentSettings.updateMode === "auto");
+  }
 
   if (isPrimaryNativeWindow && currentSettings.restoreSession) {
     if (startupUi.folder) {

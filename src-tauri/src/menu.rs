@@ -65,6 +65,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let new = MenuItemBuilder::with_id("file.new", "New File")
         .accelerator("CmdOrCtrl+N")
         .build(app)?;
+    let new_window = MenuItemBuilder::with_id("file.new_window", "New Window")
+        .accelerator("CmdOrCtrl+Shift+N")
+        .build(app)?;
     let open = MenuItemBuilder::with_id("file.open", "Open File…")
         .accelerator("CmdOrCtrl+O")
         .build(app)?;
@@ -100,6 +103,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build()?;
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&new)
+        .item(&new_window)
         .separator()
         .item(&open)
         .item(&open_folder)
@@ -123,9 +127,6 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
     let toggle_explorer = MenuItemBuilder::with_id("view.toggle_explorer", "Show/Hide Explorer")
         .accelerator("CmdOrCtrl+B")
-        .build(app)?;
-    let new_window = MenuItemBuilder::with_id("view.new_window", "New Window")
-        .accelerator("CmdOrCtrl+Shift+N")
         .build(app)?;
     let toggle_preview = MenuItemBuilder::with_id("view.toggle_preview", "Show/Hide Preview")
         .accelerator("CmdOrCtrl+P")
@@ -190,8 +191,6 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let theme_menu = check_submenu(app, "Theme", &theme_items)?;
 
     let view_menu = SubmenuBuilder::new(app, "View")
-        .item(&new_window)
-        .separator()
         .item(&toggle_explorer)
         .item(&toggle_preview)
         .item(&reading)

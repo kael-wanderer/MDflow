@@ -50,8 +50,9 @@ fn dispatch_open_path(app: &tauri::AppHandle, path: String) {
                 .flatten()
         });
     if let Some(window) = target {
+        let label = window.label().to_string();
         drop(queue);
-        let _ = window.emit("open-path", path);
+        let _ = window.emit_to(label.as_str(), "open-path", path);
     } else {
         queue.pending.push(path);
     }
@@ -137,12 +138,13 @@ pub fn run() {
         })
         .on_menu_event(|app, event| {
             let id = event.id().0.as_str();
-            if id == "view.new_window" {
+            if id == "view.new_window" || id == "file.new_window" {
                 let _ = native_windows::create(app);
                 return;
             }
             if let Some(window) = native_windows::focused_window(app) {
-                let _ = window.emit("menu", id);
+                let label = window.label().to_string();
+                let _ = window.emit_to(label.as_str(), "menu", id);
             }
         })
         .on_window_event(|window, event| {
