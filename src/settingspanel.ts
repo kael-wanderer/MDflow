@@ -15,7 +15,7 @@ import {
 
 type SettingsTab = "theme" | "format" | "general" | "agent" | "keys";
 type ZoneName = "explorer" | "main" | "sub";
-type AgentGroup = "command" | "model";
+type AgentGroup = "command" | "model" | "terminal";
 
 export type SettingsPanelDeps = {
   getSettings: () => Settings;
@@ -76,6 +76,21 @@ function uniqueId(label: string, settings: AISettings): string {
   let suffix = 2;
   while (settings.providers.some((provider) => provider.id === id)) {
     id = `${base}-${suffix++}`;
+  }
+  return id;
+}
+
+function terminalUniqueId(label: string, settings: AISettings): string {
+  const base =
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "terminal";
+  let id = `${base}-term`;
+  let suffix = 2;
+  while (settings.terminals.some((terminal) => terminal.id === id)) {
+    id = `${base}-term-${suffix++}`;
   }
   return id;
 }
@@ -649,10 +664,164 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     }
   }
 
+  function renderTerminalEditor(content: HTMLElement): void {
+    const settings = deps.getAISettings();
+
+    renderSubhead(content, "Font");
+    content.appendChild(
+      renderChoiceList(
+        FONT_OPTIONS.map((font) => ({
+          label: font.label,
+          selected: settings.terminalFont === font.value,
+          run: () =>
+            updateAI((next) => {
+              next.terminalFont = font.value;
+            }),
+        })),
+      ),
+    );
+    content.appendChild(
+      renderCustomInput(
+        "Custom font family",
+        settings.terminalFont,
+        "JetBrains Mono",
+        (value) => {
+          updateAI((next) => {
+            next.terminalFont = value;
+          });
+          return true;
+        },
+      ),
+    );
+
+    renderSubhead(content, "Size");
+    content.appendChild(
+      renderChoiceList(
+        SIZE_OPTIONS.map((size) => ({
+          label: `${size}px`,
+          selected: settings.terminalFontSize === size,
+          run: () =>
+            updateAI((next) => {
+              next.terminalFontSize = size;
+            }),
+        })),
+      ),
+    );
+
+    renderSubhead(content, "Programs");
+    const list = document.createElement("div");
+    list.className = "agent-list";
+    for (const terminal of settings.terminals) {
+      const isDefault = settings.defaultTerminal === terminal.id;
+      const rowEl = document.createElement("div");
+      rowEl.className = `agent-row${isDefault ? " selected" : ""}`;
+
+      const info = document.createElement("span");
+      info.className = "agent-info";
+      info.innerHTML = `<strong></strong><small></small>`;
+      info.querySelector("strong")!.textContent = terminal.label;
+      info.querySelector("small")!.textContent = terminal.run;
+
+      const actions = document.createElement("span");
+      actions.className = "agent-actions";
+
+      const use = document.createElement("button");
+      use.type = "button";
+      use.className = "agent-use";
+      use.textContent = isDefault ? "Selected" : "Use";
+      use.addEventListener("click", () =>
+        updateAI((next) => {
+          next.defaultTerminal = terminal.id;
+        }),
+      );
+      actions.appendChild(use);
+
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "agent-edit";
+      edit.textContent = "Edit";
+      edit.addEventListener("click", () => {
+        if (rowEl.querySelector(".agent-editform")) return;
+        const editForm = document.createElement("form");
+        editForm.className = "agent-editform agent-form";
+        editForm.innerHTML = `
+          <label>Name<input name="label" required /></label>
+          <label>Command<input name="run" placeholder="zsh" required /></label>
+          <button type="submit">Save</button>`;
+        editForm.querySelector<HTMLInputElement>('[name="label"]')!.value =
+          terminal.label;
+        editForm.querySelector<HTMLInputElement>('[name="run"]')!.value =
+          terminal.run;
+        editForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const data = new FormData(editForm);
+          const label = String(data.get("label") ?? "").trim();
+          const run = String(data.get("run") ?? "").trim();
+          if (!label || !run) return;
+          updateAI((next) => {
+            const target = next.terminals.find((t) => t.id === terminal.id);
+            if (target) {
+              target.label = label;
+              target.run = run;
+            }
+          });
+        });
+        rowEl.appendChild(editForm);
+        editForm.querySelector("input")?.focus();
+      });
+      actions.appendChild(edit);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "agent-remove";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", () => {
+        updateAI((next) => {
+          next.terminals = next.terminals.filter((t) => t.id !== terminal.id);
+          if (next.defaultTerminal === terminal.id) {
+            next.defaultTerminal = next.terminals[0]?.id ?? "";
+          }
+        });
+      });
+      actions.appendChild(remove);
+
+      rowEl.append(info, actions);
+      list.appendChild(rowEl);
+    }
+    if (!settings.terminals.length) {
+      const empty = document.createElement("p");
+      empty.className = "settings-empty";
+      empty.textContent = "No terminals configured.";
+      list.appendChild(empty);
+    }
+    content.appendChild(list);
+
+    const form = document.createElement("form");
+    form.className = "agent-form";
+    form.innerHTML = `
+      <label>Name<input name="label" placeholder="Shell" required /></label>
+      <label>Command<input name="run" placeholder="zsh" required /></label>
+      <button type="submit">Add terminal</button>`;
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const label = String(data.get("label") ?? "").trim();
+      const run = String(data.get("run") ?? "").trim();
+      if (!label || !run) return;
+      updateAI((next) => {
+        const id = terminalUniqueId(label, next);
+        next.terminals.push({ id, label, run });
+        next.defaultTerminal = id;
+      });
+    });
+    content.appendChild(form);
+  }
+
   function renderAgent(content: HTMLElement): void {
     const groups: Array<[AgentGroup, string]> = [
       ["command", "CLI Agents"],
       ["model", "Models"],
+      ["terminal", "Terminals"],
     ];
     const row = document.createElement("div");
     row.className = "settings-segment agent-segment";
@@ -673,8 +842,14 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     help.textContent =
       activeAgentGroup === "command"
         ? "Installed agent CLIs (Claude Code, Codex, OpenCode, Pi). The agent chooses its own model and uses its own login."
-        : "OpenAI-compatible endpoints — local servers (Ollama, LM Studio) or hosted APIs. Keys are stored in your macOS Keychain.";
+        : activeAgentGroup === "terminal"
+          ? "Programs launched in the Terminal tab. Use a shell (e.g. zsh) for a plain terminal, or an agent CLI for an interactive session."
+          : "OpenAI-compatible endpoints — local servers (Ollama, LM Studio) or hosted APIs. Keys are stored in your macOS Keychain.";
     content.appendChild(help);
+    if (activeAgentGroup === "terminal") {
+      renderTerminalEditor(content);
+      return;
+    }
     renderAgentEditor(content);
   }
 

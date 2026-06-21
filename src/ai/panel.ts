@@ -278,12 +278,37 @@ export function createAIPanel(
       settings.terminals.find(
         (terminal) => terminal.id === settings.defaultTerminal,
       ) ?? settings.terminals[0];
-    body.innerHTML = '<div class="ai-terminal-host"></div>';
+    body.innerHTML = `
+      <div class="ai-control-row ai-terminal-bar">
+        <label>
+          <span>Terminal</span>
+          <select class="ai-terminal-select"></select>
+        </label>
+      </div>
+      <div class="ai-terminal-host"></div>`;
+    const select = body.querySelector<HTMLSelectElement>(".ai-terminal-select")!;
+    for (const terminal of settings.terminals) {
+      const option = document.createElement("option");
+      option.value = terminal.id;
+      option.textContent = terminal.label;
+      option.selected = terminal.id === (entry?.id ?? "");
+      select.appendChild(option);
+    }
+    select.addEventListener("change", () => {
+      deps.onSettingsChange({
+        ...deps.getSettings(),
+        defaultTerminal: select.value,
+      });
+      render();
+    });
     const host = body.querySelector<HTMLElement>(".ai-terminal-host")!;
     if (entry) {
       const { createTerminalView } = await import("./terminal");
       if (activeTab !== "terminal" || version !== renderVersion) return;
-      terminalView = createTerminalView(host, entry.run);
+      terminalView = createTerminalView(host, entry.run, {
+        fontFamily: settings.terminalFont,
+        fontSize: settings.terminalFontSize,
+      });
     } else {
       host.textContent =
         "No terminal configured. Add one in AI Settings.";

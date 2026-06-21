@@ -7,11 +7,17 @@ import "@xterm/xterm/css/xterm.css";
 export function createTerminalView(
   host: HTMLElement,
   run: string,
+  options: { fontFamily?: string; fontSize?: number } = {},
 ): { resize: () => void; destroy: () => void } {
   const id = `pty-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  // xterm renders to canvas, so a CSS var won't resolve — use a real font string.
+  const monoFallback =
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--font-mono")
+      .trim() || "monospace";
   const terminal = new Terminal({
-    fontFamily: "var(--font-mono)",
-    fontSize: 13,
+    fontFamily: options.fontFamily?.trim() || monoFallback,
+    fontSize: options.fontSize && options.fontSize > 0 ? options.fontSize : 13,
     theme: { background: "#00000000" },
   });
   const fit = new FitAddon();

@@ -28,6 +28,8 @@ export type AISettings = {
   defaultProvider: string;
   defaultTerminal: string;
   permissionMode: PermissionMode;
+  terminalFont: string;
+  terminalFontSize: number;
 };
 
 export type PermissionMode = "ask" | "bypass";
@@ -96,10 +98,13 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
     { id: "claude-term", label: "Claude Code", run: "claude" },
     { id: "codex-term", label: "Codex", run: "codex" },
     { id: "opencode-term", label: "OpenCode", run: "opencode" },
+    { id: "shell-term", label: "Shell", run: "zsh" },
   ],
   defaultProvider: "ollama",
   defaultTerminal: "claude-term",
   permissionMode: "ask",
+  terminalFont: "",
+  terminalFontSize: 13,
 };
 
 export const DEFAULT_AI_SETTINGS_JSON = JSON.stringify(
@@ -190,6 +195,10 @@ export function parseAISettings(raw: string): AISettings {
   const requestedTerminal = stringValue(data.defaultTerminal);
   const permissionMode: PermissionMode =
     data.permissionMode === "bypass" ? "bypass" : "ask";
+  const rawSize = Number(data.terminalFontSize);
+  const terminalFontSize = Number.isFinite(rawSize)
+    ? Math.min(32, Math.max(8, Math.round(rawSize)))
+    : DEFAULT_AI_SETTINGS.terminalFontSize;
 
   return {
     providers,
@@ -205,6 +214,8 @@ export function parseAISettings(raw: string): AISettings {
       ? requestedTerminal
       : terminals[0].id,
     permissionMode,
+    terminalFont: stringValue(data.terminalFont),
+    terminalFontSize,
   };
 }
 
