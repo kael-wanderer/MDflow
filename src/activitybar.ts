@@ -2,39 +2,9 @@ import { getState, setState } from "./store";
 import { glyphs } from "./glyphs";
 import excalidrawIconUrl from "../images/excalidraw.png";
 import mindmapIconUrl from "../images/mindmap.png";
-import agentIconUrl from "../images/agent.png";
 
 const maskIcon = (url: string): string =>
   `<span class="ab-img-icon" style="-webkit-mask-image:url(${url});mask-image:url(${url})" aria-hidden="true"></span>`;
-
-// agent.png is a line-art robot on a solid white background (no alpha). Key the
-// white out so the icon renders as a themeable monochrome mask like the others.
-function setKeyedMaskIcon(el: HTMLElement, url: string): void {
-  const img = new Image();
-  img.onload = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      el.innerHTML = maskIcon(url);
-      return;
-    }
-    ctx.drawImage(img, 0, 0);
-    const px = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < px.data.length; i += 4) {
-      if (px.data[i] > 230 && px.data[i + 1] > 230 && px.data[i + 2] > 230) {
-        px.data[i + 3] = 0;
-      }
-    }
-    ctx.putImageData(px, 0, 0);
-    el.innerHTML = maskIcon(canvas.toDataURL());
-  };
-  img.onerror = () => {
-    el.innerHTML = maskIcon(url);
-  };
-  img.src = url;
-}
 
 export function initActivityBar(
   onLayoutChange: () => void = () => {},
@@ -52,7 +22,7 @@ export function initActivityBar(
   searchButton.addEventListener("click", onSearch);
 
   const aiButton = document.getElementById("ab-ai")!;
-  setKeyedMaskIcon(aiButton, agentIconUrl);
+  aiButton.innerHTML = glyphs.ai;
   aiButton.addEventListener("click", onAI);
 
   const excalidrawButton = document.getElementById("ab-excalidraw")!;

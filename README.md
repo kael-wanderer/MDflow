@@ -10,6 +10,8 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
 > Clean-room, independent project. Written from scratch; not derived from any
 > GPL-licensed editor.
 
+![MDflow main interface](images/screenshots/mdflow-main.png)
+
 ## Features
 
 - **Editor** — CodeMirror 6 with markdown highlighting, soft-wrap, line numbers, and
