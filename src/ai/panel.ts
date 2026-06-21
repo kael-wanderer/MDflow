@@ -261,6 +261,8 @@ export function createAIPanel(
         void send();
       });
     input.addEventListener("keydown", (event) => {
+      // Don't send while an IME composition is active (e.g. Enter to confirm).
+      if (event.isComposing) return;
       if (matchAccelerator(event, deps.getSendAccelerator())) {
         event.preventDefault();
         void send();
