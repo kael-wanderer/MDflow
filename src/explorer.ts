@@ -2,7 +2,7 @@ import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { compareActions } from "./compareactions";
 import { showContextMenu, type MenuItem } from "./contextmenu";
 import { glyphs } from "./glyphs";
-import { fileIcon } from "./icons";
+import { FILE_ICON_TEXT, fileIcon } from "./icons";
 import {
   copyPath,
   createDir,
@@ -23,17 +23,6 @@ import {
   toggleExpanded,
   type TreeNode,
 } from "./treeops";
-
-const ICON: Record<string, string> = {
-  md: "MD",
-  txt: "T",
-  json: "{}",
-  html: "<>",
-  pdf: "PDF",
-  excalidraw: "EX",
-  mind: "MIND",
-  file: "·",
-};
 
 let activePath: string | null = null;
 let comparePath: string | null = null;
@@ -88,6 +77,21 @@ export async function revealExplorerPath(path: string): Promise<void> {
     ).find((candidate) => candidate.dataset.path === path);
     row?.scrollIntoView({ block: "nearest" });
   });
+}
+
+export async function expandExplorerFolder(path: string): Promise<void> {
+  const tree = getState().tree;
+  if (!tree) return;
+  const node = findNode(tree, path);
+  if (!node?.isDir || node.expanded) return;
+
+  if (node.children === null) {
+    const children = await entriesToNodes(path);
+    const latestTree = getState().tree;
+    if (latestTree) setState({ tree: setChildren(latestTree, path, children) });
+    return;
+  }
+  setState({ tree: toggleExpanded(tree, path) });
 }
 
 function pathName(path: string): string {
@@ -407,6 +411,7 @@ function createRow(node: TreeNode, depth: number): HTMLElement {
   row.style.setProperty("--depth", String(depth));
   row.dataset.path = node.path;
   row.dataset.depth = String(depth);
+  row.dataset.isDir = String(node.isDir);
   row.setAttribute("role", "treeitem");
   if (node.isDir) row.setAttribute("aria-expanded", String(node.expanded));
 
@@ -419,7 +424,7 @@ function createRow(node: TreeNode, depth: number): HTMLElement {
   if (!node.isDir) {
     const type = fileIcon(node.name, node.isDir);
     icon.classList.add(`type-${type}`);
-    icon.textContent = ICON[type];
+    icon.textContent = FILE_ICON_TEXT[type] ?? "·";
   }
 
   const name = document.createElement("span");

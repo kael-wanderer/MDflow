@@ -21,20 +21,21 @@ describe("clampFontSize", () => {
 
 describe("normalizeShape / shapeClass", () => {
   it("keeps known shapes", () => {
+    expect(normalizeShape("none")).toBe("none");
     expect(normalizeShape("circle")).toBe("circle");
     expect(shapeClass("pill")).toBe("mm-shape-pill");
   });
-  it("falls back to rounded for unknown", () => {
-    expect(normalizeShape("blob")).toBe("rounded");
-    expect(normalizeShape(undefined)).toBe("rounded");
-    expect(shapeClass(42)).toBe("mm-shape-rounded");
+  it("falls back to text-only for unknown or missing shapes", () => {
+    expect(normalizeShape("blob")).toBe("none");
+    expect(normalizeShape(undefined)).toBe("none");
+    expect(shapeClass(42)).toBe("mm-shape-none");
   });
 });
 
 describe("readNodeStyle", () => {
   it("returns defaults for empty data", () => {
     expect(readNodeStyle(undefined)).toEqual({
-      shape: "rounded",
+      shape: "none",
       fill: "",
       text: "",
       fontSize: DEFAULT_FONT_SIZE,

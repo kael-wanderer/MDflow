@@ -6,7 +6,10 @@ export type OpenResult = { path: string; contents: string } | null;
 const FILTERS = [
   {
     name: "Documents",
-    extensions: ["md", "markdown", "txt", "html", "htm", "pdf", "excalidraw", "mind"],
+    extensions: [
+      "md", "markdown", "txt", "html", "htm", "pdf", "excalidraw", "mind",
+      "json", "yaml", "yml", "toml", "xml", "csv", "tsv", "css", "js", "ts",
+    ],
   },
 ];
 
@@ -50,6 +53,7 @@ export async function saveFile(path: string | null, contents: string): Promise<s
 export async function getInitialFile(): Promise<OpenResult> {
   const path = await invoke<string | null>("get_initial_file");
   if (!path) return null;
+  if (path.toLowerCase().endsWith(".pdf")) return { path, contents: "" };
   const contents = await invoke<string>("read_file", { path });
   return { path, contents };
 }

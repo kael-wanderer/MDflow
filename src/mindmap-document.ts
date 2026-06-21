@@ -17,7 +17,12 @@ function defaultMindmap(): Mindmap {
   return {
     meta: { name: "mdflow", version: "1.0" },
     format: "node_tree",
-    data: { id: "root", topic: DEFAULT_ROOT_TOPIC, children: [] },
+    data: {
+      id: "root",
+      topic: DEFAULT_ROOT_TOPIC,
+      "mm-shape": "none",
+      children: [],
+    },
   };
 }
 
@@ -57,7 +62,12 @@ export function serializeMindmap(mind: unknown): string {
     {
       meta: (obj && plainObject(obj.meta)) ?? { name: "mdflow", version: "1.0" },
       format: "node_tree",
-      data: root ?? { id: "root", topic: DEFAULT_ROOT_TOPIC, children: [] },
+      data: root ?? {
+        id: "root",
+        topic: DEFAULT_ROOT_TOPIC,
+        "mm-shape": "none",
+        children: [],
+      },
     },
     null,
     2,

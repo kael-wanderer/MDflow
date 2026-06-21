@@ -10,6 +10,9 @@ describe("fileIcon", () => {
     expect(fileIcon("a.txt", false)).toBe("txt");
     expect(fileIcon("pkg.json", false)).toBe("json");
     expect(fileIcon("page.HTML", false)).toBe("html");
+    expect(fileIcon("main.ts", false)).toBe("ts");
+    expect(fileIcon("widget.jsx", false)).toBe("js");
+    expect(fileIcon("config.yml", false)).toBe("yaml");
     expect(fileIcon("doc.pdf", false)).toBe("pdf");
     expect(fileIcon("board.excalidraw", false)).toBe("excalidraw");
   });

@@ -6,6 +6,10 @@ import {
   isHtmlFile,
   isMindmapFile,
   isMarkdownFile,
+  isPdfFile,
+  documentViewModes,
+  fileLanguageInfo,
+  normalizeDocumentViewMode,
 } from "../document-kind";
 
 describe("isHtmlFile", () => {
@@ -56,6 +60,39 @@ describe("isMindmapFile", () => {
     expect(isMindmapFile("a/b/notes.mind")).toBe(true);
     expect(isMindmapFile("notes.md")).toBe(false);
     expect(isMindmapFile(null)).toBe(false);
+  });
+});
+
+describe("document view modes", () => {
+  it("allows editor/read only for Markdown and HTML", () => {
+    expect(documentViewModes("notes.md")).toEqual(["editor", "preview", "split"]);
+    expect(documentViewModes("page.html")).toEqual(["editor", "preview", "split"]);
+  });
+
+  it("keeps PDF reading-only and ordinary files editor-only", () => {
+    expect(isPdfFile("paper.PDF")).toBe(true);
+    expect(documentViewModes("paper.pdf")).toEqual(["preview"]);
+    expect(documentViewModes("settings.json")).toEqual(["editor"]);
+    expect(documentViewModes("config.yaml")).toEqual(["editor"]);
+  });
+
+  it("normalizes legacy split mode to a supported mode", () => {
+    expect(normalizeDocumentViewMode("notes.md", "split")).toBe("split");
+    expect(normalizeDocumentViewMode("paper.pdf", "editor")).toBe("preview");
+    expect(normalizeDocumentViewMode("settings.json", "preview")).toBe("editor");
+  });
+});
+
+describe("fileLanguageInfo", () => {
+  it("maps code and data files to syntax modes", () => {
+    expect(fileLanguageInfo("index.html").editor).toBe("html");
+    expect(fileLanguageInfo("main.ts")).toEqual({
+      editor: "typescript",
+      icon: "ts",
+      label: "TypeScript",
+    });
+    expect(fileLanguageInfo("config.yml").editor).toBe("yaml");
+    expect(fileLanguageInfo("package.json").editor).toBe("json");
   });
 });
 

@@ -16,7 +16,7 @@ let state: ShellState = {
   tree: null,
   explorerVisible: true,
   explorerWidth: 240,
-  windows: [{ id: "main", tabs: [], activeTabId: null, mode: "split" }],
+  windows: [{ id: "main", tabs: [], activeTabId: null, mode: "editor" }],
   activeWindowId: "main",
 };
 
@@ -77,4 +77,3 @@ export function activeWindow(): WindowState {
 export function patchWindow(id: string, patch: Partial<WindowState>): void {
   setState({ windows: state.windows.map((w) => (w.id === id ? { ...w, ...patch } : w)) });
 }
-

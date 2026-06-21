@@ -1,68 +1,93 @@
 # MDflow Help
 
-## Formatting Markdown
+MDflow is a lightweight document workspace for Markdown, HTML, code/config files,
+PDFs, Excalidraw boards, and visual mindmaps.
 
-Markdown documents show a formatting row above the editor. Select text and choose
-Bold, Italic, Heading, Link, Inline Code, Quote, Bullet List, or Horizontal Rule.
-Formatting changes use the normal editor undo and redo history.
+## Windows and panes
 
-HTML files use HTML syntax highlighting and continue to render in the Read or Split
-preview.
+Choose **View → New Window** or press `⌘⇧N` to create an independent native window.
+On macOS, you can also right-click the MDflow Dock icon and choose **New Window**.
+Each native window has its own tabs and Explorer workspace.
 
-## Excalidraw boards
+Inside any native window, the Main/Sub control creates an optional second document
+pane. Main and Sub have independent tabs and view modes.
 
-Open a `.excalidraw` file from the Explorer, quick-open palette, or File menu to edit
-it as a full-pane visual board. Use the normal Save, Save As, tab close, and session
-restore commands. Text-only view and formatting controls are hidden while a board is
-active.
+## Document modes
 
-## Updates
+- **Markdown and HTML:** Editor, Read, or Editor + Preview.
+- **PDF:** Read-only.
+- **TypeScript, JavaScript, JSON, YAML/YML, and other text/config files:** Editor-only.
+- **Excalidraw and Mindmap:** focused full-pane visual editors.
 
-Choose **Help → Check for Updates…** to check manually. You can also open the Gear
-menu, choose **Update**, and enable a once-daily automatic check. MDflow asks before
-it downloads and installs an available update.
+## Opening and dropping files
 
-Welcome to **MDflow** — a fast, lightweight markdown editor. You write on the
-left and read the typeset result on the right.
+Use **File → Open**, `⌘O`, the Explorer, or the command palette (`⌘K`).
+
+You can also drag files from Finder:
+
+- Drop on a Main/Sub document pane to open the file in that pane.
+- Drop on an Explorer folder to copy into that folder.
+- Drop on an Explorer file to copy beside that file.
+- Hover over a closed Explorer folder briefly to expand it.
+
+Existing destination files are not overwritten.
+
+## Editing and saving
+
+Markdown documents show formatting controls for Bold, Italic, Heading, Link,
+Inline Code, Quote, Bullet List, and Horizontal Rule. HTML, TypeScript/JavaScript,
+JSON, and YAML use language-aware syntax highlighting.
+
+Use `⌘S` to save or `⌘⇧S` for Save As. Tabs show a dirty marker for unsaved changes.
+
+## Mindmaps
+
+Open or create a `.mind` file to use the visual mindmap editor.
+
+- Add a child or sibling, rename, delete, and drag nodes to reorder or reparent.
+- New nodes are text-only by default.
+- Optional node shapes include rectangle, rounded, pill, and circle.
+- Adjust fill/text color, font size, and bold.
+- Use the board’s Open, Save, Reset, and zoom controls.
+
+## Excalidraw
+
+Open a `.excalidraw` file to edit it as a full-pane board. Normal Save, Save As,
+dirty-close confirmation, tabs, and session workflows still apply.
 
 ## Keyboard shortcuts
 
 | Shortcut | Action |
 |----------|--------|
+| `⌘⇧N` | New native window |
 | `⌘N` | New file |
-| `⌘O` | Open a file |
+| `⌘O` | Open file |
+| `⌘⇧O` | Open folder |
 | `⌘S` | Save |
-| `⌘⇧S` | Save As… |
-| `⌘B` | Split view |
-| `⌘E` | Editor only |
-| `⌘P` | Read (preview) only |
+| `⌘⇧S` | Save As |
+| `⌘W` | Close active tab |
+| `⌘K` | Command/file palette |
+| `⌘B` | Show/hide Explorer |
+| `⌘P` | Show/hide Preview |
+| `⌘E` | Reading View |
+| `⌘+` / `⌘−` / `⌘0` | Zoom in / out / reset |
 
-All of these also live in the menu bar under **File** and **View**.
+## Themes and status
 
-## Views
+Use the theme dropdown in the bottom status bar for quick switching. The status bar
+also shows the file type, cursor line/column, and word count where applicable.
 
-- **Split** — editor and preview side by side.
-- **Editor** — just the editor.
-- **Read** — just the rendered preview.
-- **Soft Wrap** (View menu) toggles wrapping of long lines.
+## Updates
 
-## Files
+Choose **Help → Check for Updates…** for a manual check. Gear → Update can enable
+automatic checks at most once per 24 hours. MDflow always asks before installation.
 
-MDflow opens and saves Markdown, text, HTML, JSON, PDF, and `.excalidraw` files.
-Your view mode, soft-wrap setting, and zoom are remembered between sessions.
+## Export
 
-## What renders
+Export options depend on the active document. Rendered PDF/DOCX export requires:
 
-Standard GitHub-style markdown: headings, **bold**, *italic*, ~~strikethrough~~,
-lists, tables, blockquotes, links, and fenced code with syntax highlighting:
-
-```js
-function render(src) {
-  return md.render(src); // live preview
-}
+```bash
+brew install pandoc typst
 ```
 
-> This help document is itself a markdown file, opened in MDflow.
-
-MDflow also includes diagrams, math, a file explorer, export, AI tools, and update
-checks.
+This help document is itself Markdown and opens as a normal MDflow tab.

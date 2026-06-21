@@ -15,7 +15,7 @@ export type UIState = {
 
 const KEY = "mdflow.ui";
 const DEFAULTS: UIState = {
-  viewMode: "split",
+  viewMode: "editor",
   zoom: 1,
   softWrap: true,
   folder: null,
@@ -23,18 +23,28 @@ const DEFAULTS: UIState = {
   explorerWidth: 240,
   aiVisible: false,
   aiWidth: 320,
-  windows: [{ openPaths: [], activePath: null, mode: "split" }],
+  windows: [{ openPaths: [], activePath: null, mode: "editor" }],
   activeWindowIndex: 0,
   lineNumbers: true,
 };
 
+export function freshState(): UIState {
+  return {
+    ...DEFAULTS,
+    windows: DEFAULTS.windows.map((window) => ({
+      ...window,
+      openPaths: [...window.openPaths],
+    })),
+  };
+}
+
 export function loadState(): UIState {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { ...DEFAULTS };
+    if (!raw) return freshState();
     return { ...DEFAULTS, ...JSON.parse(raw) };
   } catch {
-    return { ...DEFAULTS };
+    return freshState();
   }
 }
 

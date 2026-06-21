@@ -7,6 +7,7 @@ describe("parseMindmap", () => {
     expect(mind.format).toBe("node_tree");
     expect(mind.data.id).toBe("root");
     expect(mind.data.topic).toBe("Central Idea");
+    expect(mind.data["mm-shape"]).toBe("none");
   });
 
   it("throws a friendly error on invalid JSON", () => {
@@ -40,6 +41,8 @@ describe("serializeMindmap", () => {
   });
 
   it("falls back to a default root when given junk", () => {
-    expect(serializeMindmap(null)).toContain('"id": "root"');
+    const serialized = serializeMindmap(null);
+    expect(serialized).toContain('"id": "root"');
+    expect(serialized).toContain('"mm-shape": "none"');
   });
 });

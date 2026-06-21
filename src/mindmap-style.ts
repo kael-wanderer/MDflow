@@ -1,4 +1,4 @@
-export const SHAPES = ["rect", "rounded", "pill", "circle"] as const;
+export const SHAPES = ["none", "rect", "rounded", "pill", "circle"] as const;
 export type MindShape = (typeof SHAPES)[number];
 
 export type NodeStyle = {
@@ -40,7 +40,7 @@ export function clampFontSize(n: unknown): number {
 }
 
 export function normalizeShape(shape: unknown): MindShape {
-  return SHAPES.includes(shape as MindShape) ? (shape as MindShape) : "rounded";
+  return SHAPES.includes(shape as MindShape) ? (shape as MindShape) : "none";
 }
 
 export function shapeClass(shape: unknown): string {

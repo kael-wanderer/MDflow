@@ -49,6 +49,10 @@ export function duplicatePath(path: string): Promise<string> {
   return invoke<string>("duplicate_path", { path });
 }
 
+export function copyIntoFolder(source: string, destinationDir: string): Promise<string> {
+  return invoke<string>("copy_into_folder", { source, destinationDir });
+}
+
 export function revealInFinder(path: string): Promise<void> {
   return revealItemInDir(path);
 }

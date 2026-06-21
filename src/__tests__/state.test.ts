@@ -1,12 +1,19 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { loadState, saveState } from "../state";
+import { freshState, loadState, saveState } from "../state";
 
 describe("state", () => {
   beforeEach(() => localStorage.clear());
 
+  it("creates independent fresh window arrays", () => {
+    const first = freshState();
+    const second = freshState();
+    first.windows[0].openPaths.push("/tmp/a.md");
+    expect(second.windows[0].openPaths).toEqual([]);
+  });
+
   it("returns defaults when nothing stored", () => {
     expect(loadState()).toEqual({
-      viewMode: "split",
+      viewMode: "editor",
       zoom: 1,
       softWrap: true,
       folder: null,
@@ -14,7 +21,7 @@ describe("state", () => {
       explorerWidth: 240,
       aiVisible: false,
       aiWidth: 320,
-      windows: [{ openPaths: [], activePath: null, mode: "split" }],
+      windows: [{ openPaths: [], activePath: null, mode: "editor" }],
       activeWindowIndex: 0,
       lineNumbers: true,
     });
@@ -44,7 +51,7 @@ describe("state", () => {
   it("falls back to defaults on corrupt json", () => {
     localStorage.setItem("mdflow.ui", "{not json");
     expect(loadState()).toEqual({
-      viewMode: "split",
+      viewMode: "editor",
       zoom: 1,
       softWrap: true,
       folder: null,
@@ -52,7 +59,7 @@ describe("state", () => {
       explorerWidth: 240,
       aiVisible: false,
       aiWidth: 320,
-      windows: [{ openPaths: [], activePath: null, mode: "split" }],
+      windows: [{ openPaths: [], activePath: null, mode: "editor" }],
       activeWindowIndex: 0,
       lineNumbers: true,
     });
@@ -69,7 +76,7 @@ describe("state", () => {
       explorerWidth: 240,
       aiVisible: false,
       aiWidth: 320,
-      windows: [{ openPaths: [], activePath: null, mode: "split" }],
+      windows: [{ openPaths: [], activePath: null, mode: "editor" }],
       activeWindowIndex: 0,
       lineNumbers: true,
     });

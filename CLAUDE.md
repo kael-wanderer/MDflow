@@ -91,6 +91,8 @@ src/
   styles.css   shell layout and component styling (CSS variables)
 src-tauri/src/
   lib.rs       Tauri builder: command registry + plugins (dialog, updater)
+  native_windows.rs independent native-window creation + focused routing
+  macos_dock.rs macOS Dock context-menu New Window bridge
   ai.rs        command-provider process streaming
   defaults.rs  macOS LaunchServices default-handler registration
   export.rs    Pandoc/Typst rendered-HTML to PDF/DOCX export
@@ -104,13 +106,18 @@ Data flow: edit → 300ms debounce → `renderMarkdown` → preview pane + word 
 View mode + zoom persist to `localStorage` (`mdflow.ui`).
 
 The native **View** menu has: Show/Hide Explorer `⌘B`, Show/Hide Preview `⌘P`,
-Reading View `⌘E`, Show/Hide Line Numbers, Soft Wrap ▸ (Off / Window Width / Page
+New Window `⌘⇧N`, Reading View `⌘E`, Show/Hide Line Numbers, Soft Wrap ▸ (Off / Window Width / Page
 Guide), Zoom In/Out/Reset, and Font / Text Size / Explorer Text Size / Theme submenus
 (active value checked). Soft Wrap and the Font/Size/Theme submenus drive
 `settings.json`; `sync_view_menu` reflects the current settings into the menu checks.
 The **Window** menu adds Enter Full Screen `⌃⌘F`, Move to Left/Right Half (tile to the
 active monitor via `window_tile`). The command/file palette is **`⌘K` only** (`⌘P` is
 the preview toggle).
+
+MDflow supports multiple independent native Tauri windows. View ▸ New Window and the
+macOS Dock context menu create fresh workspaces; menu and Finder-open events route to
+the focused native window. Only the original `main` native window writes the persisted
+restore-session snapshot. Each native window can still use the in-window Main/Sub split.
 
 The macOS bundle declares Markdown, plain-text, and PDF document types. Finder opens
 arrive through Tauri's opened event, are queued until the frontend listener is ready,

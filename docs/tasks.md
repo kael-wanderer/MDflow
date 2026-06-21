@@ -268,8 +268,29 @@ Design: `docs/superpowers/specs/2026-06-20-m10-excalidraw-design.md`
 [x] Export mindmap to PNG, JPG, and PDF via canvas capture
 [x] Automated frontend tests, production build, and interactive browser smoke
 [x] Theme-aware jsMind board styling and live connector recoloring
-[x] Rich node editor: per-node shape (rect/rounded/pill/circle), fill/text color,
-    font size, bold; stored in node data; persists in .mind (no format change)
+[x] Rich node editor: per-node shape (text-only default/rect/rounded/pill/circle),
+    fill/text color, font size, bold; stored in node data; persists in .mind (no
+    format change)
+[x] Connector canvas remains visible above the themed board background
+[x] Root connectors start at the central node border instead of crossing its text
+[x] Drag nodes to move/reparent them; board toolbar includes a Save button
+[x] Type-aware Main/Sub document modes: Markdown/HTML Editor, Read, and simultaneous
+    Editor+Preview; PDF Read-only; other text/config files Editor-only
+[x] Quick theme dropdown in each window status bar
+[x] Mindmap toolbar document actions: Open, Save, and confirmed Reset
+[x] Syntax highlighting for HTML, TypeScript/JavaScript, JSON, and YAML/YML
+[x] File-type icons in tabs/status plus live line/column cursor position
+[x] Expanded theme-aware syntax palette for code/data token families
+[x] Mindmap zoom controls and ⌘+/⌘−/⌘0 integration
+[x] Borderless light-gradient mindmap drag preview
+[x] Native file drops open in the hovered Main/Sub window
+[x] Explorer file drops copy into folder/file-parent targets with add badge and
+    delayed folder expansion
+[x] Independent native windows from View → New Window (`⌘⇧N`)
+[x] macOS Dock context-menu New Window action
+[x] Focus-aware menu/Finder-open routing across native windows
+[x] Secondary native windows start fresh without overwriting primary session state
+[x] Help, README, changelog, architecture, and native smoke checklist updated
 [ ] Native GUI smoke test (native launch and user verification)
 
 ### Workflow

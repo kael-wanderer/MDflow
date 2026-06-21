@@ -138,7 +138,21 @@ the running app — not designed in a vacuum beforehand — using the UI/UX skil
 - **M11 — Visual mindmap (implemented):** drag-and-drop mindmap editor (jsMind) in a single
   full-pane view like the PDF/Excalidraw views — view *and* edit nodes visually, not
   by writing code. Distinct from the existing code-based Mermaid `mindmap`. Stores its
-  own mindmap file format (`.mind`).
+  own mindmap file format (`.mind`). Nodes default to text-only and can opt into
+  rectangular, rounded, pill, or circular blocks; parent-child connectors remain
+  visible across themes. Drag feedback uses a borderless, light theme-aware gradient.
+- Native file drops are location-aware: dropping onto a Main/Sub document window
+  opens the file in that window; dropping onto an Explorer folder copies into that
+  folder, while dropping onto a file copies beside it. Explorer folder targets
+  expand after a short hover and copy targets show an add badge.
+- Native multi-window is supported on macOS. View → New Window (`⌘⇧N`) and the Dock
+  context menu create independent Tauri windows. Each owns its tabs, Explorer state,
+  AI panel, and optional Main/Sub split. Menu and Finder-open events target the
+  focused native window; only the primary window persists restore-session state.
+- Document modes are type-aware in both Main and Sub windows: Markdown/HTML offer
+  Editor, Read, and simultaneous Editor + Preview; PDF is Read-only, and other
+  text/config formats are Editor-only.
+  Each window status bar includes a compact global theme picker.
 
 ### Set-as-default app (cross-cutting, macOS)
 

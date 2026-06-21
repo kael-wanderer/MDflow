@@ -187,6 +187,30 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn copy_into_directory(source: &Path, destination_dir: &Path) -> Result<PathBuf, String> {
+    if !source.exists() {
+        return Err("The dropped file no longer exists.".into());
+    }
+    if !destination_dir.is_dir() {
+        return Err("The drop destination is not a folder.".into());
+    }
+    let name = source.file_name().ok_or("Invalid source path")?;
+    let target = destination_dir.join(name);
+    if target.exists() {
+        return Err(format!(
+            "\"{}\" already exists in this folder.",
+            name.to_string_lossy()
+        ));
+    }
+
+    if source.is_dir() {
+        copy_dir_recursive(source, &target).map_err(|error| error.to_string())?;
+    } else {
+        fs::copy(source, &target).map_err(|error| error.to_string())?;
+    }
+    Ok(target)
+}
+
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -270,6 +294,12 @@ pub fn duplicate_path(path: String) -> Result<String, String> {
         fs::copy(source, &target).map_err(|error| error.to_string())?;
     }
     Ok(target)
+}
+
+#[tauri::command]
+pub fn copy_into_folder(source: String, destination_dir: String) -> Result<String, String> {
+    copy_into_directory(Path::new(&source), Path::new(&destination_dir))
+        .map(|path| path.to_string_lossy().into_owned())
 }
 
 #[cfg(test)]
@@ -403,6 +433,30 @@ mod duplicate_tests {
             fs::read_to_string(Path::new(&directory_copy).join("inside.txt")).unwrap(),
             "inside"
         );
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
+#[cfg(test)]
+mod drop_copy_tests {
+    use super::copy_into_directory;
+    use std::fs;
+
+    #[test]
+    fn copies_files_and_rejects_name_collisions() {
+        let tmp = std::env::temp_dir().join("mdflow_drop_copy_test");
+        let _ = fs::remove_dir_all(&tmp);
+        let source_dir = tmp.join("source");
+        let destination_dir = tmp.join("destination");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(&destination_dir).unwrap();
+        let source = source_dir.join("notes.md");
+        fs::write(&source, "hello").unwrap();
+
+        let copied = copy_into_directory(&source, &destination_dir).unwrap();
+        assert_eq!(fs::read_to_string(&copied).unwrap(), "hello");
+        assert!(copy_into_directory(&source, &destination_dir).is_err());
 
         let _ = fs::remove_dir_all(&tmp);
     }

@@ -1,11 +1,15 @@
 import { createEditor, type EditorHandle } from "./editor";
 import {
+  documentViewModes,
+  fileLanguageInfo,
   htmlPreviewFrameScale,
   htmlWithPreviewZoom,
   isExcalidrawFile,
   isHtmlFile,
   isMarkdownFile,
   isMindmapFile,
+  isPdfFile,
+  normalizeDocumentViewMode,
 } from "./document-kind";
 import { glyphs } from "./glyphs";
 import { renderMarkdown } from "./preview";
@@ -13,6 +17,9 @@ import { enhancePreview } from "./render-extras";
 import { getWindow, getState } from "./store";
 import type { ViewMode } from "./state";
 import type { MarkdownFormat } from "./markdown-format";
+import { THEME_OPTIONS, type ThemeName } from "./settings";
+import { renderPdf } from "./pdfview";
+import { FILE_ICON_TEXT, fileIcon } from "./icons";
 
 export type WindowHandlers = {
   onActivateTab: (windowId: string, tabId: string) => void;
@@ -28,6 +35,11 @@ export type WindowHandlers = {
   onToggleSub: () => void;
   onFocusWindow: (windowId: string) => void;
   onDocChange: (windowId: string, tabId: string, text: string) => void;
+  onSave: (windowId: string) => void;
+  onOpen: (windowId: string) => void;
+  onResetMindmap: (windowId: string) => void;
+  onThemeChange: (theme: ThemeName) => void;
+  getTheme: () => ThemeName;
 };
 
 export type WindowView = {
@@ -67,7 +79,7 @@ export function createWindowView(
         <div class="wt-group">
           <button class="wt-btn" data-mode="editor" type="button" title="Editor (⌘E)">${glyphs.editor}</button>
           <button class="wt-btn" data-mode="preview" type="button" title="Read">${glyphs.read}</button>
-          <button class="wt-btn" data-mode="split" type="button" title="Split (⌘B)">${glyphs.split}</button>
+          <button class="wt-btn" data-mode="split" type="button" title="Editor + Preview">${glyphs.split}</button>
         </div>
         <div class="wt-group preview-zoom-group">
           <button class="wt-btn wt-preview-zoom" data-preview-zoom="out" type="button" title="Zoom preview out (⌘−)">−</button>
@@ -101,7 +113,15 @@ export function createWindowView(
     </div>
     <div class="window-status">
       <span class="ws-name"></span>
-      <span class="ws-words">0 words</span>
+      <div class="ws-right">
+        <select class="ws-theme" aria-label="Theme" title="Quick theme"></select>
+        <span class="ws-words">0 words</span>
+        <span class="ws-cursor">Ln 1, Col 1</span>
+        <span class="ws-language">
+          <span class="ws-file-icon"></span>
+          <span class="ws-language-label">Plain text</span>
+        </span>
+      </div>
     </div>`;
   host.appendChild(root);
 
@@ -113,6 +133,20 @@ export function createWindowView(
   previewPane.tabIndex = -1;
   const wsName = root.querySelector<HTMLElement>(".ws-name")!;
   const wsWords = root.querySelector<HTMLElement>(".ws-words")!;
+  const wsCursor = root.querySelector<HTMLElement>(".ws-cursor")!;
+  const wsFileIcon = root.querySelector<HTMLElement>(".ws-file-icon")!;
+  const wsLanguage = root.querySelector<HTMLElement>(".ws-language")!;
+  const wsLanguageLabel = root.querySelector<HTMLElement>(".ws-language-label")!;
+  const themeSelect = root.querySelector<HTMLSelectElement>(".ws-theme")!;
+  for (const theme of THEME_OPTIONS) {
+    const option = document.createElement("option");
+    option.value = theme.id;
+    option.textContent = theme.label;
+    themeSelect.appendChild(option);
+  }
+  themeSelect.addEventListener("change", () => {
+    h.onThemeChange(themeSelect.value as ThemeName);
+  });
 
   let lineNums = true;
   let focusedPane: "editor" | "preview" = "editor";
@@ -127,6 +161,10 @@ export function createWindowView(
   let boardCapture: {
     png: () => Promise<HTMLCanvasElement>;
     svg?: () => Promise<string>;
+  } | null = null;
+  let boardZoom: {
+    zoomBy: (delta: number) => void;
+    reset: () => void;
   } | null = null;
   let boardRenderToken = 0;
 
@@ -170,8 +208,12 @@ export function createWindowView(
     document.addEventListener("mouseup", onUp);
   });
 
-  const editor = createEditor(editorSurface, (tabId, text) =>
-    h.onDocChange(windowId, tabId, text),
+  const editor = createEditor(
+    editorSurface,
+    (tabId, text) => h.onDocChange(windowId, tabId, text),
+    ({ line, column }) => {
+      wsCursor.textContent = `Ln ${line}, Col ${column}`;
+    },
   );
   formatToolbar
     .querySelectorAll<HTMLButtonElement>("[data-format]")
@@ -190,28 +232,41 @@ export function createWindowView(
     const active = w.tabs.find((tab) => tab.id === w.activeTabId);
     const activeName = active?.path ?? active?.name;
     const isBoard = isExcalidrawFile(activeName) || isMindmapFile(activeName);
+    const modes = documentViewModes(activeName);
+    const effectiveMode = normalizeDocumentViewMode(activeName, w.mode);
+    const language = fileLanguageInfo(activeName);
     // mode class
     root.classList.remove(
       "window-mode-editor",
       "window-mode-preview",
       "window-mode-split",
     );
-    root.classList.add(isBoard ? "window-mode-preview" : `window-mode-${w.mode}`);
+    root.classList.add(`window-mode-${effectiveMode}`);
     root.classList.toggle("window-document-board", isBoard);
     if (
       lastMode !== null &&
-      lastMode !== w.mode &&
+      lastMode !== effectiveMode &&
       isHtmlFile(previewPathOrName)
     ) {
       previewAutoFit = true;
       renderPreview(previewText, previewPathOrName);
     }
-    lastMode = w.mode;
+    lastMode = effectiveMode;
     root.classList.toggle("active", getState().activeWindowId === windowId);
     // toolbar active states
-    root.querySelectorAll<HTMLElement>("[data-mode]").forEach((btn) =>
-      btn.classList.toggle("active", btn.dataset.mode === w.mode)
-    );
+    root.querySelectorAll<HTMLElement>("[data-mode]").forEach((btn) => {
+      const mode = btn.dataset.mode as "editor" | "preview" | "split";
+      btn.hidden = !modes.includes(mode);
+      btn.classList.toggle("active", mode === effectiveMode);
+    });
+    root.querySelector<HTMLElement>(".preview-zoom-group")!.hidden =
+      !modes.includes("preview") && !modes.includes("split");
+    root.querySelector<HTMLElement>(".wt-lines")!.hidden =
+      !modes.includes("editor") && !modes.includes("split");
+    wsWords.hidden = !active;
+    wsCursor.hidden =
+      !active || (!modes.includes("editor") && !modes.includes("split"));
+    wsLanguage.hidden = !active;
     root.querySelector(".wt-lines")!.classList.toggle("active", lineNums);
     const sub = root.querySelector(".wt-sub");
     if (sub) sub.classList.toggle("active", getState().windows.length > 1);
@@ -220,6 +275,12 @@ export function createWindowView(
       !active || !isMarkdownFile(active.path ?? active.name),
     );
     wsName.textContent = active?.path ?? active?.name ?? "";
+    const detectedIcon = activeName ? fileIcon(activeName, false) : "file";
+    const iconType = detectedIcon === "file" ? language.icon : detectedIcon;
+    wsFileIcon.className = `ws-file-icon type-${iconType}`;
+    wsFileIcon.textContent = FILE_ICON_TEXT[iconType] ?? "·";
+    wsLanguageLabel.textContent = language.label;
+    themeSelect.value = h.getTheme();
     // tabs
     tabbarEl.innerHTML = "";
     tabbarEl.classList.toggle("empty", w.tabs.length === 0);
@@ -248,12 +309,20 @@ export function createWindowView(
       const name = document.createElement("span");
       name.className = "tab-name";
       name.textContent = t.name;
+      const detectedTabIcon = fileIcon(t.path ?? t.name, false);
+      const tabIconType =
+        detectedTabIcon === "file"
+          ? fileLanguageInfo(t.path ?? t.name).icon
+          : detectedTabIcon;
+      const tabIcon = document.createElement("span");
+      tabIcon.className = `tab-file-icon type-${tabIconType}`;
+      tabIcon.textContent = FILE_ICON_TEXT[tabIconType] ?? "·";
       const close = document.createElement("button");
       close.className = "tab-close";
       close.type = "button";
       close.textContent = "×";
       close.addEventListener("click", (e) => { e.stopPropagation(); h.onCloseTab(windowId, t.id); });
-      tab.append(dot, name, close);
+      tab.append(dot, tabIcon, name, close);
       tabbarEl.appendChild(tab);
     }
   }
@@ -264,11 +333,28 @@ export function createWindowView(
   ): void {
     previewText = text;
     previewPathOrName = pathOrName;
+    if (isPdfFile(pathOrName)) {
+      const token = ++boardRenderToken;
+      boardDestroy?.();
+      boardDestroy = null;
+      boardCapture = null;
+      boardZoom = null;
+      previewFrame = null;
+      previewPane.innerHTML = '<div class="board-loading">Loading PDF…</div>';
+      wsWords.textContent = "PDF";
+      void renderPdf(previewPane, pathOrName!).catch((error) => {
+        if (token !== boardRenderToken) return;
+        previewPane.textContent =
+          error instanceof Error ? error.message : String(error);
+      });
+      return;
+    }
     if (isExcalidrawFile(pathOrName)) {
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
       boardCapture = null;
+      boardZoom = null;
       previewPane.innerHTML =
         '<div class="board-loading">Loading Excalidraw…</div>';
       wsWords.textContent = "Excalidraw board";
@@ -288,6 +374,7 @@ export function createWindowView(
             png: handle.exportPng,
             svg: handle.exportSvg,
           };
+          boardZoom = null;
         })
         .catch((error) => {
           if (token !== boardRenderToken) return;
@@ -305,13 +392,19 @@ export function createWindowView(
       boardDestroy?.();
       boardDestroy = null;
       boardCapture = null;
+      boardZoom = null;
       previewPane.innerHTML = '<div class="board-loading">Loading mindmap…</div>';
       wsWords.textContent = "Mindmap";
       void import("./mindmapview")
         .then(({ mountMindmapBoard }) =>
-          mountMindmapBoard(previewPane, text, (serialized) => {
-            editor.setText(serialized);
-          }),
+          mountMindmapBoard(
+            previewPane,
+            text,
+            (serialized) => editor.setText(serialized),
+            () => h.onOpen(windowId),
+            () => h.onSave(windowId),
+            () => h.onResetMindmap(windowId),
+          ),
         )
         .then((handle) => {
           if (token !== boardRenderToken) {
@@ -320,6 +413,10 @@ export function createWindowView(
           }
           boardDestroy = handle.destroy;
           boardCapture = { png: handle.capture };
+          boardZoom = {
+            zoomBy: handle.zoomBy,
+            reset: handle.resetZoom,
+          };
         })
         .catch((error) => {
           if (token !== boardRenderToken) return;
@@ -336,8 +433,14 @@ export function createWindowView(
     boardDestroy?.();
     boardDestroy = null;
     boardCapture = null;
+    boardZoom = null;
     previewFrame = null;
     previewPane.replaceChildren();
+    if (!isMarkdownFile(pathOrName) && !isHtmlFile(pathOrName)) {
+      const count = countWords(text);
+      wsWords.textContent = `${count} ${count === 1 ? "word" : "words"}`;
+      return;
+    }
     if (isHtmlFile(pathOrName)) {
       const frame = document.createElement("iframe");
       frame.className = "html-preview-frame";
@@ -471,7 +574,11 @@ export function createWindowView(
     render,
     renderPreview,
     adjustFocusedZoom: (delta) => {
-      if (isExcalidrawFile(previewPathOrName) || isMindmapFile(previewPathOrName)) return;
+      if (isMindmapFile(previewPathOrName)) {
+        boardZoom?.zoomBy(delta);
+        return;
+      }
+      if (isExcalidrawFile(previewPathOrName)) return;
       if (focusedPane === "editor") {
         setEditorZoom(editorZoom + delta);
       } else {
@@ -480,7 +587,11 @@ export function createWindowView(
       }
     },
     resetFocusedZoom: () => {
-      if (isExcalidrawFile(previewPathOrName) || isMindmapFile(previewPathOrName)) return;
+      if (isMindmapFile(previewPathOrName)) {
+        boardZoom?.reset();
+        return;
+      }
+      if (isExcalidrawFile(previewPathOrName)) return;
       if (focusedPane === "editor") {
         setEditorZoom(1);
       } else {

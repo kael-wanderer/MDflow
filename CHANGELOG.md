@@ -8,6 +8,23 @@ All notable changes to MDflow are documented here. The format is based on
 
 ### Added
 
+- **Native multi-window support** — create independent MDflow windows from
+  **View → New Window** (`⌘⇧N`) or **New Window** in the macOS Dock context menu.
+  Each native window has its own tabs, Explorer workspace, AI panel, and optional
+  in-window Main/Sub split.
+- **Native file drag and drop** — drop files onto a Main/Sub document pane to open
+  them there, or onto Explorer to copy them. Folder targets expand after a short
+  hover; file targets copy beside the file; an add badge shows the destination.
+- **Type-aware document modes** in both Main and Sub panes: Markdown and HTML support
+  Editor, Read, and Editor + Preview; PDF is Read-only; code/config formats are
+  Editor-only.
+- **Syntax highlighting** for TypeScript/JavaScript, JSON, YAML/YML, and expanded
+  HTML token coloring.
+- **File-language status** — file-type icons in tabs/status bars plus live cursor
+  line and column.
+- **Quick theme picker** in each window status bar.
+- **Mindmap document controls** — Open, Save, Reset, zoom in/out/reset, and
+  `⌘+` / `⌘−` / `⌘0` support.
 - **AI panel** (right side, ✦ button) with two tabs:
   - **Chat** — provider and permission-mode (Ask / Bypass approvals) selectors,
     document and selection context, streamed replies, and Copy / Insert-at-cursor /
@@ -54,6 +71,12 @@ All notable changes to MDflow are documented here. The format is based on
 
 ### Changed
 
+- New mindmap nodes default to text-only; rectangular, rounded, pill, and circular
+  blocks remain optional per-node styles.
+- Mindmap drag feedback is now a borderless, light theme-aware gradient.
+- Native menu events and Finder-open requests are routed only to the focused native
+  window. Secondary windows start fresh and do not overwrite the primary
+  restore-session snapshot.
 - The gear button now opens the in-app settings panel instead of directly opening
   `settings.json`.
 - Agent settings now use two tabs: **CLI Agents** and **Models**, combining local and
@@ -67,6 +90,11 @@ All notable changes to MDflow are documented here. The format is based on
 
 ### Fixed
 
+- Mindmap parent-child connectors remain visible across themes, and central-node
+  connectors now start at the node border instead of crossing the text.
+- Mindmap nodes can be dragged to reorder siblings or reparent them.
+- Markdown and HTML can once again show editor and preview simultaneously.
+- Mindmap Save is available directly from the board toolbar.
 - Agent `command` providers (e.g. `pi`, `opencode`) failed from the packaged app with
   "No such file or directory" — MDflow now resolves the login-shell `PATH` so
   Homebrew/npm-installed CLIs are found.

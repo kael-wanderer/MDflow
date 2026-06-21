@@ -1,6 +1,7 @@
 import "./styles.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { initActivityBar } from "./activitybar";
 import {
@@ -12,8 +13,14 @@ import {
 import { createAIPanel, type AIPanel } from "./ai/panel";
 import { showComparison } from "./compareview";
 import { showContextMenu, type MenuItem } from "./contextmenu";
-import { initExplorer, openFolder, setExplorerActivePath } from "./explorer";
+import {
+  expandExplorerFolder,
+  initExplorer,
+  openFolder,
+  setExplorerActivePath,
+} from "./explorer";
 import { revealExplorerPath } from "./explorer";
+import { explorerDropDirectory, logicalDropPoint, type DropPoint } from "./file-drop";
 import {
   getInitialFile,
   openFile,
@@ -27,12 +34,19 @@ import {
   listFilesRecursive,
   pickFolder,
   copyText,
+  copyIntoFolder,
   revealInFinder,
 } from "./filesys";
 import { createPalette, type PaletteItem } from "./palette";
 import { breadcrumbsPath, joinPath, relativePath } from "./paths";
-import { renderPdf } from "./pdfview";
-import { isExcalidrawFile, isHtmlFile, isMindmapFile } from "./document-kind";
+import {
+  isExcalidrawFile,
+  isHtmlFile,
+  isMindmapFile,
+  isPdfFile,
+  fileLanguageInfo,
+  normalizeDocumentViewMode,
+} from "./document-kind";
 import type { EditorDocumentKind, SoftWrapMode } from "./editor";
 import {
   exportOptionsFor,
@@ -45,11 +59,12 @@ import {
   DEFAULT_SETTINGS_JSON,
   normalizeThemeName,
   parseSettings,
+  type ThemeName,
   type Settings,
 } from "./settings";
 import { createSettingsPanel } from "./settingspanel";
 import { checkForUpdates, startDailyUpdateChecks } from "./updater";
-import { loadState, saveState, type ViewMode } from "./state";
+import { freshState, loadState, saveState, type ViewMode } from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
 import {
   nextActiveAfterClose,
@@ -58,13 +73,19 @@ import {
   tabIdsRightOf,
   type TabMeta,
 } from "./tabops";
+import { findNode } from "./treeops";
 import { findTabByPath } from "./windowops";
 import { createWindowView, type WindowView } from "./windowview";
 import helpDoc from "../HELP.md?raw";
 
 const windowsHost = document.getElementById("windows")!;
 
-const startupUi = loadState();
+const nativeWindowLabel =
+  typeof (window as any).__TAURI_INTERNALS__ === "object"
+    ? getCurrentWindow().label
+    : "main";
+const isPrimaryNativeWindow = nativeWindowLabel === "main";
+const startupUi = isPrimaryNativeWindow ? loadState() : freshState();
 let ui = { ...startupUi };
 let currentSettings = parseSettings("{}");
 let settingsPath = "";
@@ -76,13 +97,16 @@ let indexedFolder: string | null = null;
 let tabSeq = 0;
 const nextId = () => `t${++tabSeq}`;
 
+function persistUiState(): void {
+  if (isPrimaryNativeWindow) saveState(ui);
+}
+
 function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
 function editorKind(pathOrName: string | null): EditorDocumentKind {
-  if (isExcalidrawFile(pathOrName) || isMindmapFile(pathOrName)) return "plain";
-  return isHtmlFile(pathOrName) ? "html" : "markdown";
+  return fileLanguageInfo(pathOrName).editor;
 }
 
 const views = new Map<string, WindowView>();
@@ -193,12 +217,15 @@ function commandItems(): PaletteItem[] {
         void closeTab(windowState.id, windowState.activeTabId);
       }
     }),
-    command("split", "View: Split", () => setMode(activeWindowId(), "split")),
+    command("split", "View: Editor + Preview", () =>
+      setMode(activeWindowId(), "split"),
+    ),
     command("editor", "View: Editor", () => setMode(activeWindowId(), "editor")),
     command("read", "View: Read", () => setMode(activeWindowId(), "preview")),
     command("softwrap", "Cycle Soft Wrap", cycleSoftWrap),
     command("lines", "Toggle Line Numbers", toggleLineNumbers),
     command("sub", "Toggle Sub Window", () => void toggleSub()),
+    command("newWindow", "New Window", () => void invoke("new_window")),
     command("explorer", "Toggle Explorer", () => {
       document.getElementById("ab-explorer")?.click();
     }),
@@ -239,6 +266,17 @@ const handlers = {
     }
   },
   onDocChange: (wid: string, tid: string, text: string) => onDocChange(wid, tid, text),
+  onSave: (wid: string) => {
+    setState({ activeWindowId: wid });
+    void doSave(false);
+  },
+  onOpen: (wid: string) => {
+    setState({ activeWindowId: wid });
+    void doOpen();
+  },
+  onResetMindmap: (wid: string) => void resetMindmap(wid),
+  onThemeChange: (theme: ThemeName) => setMenuTheme(theme),
+  getTheme: () => currentSettings.theme,
 };
 
 async function closeTabs(windowId: string, tabIds: string[]): Promise<void> {
@@ -399,6 +437,14 @@ function activateTab(windowId: string, tabId: string): void {
   v.editor.switchTo(tabId);
   const text = v.editor.getText(tabId);
   const tab = getWindow(windowId)?.tabs.find((item) => item.id === tabId);
+  const windowState = getWindow(windowId);
+  const mode = normalizeDocumentViewMode(
+    tab?.path ?? tab?.name,
+    windowState?.mode ?? "editor",
+  );
+  if (windowState && mode !== windowState.mode) {
+    patchWindow(windowId, { mode });
+  }
   v.renderPreview(text, tab?.path ?? tab?.name);
   syncExplorerActivePath();
   renderAll();
@@ -512,25 +558,163 @@ async function showOpenError(error: unknown): Promise<void> {
   await message(text, { title: "Open file", kind: "error" });
 }
 
-async function doOpenPath(path: string): Promise<void> {
-  if (path.toLowerCase().endsWith(".pdf")) {
-    openPdf(path);
+async function doOpenPath(
+  path: string,
+  windowId = getState().activeWindowId,
+): Promise<void> {
+  if (isPdfFile(path)) {
+    openPdf(windowId, path);
     return;
   }
   try {
     const contents = await invoke<string>("read_file", { path });
-    openInWindow("main", { path, name: basename(path), text: contents });
+    openInWindow(windowId, { path, name: basename(path), text: contents });
   } catch (error) {
     await showOpenError(error);
   }
+}
+
+type ExplorerDropTarget = {
+  destinationDir: string;
+  row: HTMLElement | null;
+  folderPath: string | null;
+};
+
+let dropExpandTimer: number | null = null;
+let pendingDropFolder: string | null = null;
+
+function clearDropHighlight(): void {
+  document
+    .querySelectorAll<HTMLElement>(".tree-row.drop-copy-target")
+    .forEach((row) => row.classList.remove("drop-copy-target"));
+  document.getElementById("explorer")?.classList.remove("drop-copy-root");
+}
+
+function cancelDropExpansion(): void {
+  if (dropExpandTimer !== null) window.clearTimeout(dropExpandTimer);
+  dropExpandTimer = null;
+  pendingDropFolder = null;
+}
+
+function explorerTargetAt(point: DropPoint): ExplorerDropTarget | null {
+  const hit = document.elementFromPoint(point.x, point.y) as HTMLElement | null;
+  if (!hit?.closest("#explorer")) return null;
+  const rootFolder = getState().folder;
+  if (!rootFolder) return null;
+
+  const row = hit.closest<HTMLElement>(".tree-row[data-path]");
+  const hoveredPath = row?.dataset.path ?? null;
+  const hoveredIsDirectory = row?.dataset.isDir === "true";
+  return {
+    destinationDir: explorerDropDirectory(
+      rootFolder,
+      hoveredPath,
+      hoveredIsDirectory,
+    ),
+    row,
+    folderPath: hoveredIsDirectory ? hoveredPath : null,
+  };
+}
+
+function windowAt(point: DropPoint): string {
+  const hit = document.elementFromPoint(point.x, point.y) as HTMLElement | null;
+  const windowElement = hit?.closest<HTMLElement>(".window[data-window-id]");
+  const windowId = windowElement?.dataset.windowId;
+  return windowId && getWindow(windowId) ? windowId : getState().activeWindowId;
+}
+
+function scheduleDropExpansion(folderPath: string): void {
+  const node = getState().tree ? findNode(getState().tree!, folderPath) : null;
+  if (!node?.isDir || node.expanded || pendingDropFolder === folderPath) return;
+  cancelDropExpansion();
+  pendingDropFolder = folderPath;
+  dropExpandTimer = window.setTimeout(() => {
+    void expandExplorerFolder(folderPath);
+    dropExpandTimer = null;
+    pendingDropFolder = null;
+  }, 600);
+}
+
+function highlightDropTarget(point: DropPoint): void {
+  clearDropHighlight();
+  const target = explorerTargetAt(point);
+  if (!target) {
+    cancelDropExpansion();
+    return;
+  }
+  if (target.row) {
+    target.row.classList.add("drop-copy-target");
+  } else {
+    document.getElementById("explorer")?.classList.add("drop-copy-root");
+  }
+  if (target.folderPath) scheduleDropExpansion(target.folderPath);
+  else cancelDropExpansion();
+}
+
+function dropPoint(position: { x: number; y: number }): DropPoint {
+  return logicalDropPoint(
+    position,
+    { width: window.innerWidth, height: window.innerHeight },
+    window.devicePixelRatio || 1,
+  );
+}
+
+async function copyDroppedPaths(
+  paths: string[],
+  destinationDir: string,
+): Promise<void> {
+  const failures: string[] = [];
+  for (const source of paths) {
+    try {
+      await copyIntoFolder(source, destinationDir);
+    } catch (error) {
+      failures.push(`${basename(source)}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  await refreshDir(destinationDir);
+  await refreshFileList();
+  if (failures.length > 0) {
+    await message(failures.join("\n"), {
+      title: "Copy dropped files",
+      kind: "error",
+    });
+  }
+}
+
+async function initNativeFileDrop(): Promise<void> {
+  await getCurrentWindow().onDragDropEvent((event) => {
+    if (event.payload.type === "enter" || event.payload.type === "over") {
+      highlightDropTarget(dropPoint(event.payload.position));
+      return;
+    }
+    if (event.payload.type === "leave") {
+      clearDropHighlight();
+      cancelDropExpansion();
+      return;
+    }
+
+    const point = dropPoint(event.payload.position);
+    const explorerTarget = explorerTargetAt(point);
+    clearDropHighlight();
+    cancelDropExpansion();
+    if (explorerTarget) {
+      void copyDroppedPaths(event.payload.paths, explorerTarget.destinationDir);
+      return;
+    }
+
+    const windowId = windowAt(point);
+    for (const path of event.payload.paths) {
+      void doOpenPath(path, windowId);
+    }
+  });
 }
 
 async function doOpen(): Promise<void> {
   try {
     const result = await openFile();
     if (result) {
-      if (result.path.toLowerCase().endsWith(".pdf")) {
-        openPdf(result.path);
+      if (isPdfFile(result.path)) {
+        openPdf(getState().activeWindowId, result.path);
         return;
       }
       openInWindow(getState().activeWindowId, {
@@ -544,17 +728,9 @@ async function doOpen(): Promise<void> {
   }
 }
 
-function openPdf(path: string): void {
-  const windowId = getState().activeWindowId;
-  const pane = document.querySelector<HTMLElement>(
-    `.window[data-window-id="${windowId}"] .pane-preview`,
-  );
+function openPdf(windowId: string, path: string): void {
+  openInWindow(windowId, { path, name: basename(path), text: "" });
   setMode(windowId, "preview");
-  if (!pane) return;
-  void renderPdf(pane, path).catch((error) => {
-    pane.textContent =
-      error instanceof Error ? error.message : String(error);
-  });
 }
 
 function newDoc(): void {
@@ -570,6 +746,7 @@ function newBoard(kind: "excalidraw" | "mind"): void {
 async function doSave(saveAs = false): Promise<void> {
   const t = activeMeta();
   if (!t) return;
+  if (isPdfFile(t.path ?? t.name)) return;
   const view = activeView();
 
   try {
@@ -615,6 +792,22 @@ async function doSave(saveAs = false): Promise<void> {
     const text = error instanceof Error ? error.message : String(error);
     await message(text, { title: "Save file", kind: "error" });
   }
+}
+
+async function resetMindmap(windowId: string): Promise<void> {
+  const windowState = getWindow(windowId);
+  const tab = windowState?.tabs.find((item) => item.id === windowState.activeTabId);
+  if (!tab || !isMindmapFile(tab.path ?? tab.name)) return;
+  const approved = await confirm("Reset this mindmap to a new central idea?", {
+    title: "Reset mindmap",
+    kind: "warning",
+  });
+  if (!approved) return;
+  setState({ activeWindowId: windowId });
+  const view = views.get(windowId);
+  if (!view) return;
+  view.editor.setText("");
+  view.renderPreview("", tab.path ?? tab.name);
 }
 
 function exportError(error: unknown): string {
@@ -747,7 +940,10 @@ function handleExplorerPathChange(from: string, to: string | null): void {
 }
 
 function setMode(windowId: string, mode: ViewMode): void {
-  patchWindow(windowId, { mode });
+  const windowState = getWindow(windowId);
+  const tab = windowState?.tabs.find((item) => item.id === windowState.activeTabId);
+  const nextMode = normalizeDocumentViewMode(tab?.path ?? tab?.name, mode);
+  patchWindow(windowId, { mode: nextMode });
   const view = views.get(windowId)!;
   view.render();
   requestAnimationFrame(() => view.requestMeasure());
@@ -759,7 +955,7 @@ function toggleLineNumbers(): void {
     v.editor.setLineNumbers(ui.lineNumbers);
     v.setLineNumbersFlag(ui.lineNumbers);
   }
-  saveState(ui);
+  persistUiState();
   renderAll();
 }
 
@@ -835,6 +1031,7 @@ function setMenuTheme(theme: string): void {
     theme: normalizeThemeName(theme) ?? currentSettings.theme,
   };
   persistCurrentSettings();
+  renderAll();
 }
 
 function ensureSubWindow(): void {
@@ -843,7 +1040,7 @@ function ensureSubWindow(): void {
   setState({
     windows: [
       ...state.windows,
-      { id: "sub", tabs: [], activeTabId: null, mode: "split" },
+      { id: "sub", tabs: [], activeTabId: null, mode: "editor" },
     ],
   });
   addSplitter();
@@ -1020,7 +1217,7 @@ function setAIVisible(aiVisible: boolean): void {
   ui = { ...ui, aiVisible };
   applyAIVisibility();
   if (aiVisible && !aiPanel) buildAIPanel();
-  saveState(ui);
+  persistUiState();
   requestWindowMeasure();
   requestAnimationFrame(() => aiPanel?.resize());
 }
@@ -1188,7 +1385,7 @@ aiResize.addEventListener("mousedown", (event) => {
     document.body.classList.remove("resizing-ai");
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("mouseup", onUp);
-    saveState(ui);
+    persistUiState();
     requestWindowMeasure();
     aiPanel?.resize();
   };
@@ -1245,7 +1442,7 @@ subscribe(() => {
     })),
     activeWindowIndex: s.windows.findIndex((w) => w.id === s.activeWindowId),
   };
-  saveState(ui);
+  persistUiState();
 });
 
 window.addEventListener("focus", () => {
@@ -1380,8 +1577,12 @@ async function restoreWindows(): Promise<void> {
     const windowId = i === 0 ? "main" : "sub";
     for (const path of saved[i].openPaths) {
       try {
-        const contents = await invoke<string>("read_file", { path });
-        openInWindow(windowId, { path, name: basename(path), text: contents });
+        if (isPdfFile(path)) {
+          openPdf(windowId, path);
+        } else {
+          const contents = await invoke<string>("read_file", { path });
+          openInWindow(windowId, { path, name: basename(path), text: contents });
+        }
       } catch {
         /* vanished */
       }
@@ -1398,9 +1599,13 @@ async function restoreWindows(): Promise<void> {
     setState({ activeWindowId: ai });
   }
 
-  const result = await getInitialFile();
+  const result = isPrimaryNativeWindow ? await getInitialFile() : null;
   if (result) {
-    openInWindow(getState().activeWindowId, { path: result.path, name: basename(result.path), text: result.contents });
+    if (isPdfFile(result.path)) {
+      openPdf(getState().activeWindowId, result.path);
+    } else {
+      openInWindow(getState().activeWindowId, { path: result.path, name: basename(result.path), text: result.contents });
+    }
   }
 
   renderAll();
@@ -1411,7 +1616,7 @@ async function boot(): Promise<void> {
   await loadAISettings();
   startDailyUpdateChecks(() => currentSettings.updateMode === "auto");
 
-  if (currentSettings.restoreSession) {
+  if (isPrimaryNativeWindow && currentSettings.restoreSession) {
     if (startupUi.folder) {
       try {
         await openFolder(startupUi.folder);
@@ -1422,13 +1627,17 @@ async function boot(): Promise<void> {
     await refreshFileList();
     await restoreWindows();
   } else {
-    const result = await getInitialFile();
+    const result = isPrimaryNativeWindow ? await getInitialFile() : null;
     if (result) {
-      openInWindow(getState().activeWindowId, {
-        path: result.path,
-        name: basename(result.path),
-        text: result.contents,
-      });
+      if (isPdfFile(result.path)) {
+        openPdf(getState().activeWindowId, result.path);
+      } else {
+        openInWindow(getState().activeWindowId, {
+          path: result.path,
+          name: basename(result.path),
+          text: result.contents,
+        });
+      }
     }
     renderAll();
   }
@@ -1444,4 +1653,7 @@ void listen<string>("open-path", (event) => {
   }),
 ).catch(() => {});
 
+void initNativeFileDrop().catch((error) => {
+  console.warn("Native file drag and drop unavailable:", error);
+});
 void boot();

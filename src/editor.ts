@@ -2,7 +2,10 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { html } from "@codemirror/lang-html";
+import { javascript } from "@codemirror/lang-javascript";
+import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
+import { yaml } from "@codemirror/lang-yaml";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
   drawSelection,
@@ -17,7 +20,19 @@ import {
   type MarkdownFormat,
 } from "./markdown-format";
 
-export type EditorDocumentKind = "markdown" | "html" | "plain";
+export type EditorDocumentKind =
+  | "markdown"
+  | "html"
+  | "typescript"
+  | "javascript"
+  | "json"
+  | "yaml"
+  | "plain";
+
+export type CursorPosition = {
+  column: number;
+  line: number;
+};
 
 export type SoftWrapMode = "off" | "window" | "guide";
 
@@ -65,14 +80,55 @@ const theme = EditorView.theme(
   { dark: true },
 );
 
-const mdHighlight = HighlightStyle.define([
+const editorHighlight = HighlightStyle.define([
   { tag: tags.heading, color: "var(--tok-func)", fontWeight: "bold" },
   { tag: [tags.keyword, tags.modifier], color: "var(--tok-keyword)" },
-  { tag: [tags.string, tags.link, tags.url], color: "var(--tok-string)" },
+  {
+    tag: [tags.string, tags.special(tags.string), tags.link, tags.url],
+    color: "var(--tok-string)",
+  },
   {
     tag: [tags.comment, tags.quote],
     color: "var(--tok-comment)",
     fontStyle: "italic",
+  },
+  {
+    tag: [tags.tagName, tags.typeName, tags.className, tags.namespace],
+    color: "var(--tok-type)",
+  },
+  {
+    tag: [
+      tags.attributeName,
+      tags.propertyName,
+      tags.definition(tags.propertyName),
+    ],
+    color: "var(--tok-property)",
+  },
+  {
+    tag: [
+      tags.function(tags.variableName),
+      tags.definition(tags.variableName),
+      tags.labelName,
+    ],
+    color: "var(--tok-func)",
+  },
+  {
+    tag: [tags.number, tags.bool, tags.null, tags.atom, tags.regexp],
+    color: "var(--tok-number)",
+  },
+  {
+    tag: [tags.operator, tags.logicOperator, tags.compareOperator],
+    color: "var(--tok-operator)",
+  },
+  {
+    tag: [
+      tags.angleBracket,
+      tags.brace,
+      tags.squareBracket,
+      tags.paren,
+      tags.separator,
+    ],
+    color: "var(--tok-punctuation)",
   },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strong, fontWeight: "bold" },
@@ -85,6 +141,10 @@ const language = new Compartment();
 
 function languageExtension(kind: EditorDocumentKind): Extension {
   if (kind === "html") return html({ autoCloseTags: true });
+  if (kind === "typescript") return javascript({ typescript: true, jsx: true });
+  if (kind === "javascript") return javascript({ jsx: true });
+  if (kind === "json") return json();
+  if (kind === "yaml") return yaml();
   if (kind === "plain") return [];
   return markdown({ codeLanguages: languages });
 }
@@ -92,12 +152,19 @@ function languageExtension(kind: EditorDocumentKind): Extension {
 export function createEditor(
   parent: HTMLElement,
   onChange: (id: string, text: string) => void,
+  onCursorChange: (position: CursorPosition) => void = () => {},
 ): EditorHandle {
   const states = new Map<string, EditorState>();
   let activeId: string | null = null;
   let softWrapMode: SoftWrapMode = "window";
   let wrapColumn = 80;
   let lineNums = true;
+
+  const reportCursor = (state: EditorState): void => {
+    const head = state.selection.main.head;
+    const line = state.doc.lineAt(head);
+    onCursorChange({ line: line.number, column: head - line.from + 1 });
+  };
 
   function wrapExtension(): Extension {
     if (softWrapMode === "off") return [];
@@ -122,11 +189,12 @@ export function createEditor(
     highlightActiveLine(),
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
     language.of(languageExtension(kind)),
-    syntaxHighlighting(mdHighlight, { fallback: true }),
+    syntaxHighlighting(editorHighlight, { fallback: true }),
     wrap.of(wrapExtension()),
     theme,
     EditorView.updateListener.of((update) => {
       if (update.docChanged) onChange(id, update.state.doc.toString());
+      if (update.docChanged || update.selectionSet) reportCursor(update.state);
     }),
   ];
 
@@ -161,6 +229,7 @@ export function createEditor(
       activeId = id;
       view.setState(target);
       reapplyToggles();
+      reportCursor(view.state);
     },
     closeState(id) {
       states.delete(id);

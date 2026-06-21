@@ -2,10 +2,13 @@ mod ai;
 mod defaults;
 mod export;
 mod files;
+mod macos_dock;
 mod menu;
+mod native_windows;
 mod pty;
 mod secrets;
 
+use std::collections::HashSet;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
@@ -16,23 +19,39 @@ struct OpenPathState {
 
 #[derive(Default)]
 struct OpenPathQueue {
-    frontend_ready: bool,
+    ready_windows: HashSet<String>,
     pending: Vec<String>,
 }
 
 #[tauri::command]
-fn take_open_paths(state: tauri::State<'_, OpenPathState>) -> Vec<String> {
+fn take_open_paths(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, OpenPathState>,
+) -> Vec<String> {
     let mut queue = state.inner.lock().expect("open-path state poisoned");
-    queue.frontend_ready = true;
-    std::mem::take(&mut queue.pending)
+    queue.ready_windows.insert(window.label().to_string());
+    if window.label() == "main" {
+        std::mem::take(&mut queue.pending)
+    } else {
+        Vec::new()
+    }
 }
 
 fn dispatch_open_path(app: &tauri::AppHandle, path: String) {
     let state = app.state::<OpenPathState>();
     let mut queue = state.inner.lock().expect("open-path state poisoned");
-    if queue.frontend_ready {
+    let target = native_windows::focused_window(app)
+        .filter(|window| queue.ready_windows.contains(window.label()))
+        .or_else(|| {
+            queue
+                .ready_windows
+                .contains("main")
+                .then(|| app.get_webview_window("main"))
+                .flatten()
+        });
+    if let Some(window) = target {
         drop(queue);
-        let _ = app.emit("open-path", path);
+        let _ = window.emit("open-path", path);
     } else {
         queue.pending.push(path);
     }
@@ -106,16 +125,30 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(pty::PtyState::default())
         .manage(OpenPathState::default())
+        .manage(native_windows::FocusedWindowState::default())
         .setup(|app| {
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
             let m = menu::build(app.handle())?;
             app.set_menu(m)?;
+            macos_dock::install(app.handle());
             Ok(())
         })
         .on_menu_event(|app, event| {
-            let _ = app.emit("menu", event.id().0.as_str());
+            let id = event.id().0.as_str();
+            if id == "view.new_window" {
+                let _ = native_windows::create(app);
+                return;
+            }
+            if let Some(window) = native_windows::focused_window(app) {
+                let _ = window.emit("menu", id);
+            }
+        })
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Focused(true)) {
+                native_windows::remember_focus(window.app_handle(), window.label());
+            }
         })
         .invoke_handler(tauri::generate_handler![
             ai::ai_run,
@@ -142,6 +175,7 @@ pub fn run() {
             files::rename_path,
             files::delete_to_trash,
             files::duplicate_path,
+            files::copy_into_folder,
             files::list_files_recursive,
             files::get_settings,
             files::get_ai_settings,
@@ -153,6 +187,7 @@ pub fn run() {
             sync_view_menu,
             window_fullscreen_toggle,
             window_tile,
+            native_windows::new_window,
             restart_app,
         ])
         .build(tauri::generate_context!())

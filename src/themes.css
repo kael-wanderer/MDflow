@@ -24,6 +24,11 @@
   --tok-string: #2f7d32;
   --tok-func: #1f5fb0;
   --tok-comment: #9aa0ab;
+  --tok-type: #a35b12;
+  --tok-property: #176a8a;
+  --tok-number: #7b4ea3;
+  --tok-operator: #4e5665;
+  --tok-punctuation: #7c8492;
 }
 
 :root[data-theme="catppuccin-mocha"] {
@@ -46,6 +51,11 @@
   --tok-string: #a6e3a1;
   --tok-func: #89b4fa;
   --tok-comment: #6c7086;
+  --tok-type: #f9e2af;
+  --tok-property: #89dceb;
+  --tok-number: #fab387;
+  --tok-operator: #bac2de;
+  --tok-punctuation: #7f849c;
 }
 
 :root[data-theme="everforest-dark"] {
@@ -68,6 +78,11 @@
   --tok-string: #a7c080;
   --tok-func: #7fbbb3;
   --tok-comment: #859289;
+  --tok-type: #dbbc7f;
+  --tok-property: #83c092;
+  --tok-number: #e69875;
+  --tok-operator: #d3c6aa;
+  --tok-punctuation: #9da9a0;
 }
 
 :root[data-theme="nord"] {
@@ -90,4 +105,9 @@
   --tok-string: #a3be8c;
   --tok-func: #88c0d0;
   --tok-comment: #616e88;
+  --tok-type: #ebcb8b;
+  --tok-property: #8fbcbb;
+  --tok-number: #d08770;
+  --tok-operator: #d8dee9;
+  --tok-punctuation: #7b88a1;
 }

@@ -2,7 +2,7 @@
 
 A fast, lightweight markdown editor built with Tauri 2 + Rust and a plain-TypeScript
 frontend. MDflow is an IDE-style workspace for markdown: a file explorer, split
-windows, a command palette, rich preview (mermaid, math, raw HTML), a built-in AI
+  windows, a command palette, rich preview (mermaid, math, raw HTML), a built-in AI
 panel, a PDF reader, editable Excalidraw and mindmap boards, and document export.
 
 **License:** MIT · **Identifier:** `com.kael.mdflow`
@@ -17,11 +17,15 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
   tabs use proper HTML syntax highlighting. Live preview has a 300 ms debounce.
 - **Workspace shell** — activity bar, toggleable file explorer with full CRUD
   (create, rename, duplicate, delete-to-trash, reveal in Finder), and resizable panels.
-- **Split windows** — a Main and an optional Sub window, each with its own tabs and
-  view mode (Editor / Read / Split).
+- **Native multi-window** — create independent macOS windows from View or the Dock;
+  each has its own tabs, Explorer workspace, AI panel, and optional Main/Sub split.
+- **Main/Sub split** — each native window can show Main and Sub document panes with
+  independent tabs and type-aware view modes.
 - **Tabs** — multi-document tabs with dirty markers, pinning, and right-click actions
   (split, move between windows, close variants, copy paths).
 - **Command palette** — `⌘K` to fuzzy-find files or run commands.
+- **Finder drag/drop** — open files by dropping onto a document pane, or copy them
+  into Explorer folders/file locations with destination feedback.
 - **Compare** — select two files and view a side-by-side diff.
 - **Rich preview** — [mermaid](https://mermaid.js.org) diagrams, [KaTeX](https://katex.org)
   math (`$…$`, `$$…$$`), and raw HTML.
@@ -131,6 +135,8 @@ src-tauri/src/
   pty.rs           embedded-terminal PTY
   export.rs        pandoc/typst export
   menu.rs          native menu bar
+  native_windows.rs independent Tauri window creation and focused-window routing
+  macos_dock.rs     macOS Dock context-menu New Window integration
 ```
 
 Excalidraw 0.18.0 and its React boundary are shipped as a pinned, self-contained
