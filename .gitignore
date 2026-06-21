@@ -29,6 +29,6 @@ progress.md
 task_plan.md
 .planning/
 
-# Local planning / QA docs (kept out of the repo)
-docs/roadmap.md
-docs/test-cases/
+# Personal planning docs and design assets (kept out of the repo)
+docs/
+images/
