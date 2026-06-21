@@ -152,8 +152,6 @@ Excalidraw 0.18.0 and its React boundary are shipped as a pinned, self-contained
 module under `public/vendor/excalidraw`. It is requested only when a board opens, so
 the plain-TypeScript startup bundle does not load React.
 
-See `docs/` for the full spec, plans, and design notes.
-
 ## Configuring signed updates
 
 The update UI is active, but release checks require a signed feed. Set
