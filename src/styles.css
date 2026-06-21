@@ -1917,6 +1917,75 @@ body.resizing-ai {
   font-size: 11px;
 }
 
+.settings-restore {
+  align-self: flex-start;
+  margin: 8px 2px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.settings-restore:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.keymap-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.keymap-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 2px;
+}
+
+.keymap-label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.keymap-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keymap-key {
+  min-width: 60px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(127, 127, 127, 0.1);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.keymap-key.recording {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.keymap-reset {
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.keymap-reset:hover {
+  color: var(--text);
+}
+
 .settings-subhead {
   margin: 6px 2px 2px;
   font-size: 11px;

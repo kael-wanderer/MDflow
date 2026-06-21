@@ -6,8 +6,14 @@ import {
   type Settings,
   type ZoneSettings,
 } from "./settings";
+import {
+  acceleratorFromEvent,
+  formatAccelerator,
+  KEYMAP_COMMANDS,
+  resolveAccelerator,
+} from "./keymap";
 
-type SettingsTab = "theme" | "format" | "general" | "agent";
+type SettingsTab = "theme" | "format" | "general" | "agent" | "keys";
 type ZoneName = "explorer" | "main" | "sub";
 type AgentGroup = "command" | "model";
 
@@ -23,6 +29,7 @@ export type SettingsPanelDeps = {
 
 export type SettingsPanel = {
   open: (x: number, y: number) => void;
+  openKeys: () => void;
   close: () => void;
 };
 
@@ -42,6 +49,7 @@ function cloneSettings(settings: Settings): Settings {
     explorer: { ...settings.explorer },
     main: { ...settings.main },
     sub: { ...settings.sub },
+    keymap: { ...settings.keymap },
   };
 }
 
@@ -82,6 +90,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   let activeTab: SettingsTab = "theme";
   let activeZone: ZoneName = "main";
   let activeAgentGroup: AgentGroup = "command";
+  let recordingId: string | null = null;
 
   function updateSettings(
     update: (settings: Settings) => void,
@@ -570,6 +579,76 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     content.appendChild(form);
   }
 
+  function renderKeys(content: HTMLElement): void {
+    const settings = deps.getSettings();
+
+    const help = document.createElement("p");
+    help.className = "settings-help";
+    help.textContent =
+      "Click a shortcut, then press the keys. Backspace unbinds; Esc cancels.";
+    content.appendChild(help);
+
+    const restore = document.createElement("button");
+    restore.type = "button";
+    restore.className = "settings-restore";
+    restore.textContent = "Restore Defaults";
+    restore.addEventListener("click", () => {
+      recordingId = null;
+      updateSettings((next) => {
+        next.keymap = {};
+      });
+    });
+    content.appendChild(restore);
+
+    const categories = [...new Set(KEYMAP_COMMANDS.map((c) => c.category))];
+    for (const category of categories) {
+      renderSubhead(content, category);
+      const list = document.createElement("div");
+      list.className = "keymap-list";
+      for (const command of KEYMAP_COMMANDS.filter(
+        (c) => c.category === category,
+      )) {
+        const accel = resolveAccelerator(command, settings.keymap);
+        const row = document.createElement("div");
+        row.className = "keymap-row";
+
+        const name = document.createElement("span");
+        name.className = "keymap-label";
+        name.textContent = command.label;
+
+        const keyBtn = document.createElement("button");
+        keyBtn.type = "button";
+        keyBtn.className = "keymap-key";
+        keyBtn.classList.toggle("recording", recordingId === command.id);
+        keyBtn.textContent =
+          recordingId === command.id ? "Press keys…" : formatAccelerator(accel);
+        keyBtn.addEventListener("click", () => {
+          recordingId = recordingId === command.id ? null : command.id;
+          render();
+        });
+
+        const reset = document.createElement("button");
+        reset.type = "button";
+        reset.className = "keymap-reset";
+        reset.textContent = "Reset";
+        reset.title = "Reset to default";
+        reset.addEventListener("click", () => {
+          recordingId = null;
+          updateSettings((next) => {
+            delete next.keymap[command.id];
+          });
+        });
+
+        const actions = document.createElement("span");
+        actions.className = "keymap-actions";
+        actions.append(keyBtn, reset);
+        row.append(name, actions);
+        list.appendChild(row);
+      }
+      content.appendChild(list);
+    }
+  }
+
   function renderAgent(content: HTMLElement): void {
     const groups: Array<[AgentGroup, string]> = [
       ["command", "CLI Agents"],
@@ -605,6 +684,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       ["format", "Format"],
       ["general", "General"],
       ["agent", "Agent"],
+      ["keys", "Keys"],
     ];
     panel.innerHTML = `
       <header class="settings-header">
@@ -613,7 +693,9 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
             ? "Agents"
             : activeTab === "general"
               ? "General"
-              : "Appearance"
+              : activeTab === "keys"
+                ? "Keyboard Shortcuts"
+                : "Appearance"
         }</strong>
         <button class="settings-close" type="button" aria-label="Close settings">×</button>
       </header>
@@ -655,10 +737,12 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     if (activeTab === "theme") renderTheme(content);
     else if (activeTab === "format") renderFormat(content);
     else if (activeTab === "general") renderGeneral(content);
+    else if (activeTab === "keys") renderKeys(content);
     else renderAgent(content);
   }
 
   function close(): void {
+    recordingId = null;
     panel.classList.add("hidden");
   }
 
@@ -672,18 +756,55 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       close();
     }
   });
+  // Capture phase so a recording in progress swallows the keystroke before the
+  // app's global shortcuts (and the Esc-to-close handler below) can react.
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (!recordingId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        recordingId = null;
+        render();
+        return;
+      }
+      if (event.key === "Backspace" || event.key === "Delete") {
+        const id = recordingId;
+        recordingId = null;
+        updateSettings((next) => {
+          next.keymap[id] = "";
+        });
+        return;
+      }
+      const accel = acceleratorFromEvent(event);
+      if (!accel) return;
+      const id = recordingId;
+      recordingId = null;
+      updateSettings((next) => {
+        next.keymap[id] = accel;
+      });
+    },
+    true,
+  );
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") close();
   });
 
+  function openAt(x: number, y: number): void {
+    render();
+    panel.classList.remove("hidden");
+    const width = 440;
+    const left = Math.max(8, Math.min(window.innerWidth - width - 8, x));
+    panel.style.left = `${left}px`;
+    panel.style.bottom = `${Math.max(8, window.innerHeight - y - 36)}px`;
+  }
+
   return {
-    open: (x, y) => {
-      render();
-      panel.classList.remove("hidden");
-      const width = 440;
-      const left = Math.max(8, Math.min(window.innerWidth - width - 8, x));
-      panel.style.left = `${left}px`;
-      panel.style.bottom = `${Math.max(8, window.innerHeight - y - 36)}px`;
+    open: openAt,
+    openKeys: () => {
+      activeTab = "keys";
+      openAt(window.innerWidth / 2 - 220, window.innerHeight / 2 + 240);
     },
     close,
   };

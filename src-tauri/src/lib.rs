@@ -8,7 +8,7 @@ mod native_windows;
 mod pty;
 mod secrets;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
@@ -86,6 +86,16 @@ fn sync_view_menu(
     }
     for n in menu::SIZE_OPTIONS {
         set(format!("view.explorer_size.{n}"), *n == explorer_size);
+    }
+}
+
+#[tauri::command]
+fn set_accelerators(app: tauri::AppHandle, accelerators: HashMap<String, String>) {
+    for (id, accel) in accelerators {
+        if let Some(item) = menu::find_normal_item(&app, &id) {
+            let value: Option<String> = if accel.is_empty() { None } else { Some(accel) };
+            let _ = item.set_accelerator(value);
+        }
     }
 }
 
@@ -187,6 +197,7 @@ pub fn run() {
             pty::pty_kill,
             take_open_paths,
             sync_view_menu,
+            set_accelerators,
             window_fullscreen_toggle,
             window_tile,
             native_windows::new_window,

@@ -81,6 +81,7 @@ src/
   windowview.ts per-window tabs, toolbar, editor, preview, and status
   explorer.ts  lazy folder tree + file management
   fuzzy.ts     subsequence fuzzy match + ranking — fuzzyMatch(), rankItems()
+  keymap.ts    keyboard-shortcut registry + accelerator match/format/resolve
   palette.ts   ⌘K command/file overlay — createPalette()
   settings.ts  settings.json model — parseSettings(), applySettings()
   updater.ts   signed update checks, prompts, restart, and daily schedule
@@ -136,7 +137,16 @@ Editor settings live at `<app config dir>/settings.json`; AI providers and termi
 live at `<app config dir>/ai.json`, while API keys live in the OS keychain and never
 in that file. The Gear button opens either file as a normal tab, and saving applies
 the relevant configuration. Agent settings are split into CLI Agents and Models
-(local and hosted) tabs.
+(local and hosted) tabs; CLI Agent rows can be edited inline.
+
+Keyboard shortcuts are fully customizable. `keymap.ts` is the command registry
+(ids match the native menu item ids in `menu.rs`); overrides persist in
+`settings.json` under `keymap`. The settings panel's **Keys** tab (also View ▸
+Keyboard Shortcuts) lists every command grouped by category with record / reset /
+Restore Defaults. Menu-scoped accelerators are pushed to the native menu at
+runtime via the `set_accelerators` command (`item.set_accelerator`); app-scoped
+shortcuts (palette, AI send) and the JS fallback handlers match against the
+resolved keymap.
 
 Document PDF/DOCX export requires Pandoc and Typst:
 

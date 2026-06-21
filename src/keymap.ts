@@ -1,0 +1,164 @@
+// Central keyboard-shortcut registry. Command ids for menu-scoped commands
+// match the native menu item ids in src-tauri/src/menu.rs so the same accelerator
+// drives both the native menu and the JS fallback handlers.
+
+export type KeymapScope = "menu" | "app";
+
+export type KeymapCommand = {
+  id: string;
+  label: string;
+  category: string;
+  /** Default accelerator in Tauri syntax, or "" for unbound. */
+  default: string;
+  scope: KeymapScope;
+};
+
+export const KEYMAP_COMMANDS: KeymapCommand[] = [
+  { id: "file.new", label: "New File", category: "File", default: "CmdOrCtrl+N", scope: "menu" },
+  { id: "file.new_window", label: "New Window", category: "File", default: "CmdOrCtrl+Shift+N", scope: "menu" },
+  { id: "file.open", label: "Open File", category: "File", default: "CmdOrCtrl+O", scope: "menu" },
+  { id: "file.open_folder", label: "Open Folder", category: "File", default: "CmdOrCtrl+Shift+O", scope: "menu" },
+  { id: "file.save", label: "Save", category: "File", default: "CmdOrCtrl+S", scope: "menu" },
+  { id: "file.save_as", label: "Save As", category: "File", default: "CmdOrCtrl+Shift+S", scope: "menu" },
+  { id: "file.close", label: "Close Tab", category: "File", default: "CmdOrCtrl+W", scope: "menu" },
+  { id: "view.toggle_explorer", label: "Show/Hide Explorer", category: "View", default: "CmdOrCtrl+B", scope: "menu" },
+  { id: "view.toggle_preview", label: "Show/Hide Preview", category: "View", default: "CmdOrCtrl+P", scope: "menu" },
+  { id: "view.reading", label: "Reading View", category: "View", default: "CmdOrCtrl+E", scope: "menu" },
+  { id: "view.toggle_lines", label: "Show/Hide Line Numbers", category: "View", default: "", scope: "menu" },
+  { id: "view.zoom_in", label: "Zoom In", category: "View", default: "CmdOrCtrl+=", scope: "menu" },
+  { id: "view.zoom_out", label: "Zoom Out", category: "View", default: "CmdOrCtrl+-", scope: "menu" },
+  { id: "view.zoom_reset", label: "Reset Zoom", category: "View", default: "CmdOrCtrl+0", scope: "menu" },
+  { id: "window.fullscreen", label: "Enter Full Screen", category: "Window", default: "Ctrl+Cmd+F", scope: "menu" },
+  { id: "window.left_half", label: "Move to Left Half", category: "Window", default: "", scope: "menu" },
+  { id: "window.right_half", label: "Move to Right Half", category: "Window", default: "", scope: "menu" },
+  { id: "palette.open", label: "Command Palette", category: "App", default: "CmdOrCtrl+K", scope: "app" },
+  { id: "ai.send", label: "Send AI Message", category: "App", default: "CmdOrCtrl+Enter", scope: "app" },
+];
+
+export type Keymap = Record<string, string>;
+
+/** Resolve a command id to its current accelerator (override falls back to default). */
+export function resolveAccelerator(command: KeymapCommand, overrides: Keymap): string {
+  return Object.prototype.hasOwnProperty.call(overrides, command.id)
+    ? overrides[command.id]
+    : command.default;
+}
+
+/** Resolved accelerators for every menu-scoped command (id -> accelerator). */
+export function menuAccelerators(overrides: Keymap): Keymap {
+  const map: Keymap = {};
+  for (const command of KEYMAP_COMMANDS) {
+    if (command.scope === "menu") map[command.id] = resolveAccelerator(command, overrides);
+  }
+  return map;
+}
+
+type ParsedAccel = {
+  meta: boolean;
+  ctrl: boolean;
+  alt: boolean;
+  shift: boolean;
+  key: string;
+};
+
+function normalizeKey(key: string): string {
+  if (key.length === 1) return key.toLowerCase();
+  const lower = key.toLowerCase();
+  if (lower === "return" || lower === "enter") return "enter";
+  if (lower === "esc") return "escape";
+  if (lower === "plus") return "=";
+  return lower;
+}
+
+export function parseAccelerator(accel: string): ParsedAccel | null {
+  if (!accel) return null;
+  const parts = accel.split("+").map((part) => part.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  const parsed: ParsedAccel = { meta: false, ctrl: false, alt: false, shift: false, key: "" };
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    if (lower === "cmdorctrl" || lower === "cmd" || lower === "command" || lower === "super" || lower === "meta") {
+      parsed.meta = true;
+    } else if (lower === "ctrl" || lower === "control") {
+      parsed.ctrl = true;
+    } else if (lower === "alt" || lower === "option") {
+      parsed.alt = true;
+    } else if (lower === "shift") {
+      parsed.shift = true;
+    } else {
+      parsed.key = normalizeKey(part);
+    }
+  }
+  return parsed.key ? parsed : null;
+}
+
+/** True if a keyboard event matches the given accelerator string (macOS semantics). */
+export function matchAccelerator(event: KeyboardEvent, accel: string): boolean {
+  const parsed = parseAccelerator(accel);
+  if (!parsed) return false;
+  return (
+    event.metaKey === parsed.meta &&
+    event.ctrlKey === parsed.ctrl &&
+    event.altKey === parsed.alt &&
+    event.shiftKey === parsed.shift &&
+    normalizeKey(event.key) === parsed.key
+  );
+}
+
+const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta"]);
+
+/** Build a Tauri-syntax accelerator from a keydown event, or null for a bare modifier. */
+export function acceleratorFromEvent(event: KeyboardEvent): string | null {
+  if (MODIFIER_KEYS.has(event.key)) return null;
+  const parts: string[] = [];
+  if (event.metaKey) parts.push("CmdOrCtrl");
+  if (event.ctrlKey) parts.push("Ctrl");
+  if (event.altKey) parts.push("Alt");
+  if (event.shiftKey) parts.push("Shift");
+  let key = event.key;
+  if (key === " ") key = "Space";
+  else if (key.length === 1) key = key.toUpperCase();
+  else key = key.charAt(0).toUpperCase() + key.slice(1);
+  parts.push(key);
+  return parts.join("+");
+}
+
+const SYMBOLS: Record<string, string> = {
+  cmdorctrl: "⌘",
+  cmd: "⌘",
+  command: "⌘",
+  meta: "⌘",
+  super: "⌘",
+  ctrl: "⌃",
+  control: "⌃",
+  alt: "⌥",
+  option: "⌥",
+  shift: "⇧",
+};
+
+const KEY_SYMBOLS: Record<string, string> = {
+  enter: "↩",
+  escape: "⎋",
+  backspace: "⌫",
+  delete: "⌦",
+  tab: "⇥",
+  space: "␣",
+  arrowup: "↑",
+  arrowdown: "↓",
+  arrowleft: "←",
+  arrowright: "→",
+};
+
+/** Human-readable accelerator for display, e.g. "CmdOrCtrl+Shift+N" -> "⌘⇧N". */
+export function formatAccelerator(accel: string): string {
+  if (!accel) return "—";
+  return accel
+    .split("+")
+    .map((part) => {
+      const lower = part.trim().toLowerCase();
+      if (SYMBOLS[lower]) return SYMBOLS[lower];
+      if (KEY_SYMBOLS[lower]) return KEY_SYMBOLS[lower];
+      return part.length === 1 ? part.toUpperCase() : part;
+    })
+    .join("");
+}

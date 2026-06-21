@@ -20,6 +20,7 @@ export type Settings = {
   explorer: ZoneSettings;
   main: ZoneSettings;
   sub: ZoneSettings;
+  keymap: Record<string, string>;
 };
 
 export const THEME_OPTIONS: ReadonlyArray<{
@@ -52,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   explorer: { font: "", size: 13 },
   main: { font: "", size: 15 },
   sub: { font: "", size: 15 },
+  keymap: {},
 };
 
 export const DEFAULT_SETTINGS_JSON = JSON.stringify(DEFAULT_SETTINGS, null, 2);
@@ -95,7 +97,17 @@ function defaults(): Settings {
     explorer: { ...DEFAULT_SETTINGS.explorer },
     main: { ...DEFAULT_SETTINGS.main },
     sub: { ...DEFAULT_SETTINGS.sub },
+    keymap: {},
   };
+}
+
+function parseKeymap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string") out[id] = value;
+  }
+  return out;
 }
 
 export function parseSettings(raw: string): Settings {
@@ -138,6 +150,7 @@ export function parseSettings(raw: string): Settings {
     explorer: parseZone(data.explorer, DEFAULT_SETTINGS.explorer),
     main: parseZone(data.main, DEFAULT_SETTINGS.main),
     sub: parseZone(data.sub, DEFAULT_SETTINGS.sub),
+    keymap: parseKeymap(data.keymap),
   };
 }
 

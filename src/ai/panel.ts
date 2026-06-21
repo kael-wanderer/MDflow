@@ -2,6 +2,7 @@ import type { AISettings, Provider } from "./aisettings";
 import { streamChat } from "./client";
 import { buildMessages } from "./conversation";
 import { lineDiff } from "./diff";
+import { matchAccelerator } from "../keymap";
 import type { ChatMessage } from "./providers";
 
 export type AIPanelDeps = {
@@ -11,6 +12,7 @@ export type AIPanelDeps = {
   onApply: (newText: string) => void;
   onInsert: (text: string) => void;
   onClose: () => void;
+  getSendAccelerator: () => string;
 };
 
 export type AIPanel = {
@@ -259,10 +261,7 @@ export function createAIPanel(
         void send();
       });
     input.addEventListener("keydown", (event) => {
-      if (
-        event.key === "Enter" &&
-        (event.metaKey || event.ctrlKey)
-      ) {
+      if (matchAccelerator(event, deps.getSendAccelerator())) {
         event.preventDefault();
         void send();
       }

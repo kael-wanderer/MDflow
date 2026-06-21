@@ -1,5 +1,5 @@
 use tauri::menu::{
-    AboutMetadata, CheckMenuItem, CheckMenuItemBuilder, IsMenuItem, Menu, MenuBuilder,
+    AboutMetadata, CheckMenuItem, CheckMenuItemBuilder, IsMenuItem, Menu, MenuBuilder, MenuItem,
     MenuItemBuilder, Submenu, SubmenuBuilder,
 };
 use tauri::{AppHandle, Runtime};
@@ -136,6 +136,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build(app)?;
     let toggle_lines =
         MenuItemBuilder::with_id("view.toggle_lines", "Show/Hide Line Numbers").build(app)?;
+    let keymap = MenuItemBuilder::with_id("view.keymap", "Keyboard Shortcuts…").build(app)?;
 
     let wrap_off = CheckMenuItemBuilder::with_id("view.wrap.off", "Off").build(app)?;
     let wrap_window = CheckMenuItemBuilder::with_id("view.wrap.window", "Window Width")
@@ -201,6 +202,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .item(&zoom_out)
         .item(&zoom_reset)
         .separator()
+        .item(&keymap)
         .item(&font_menu)
         .item(&size_menu)
         .item(&explorer_size_menu)
@@ -249,6 +251,35 @@ pub fn find_check_item<R: Runtime>(app: &AppHandle<R>, id: &str) -> Option<Check
     for kind in menu.items().ok()? {
         if let Some(sub) = kind.as_submenu() {
             if let Some(found) = find_in_submenu(sub, id) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+/// Find a normal (non-check) menu item anywhere in the menu tree by id.
+pub fn find_normal_item<R: Runtime>(app: &AppHandle<R>, id: &str) -> Option<MenuItem<R>> {
+    let menu = app.menu()?;
+    for kind in menu.items().ok()? {
+        if let Some(sub) = kind.as_submenu() {
+            if let Some(found) = find_normal_in_submenu(sub, id) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+fn find_normal_in_submenu<R: Runtime>(sub: &Submenu<R>, id: &str) -> Option<MenuItem<R>> {
+    for kind in sub.items().ok()? {
+        if let Some(item) = kind.as_menuitem() {
+            if item.id().0.as_str() == id {
+                return Some(item.clone());
+            }
+        }
+        if let Some(inner) = kind.as_submenu() {
+            if let Some(found) = find_normal_in_submenu(inner, id) {
                 return Some(found);
             }
         }

@@ -62,6 +62,12 @@ import {
   type ThemeName,
   type Settings,
 } from "./settings";
+import {
+  KEYMAP_COMMANDS,
+  matchAccelerator,
+  menuAccelerators,
+  resolveAccelerator,
+} from "./keymap";
 import { createSettingsPanel } from "./settingspanel";
 import { checkForUpdates, startDailyUpdateChecks } from "./updater";
 import { freshState, loadState, saveState, type ViewMode } from "./state";
@@ -121,6 +127,7 @@ async function loadSettings(): Promise<void> {
   }
   applySettings(currentSettings);
   applySoftWrap();
+  applyKeymap();
   syncViewMenu();
 }
 
@@ -176,6 +183,7 @@ function saveSettingsFromPanel(settings: Settings): void {
   currentSettings = settings;
   applySettings(currentSettings);
   applySoftWrap();
+  applyKeymap();
   syncViewMenu();
   requestWindowMeasure();
   if (settingsPath) {
@@ -807,6 +815,7 @@ async function doSave(saveAs = false): Promise<void> {
       currentSettings = parseSettings(text);
       applySettings(currentSettings);
       applySoftWrap();
+      applyKeymap();
       syncViewMenu();
       requestWindowMeasure();
     }
@@ -992,6 +1001,17 @@ function toggleLineNumbers(): void {
   }
   persistUiState();
   renderAll();
+}
+
+function applyKeymap(): void {
+  void invoke("set_accelerators", {
+    accelerators: menuAccelerators(currentSettings.keymap),
+  });
+}
+
+function resolvedAccel(id: string): string {
+  const command = KEYMAP_COMMANDS.find((entry) => entry.id === id);
+  return command ? resolveAccelerator(command, currentSettings.keymap) : "";
 }
 
 function applySoftWrap(): void {
@@ -1239,6 +1259,7 @@ function buildAIPanel(): void {
       editor.replaceRange(selection.from, selection.to, text);
     },
     onClose: () => setAIVisible(false),
+    getSendAccelerator: () => resolvedAccel("ai.send"),
   });
 }
 
@@ -1542,6 +1563,8 @@ listen<string>("menu", (event) => {
       return setMode(wid, activeWindow().mode === "preview" ? "split" : "preview");
     case "view.toggle_lines":
       return toggleLineNumbers();
+    case "view.keymap":
+      return settingsPanel.openKeys();
     case "view.zoom_in":
       return activeView().adjustFocusedZoom(0.1);
     case "view.zoom_out":
@@ -1565,33 +1588,28 @@ listen<string>("menu", (event) => {
   }
 });
 
-window.addEventListener("keydown", (e) => {
-  if (e.metaKey || e.ctrlKey) {
-    if (e.key === "+" || e.key === "=") {
-      e.preventDefault();
-      activeView().adjustFocusedZoom(0.1);
-      return;
-    }
-    if (e.key === "-" || e.key === "_") {
-      e.preventDefault();
-      activeView().adjustFocusedZoom(-0.1);
-      return;
-    }
-    if (e.key === "0") {
-      e.preventDefault();
-      activeView().resetFocusedZoom();
-      return;
-    }
-  }
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-    e.preventDefault();
-    palette.open();
-    return;
-  }
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "w") {
-    e.preventDefault();
+// App-level shortcut fallbacks. Menu-scoped commands are handled by the native
+// menu's accelerator (which consumes the keystroke first on macOS); these are the
+// JS-only / fallback handlers, all keyed off the resolved keymap so rebinding works.
+const appKeyActions: Record<string, () => void> = {
+  "palette.open": () => palette.open(),
+  "file.close": () => {
     const w = activeWindow();
     if (w.activeTabId) void closeTab(w.id, w.activeTabId);
+  },
+  "view.zoom_in": () => activeView().adjustFocusedZoom(0.1),
+  "view.zoom_out": () => activeView().adjustFocusedZoom(-0.1),
+  "view.zoom_reset": () => activeView().resetFocusedZoom(),
+};
+
+window.addEventListener("keydown", (e) => {
+  for (const id of Object.keys(appKeyActions)) {
+    const accel = resolvedAccel(id);
+    if (accel && matchAccelerator(e, accel)) {
+      e.preventDefault();
+      appKeyActions[id]();
+      return;
+    }
   }
 });
 
