@@ -181,7 +181,6 @@ pub fn run() {
             secrets::set_secret,
             secrets::get_secret,
             secrets::delete_secret,
-            secrets::has_secret,
             files::read_file,
             files::read_file_bytes,
             files::save_file,

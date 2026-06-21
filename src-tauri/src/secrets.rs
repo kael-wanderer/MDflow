@@ -25,8 +25,3 @@ pub fn delete_secret(id: String) -> Result<(), String> {
         Err(error) => Err(error.to_string()),
     }
 }
-
-#[tauri::command]
-pub fn has_secret(id: String) -> bool {
-    get_secret(id).is_some()
-}

@@ -74,7 +74,13 @@ import {
 import { createSettingsPanel } from "./settingspanel";
 import { createSearchPanel } from "./search";
 import { checkForUpdates, startDailyUpdateChecks } from "./updater";
-import { freshState, loadState, saveState, type ViewMode } from "./state";
+import {
+  freshState,
+  loadState,
+  markKeySaved,
+  saveState,
+  type ViewMode,
+} from "./state";
 import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
 import {
   nextActiveAfterClose,
@@ -141,16 +147,17 @@ async function loadAISettings(): Promise<void> {
     aiSettingsPath = file.path;
     const { cleaned, keys } = extractLegacyKeys(file.contents);
     if (keys.length) {
+      const stored: boolean[] = [];
       for (const { id, secret } of keys) {
         try {
           await invoke("set_secret", { id, secret });
+          markKeySaved(id, true);
+          stored.push(true);
         } catch {
           /* Leave the plaintext key for a later migration attempt. */
+          stored.push(false);
         }
       }
-      const stored = await Promise.all(
-        keys.map(({ id }) => invoke<boolean>("has_secret", { id })),
-      );
       if (stored.every(Boolean)) {
         await writeFile(aiSettingsPath, cleaned);
         currentAISettings = parseAISettings(cleaned);

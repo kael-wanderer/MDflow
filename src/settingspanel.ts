@@ -13,6 +13,7 @@ import {
   KEYMAP_COMMANDS,
   resolveAccelerator,
 } from "./keymap";
+import { loadSavedKeyIds, markKeySaved } from "./state";
 
 type SettingsTab = "theme" | "format" | "general" | "agent" | "keys";
 type ZoneName = "explorer" | "main" | "sub";
@@ -404,12 +405,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
         const badge = document.createElement("span");
         badge.className = "agent-key-badge";
         badge.textContent = "Key saved";
-        badge.hidden = true;
-        void invoke<boolean>("has_secret", { id: provider.id })
-          .then((ok) => {
-            badge.hidden = !ok;
-          })
-          .catch(() => {});
+        badge.hidden = !loadSavedKeyIds().has(provider.id);
         actions.appendChild(badge);
 
         const setKey = document.createElement("button");
@@ -428,7 +424,10 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
             ).trim();
             if (value) {
               void invoke("set_secret", { id: provider.id, secret: value })
-                .then(() => render())
+                .then(() => {
+                  markKeySaved(provider.id, true);
+                  render();
+                })
                 .catch(() => {});
             } else {
               keyForm.remove();
@@ -490,6 +489,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       remove.textContent = "Remove";
       remove.addEventListener("click", () => {
         if (provider.type === "http") {
+          markKeySaved(provider.id, false);
           void invoke("delete_secret", { id: provider.id }).catch(() => {});
         }
         updateAI((next) => {
@@ -588,7 +588,10 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
         });
         if (key && newId) {
           void invoke("set_secret", { id: newId, secret: key })
-            .then(() => render())
+            .then(() => {
+              markKeySaved(newId, true);
+              render();
+            })
             .catch(() => {});
         }
       }

@@ -51,3 +51,27 @@ export function loadState(): UIState {
 export function saveState(s: UIState): void {
   localStorage.setItem(KEY, JSON.stringify(s));
 }
+
+// Tracks which HTTP providers have an API key saved, so the settings UI can show
+// a "Key saved" badge without reading the OS keychain (which prompts for the
+// login password on macOS). The keychain is only read when a key is actually used.
+const SAVED_KEYS = "mdflow.savedKeys";
+
+export function loadSavedKeyIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SAVED_KEYS);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(
+      Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+export function markKeySaved(id: string, saved: boolean): void {
+  const ids = loadSavedKeyIds();
+  if (saved) ids.add(id);
+  else ids.delete(id);
+  localStorage.setItem(SAVED_KEYS, JSON.stringify([...ids]));
+}
