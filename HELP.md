@@ -55,11 +55,40 @@ Open or create a `.mind` file to use the visual mindmap editor.
 Open a `.excalidraw` file to edit it as a full-pane board. Normal Save, Save As,
 dirty-close confirmation, tabs, and session workflows still apply.
 
+## Search
+
+- **Find in the current document:** `⌘F` opens the editor's find/replace bar.
+- **Find in Folder:** `⌘⇧F` (or the activity-bar Search button) searches the contents
+  of every text file in the open folder, plus the text inside `.mind` and
+  `.excalidraw` drawings. Results are grouped by file — click one to open it at the
+  matching line. (PDF text is not searched yet.)
+
+## AI assistant
+
+Toggle the right-side panel with the activity-bar agent button. It has two tabs:
+
+- **Chat** — pick an agent and a permission mode (Ask / Bypass approvals). The open
+  document (or your selection) is sent as context. **Enter** sends; **Shift+Enter**
+  inserts a newline. Replies stream in, with Copy, Insert-at-cursor, and Apply-as-diff
+  actions. Attach files with the 📎 button, by dragging files onto the panel, or by
+  typing `@` to mention a file from the open folder. CLI agents read attached files
+  themselves and run in the open folder; other (HTTP) models receive text-file
+  contents inline.
+- **Terminal** — an embedded terminal running a configured program (an agent CLI, or a
+  plain shell). Switch programs with the picker; set the terminal font/size and manage
+  entries under **Gear → Agent → Terminals**.
+
+Agents, models, and terminals are configured in `agent.json` (open it from
+**Gear → Open agent.json**). API keys are stored in the macOS Keychain.
+
 ## Keyboard shortcuts
+
+All shortcuts are customizable: **View → Keyboard Shortcuts** (or the **Keys** tab in
+Settings) lists every command and lets you rebind, reset, or restore defaults.
 
 | Shortcut | Action |
 |----------|--------|
-| `⌘⇧N` | New native window |
+| `⌘⇧N` | New window |
 | `⌘N` | New file |
 | `⌘O` | Open file |
 | `⌘⇧O` | Open folder |
@@ -67,10 +96,13 @@ dirty-close confirmation, tabs, and session workflows still apply.
 | `⌘⇧S` | Save As |
 | `⌘W` | Close active tab |
 | `⌘K` | Command/file palette |
+| `⌘F` | Find in document |
+| `⌘⇧F` | Find in folder |
 | `⌘B` | Show/hide Explorer |
 | `⌘P` | Show/hide Preview |
 | `⌘E` | Reading View |
 | `⌘+` / `⌘−` / `⌘0` | Zoom in / out / reset |
+| `Enter` | Send AI chat message (Shift+Enter = newline) |
 
 ## Themes and status
 
