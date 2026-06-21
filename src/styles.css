@@ -676,6 +676,12 @@ body[data-wrap="guide"] .doc {
 }
 
 .doc table {
+  /* Size columns to their content and scroll sideways when the table is wider
+     than the pane, rather than squeezing/wrapping columns (headers, IDs). */
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
   margin: 1.2em 0;
   border-collapse: collapse;
   border: 1px solid var(--border);
@@ -688,9 +694,7 @@ body[data-wrap="guide"] .doc {
   padding: 8px 12px;
   text-align: left;
   border: 1px solid var(--border);
-  /* Let long spaceless tokens (filenames, IDs) break so they don't starve
-     wrappable columns; auto table-layout then sizes columns to content. */
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .doc th {

@@ -33,8 +33,8 @@ All notable changes to MDflow are documented here. The format is based on
   Node 20 action-runtime deprecation warnings.
 - Help now includes a checked **Automatically Check for Updates** item synchronized
   with Gear → General → Updates.
-- Markdown tables now let long spaceless tokens (filenames, IDs) wrap, so columns
-  size to their content instead of starving wrappable columns.
+- Markdown tables now size each column to its content and scroll horizontally when
+  wider than the pane, instead of wrapping/squeezing columns and headers.
 
 ### Fixed
 
