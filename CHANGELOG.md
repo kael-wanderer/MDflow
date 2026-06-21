@@ -6,6 +6,8 @@ All notable changes to MDflow are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-06-21
+
 ### Added
 
 - Stage 7: PDF page-text search and page navigation; advanced folder-search toggles,
@@ -31,6 +33,14 @@ All notable changes to MDflow are documented here. The format is based on
   Node 20 action-runtime deprecation warnings.
 - Help now includes a checked **Automatically Check for Updates** item synchronized
   with Gear → General → Updates.
+- Markdown tables now let long spaceless tokens (filenames, IDs) wrap, so columns
+  size to their content instead of starving wrappable columns.
+
+### Fixed
+
+- Opening Gear → Agent → Models no longer prompts for the macOS login Keychain
+  password. Saved-key presence is tracked locally, so the Keychain is only read
+  when a key is actually used.
 
 ## [0.2.2] — 2026-06-21
 
