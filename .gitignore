@@ -28,3 +28,7 @@ findings.md
 progress.md
 task_plan.md
 .planning/
+
+# Local planning / QA docs (kept out of the repo)
+docs/roadmap.md
+docs/test-cases/
