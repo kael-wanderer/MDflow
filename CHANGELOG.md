@@ -6,6 +6,8 @@ All notable changes to MDflow are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-21
+
 ### Added
 
 - **Customizable keyboard shortcuts** — a **Keys** tab (also **View → Keyboard
