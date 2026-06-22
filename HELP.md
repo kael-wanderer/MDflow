@@ -100,6 +100,17 @@ Toggle the right-side panel with the activity-bar agent button. It has two tabs:
 Agents, models, and terminals are configured in `agent.json` (open it from
 **Gear → Open agent.json**). API keys are stored in the macOS Keychain.
 
+Under **Gear → Agent → Models**, use **Test connection** to check a provider's
+saved key, endpoint, and model before starting a chat.
+
+Document text and attachments are sent as untrusted user context, never as system
+instructions. Edit-mode replies stay bound to the tab and selection that produced
+them: Apply returns to that tab, and refuses if it was closed or changed meanwhile.
+
+**Bypass approvals** applies to one CLI-agent run at a time. Every bypassed send
+requires confirmation, the choice is not written to `agent.json`, and MDflow starts
+in **Ask before doing** after launch.
+
 ## Keyboard shortcuts
 
 All shortcuts are customizable: **View → Keyboard Shortcuts** (or the **Keys** tab in

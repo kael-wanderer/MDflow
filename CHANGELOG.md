@@ -14,6 +14,12 @@ All notable changes to MDflow are documented here. The format is based on
   reloads, dirty-buffer comparison, deleted-file recovery, and overwrite protection.
 - Per-file local snapshots on changed saves, manual snapshots from the command
   palette, retention pruning, and a version-history panel with Compare and Restore.
+- Provider connection testing, an updated Anthropic model preset, and safer
+  untrusted document/attachment prompt boundaries.
+- Edit-mode replies bound to their originating tab and selection, with stale/closed
+  source rejection instead of applying to whichever document is currently active.
+- Single-run approval bypass with confirmation on every run, plus process-group
+  cancellation so CLI-agent child processes do not survive a cancelled reply.
 
 ## [0.2.3] — 2026-06-21
 
