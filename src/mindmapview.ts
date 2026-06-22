@@ -8,7 +8,11 @@ import {
   readNodeStyle,
   type MindShape,
 } from "./mindmap-style";
-import { toggleSelection } from "./mindmap-selection";
+import {
+  marqueeHits,
+  toggleSelection,
+  type Rect,
+} from "./mindmap-selection";
 
 export type MindmapHandle = {
   destroy: () => void;
@@ -569,15 +573,103 @@ export async function mountMindmapBoard(
   };
   canvas.addEventListener("click", onCanvasClick);
 
+  let marquee:
+    | {
+        startX: number;
+        startY: number;
+        box: HTMLElement;
+        moved: boolean;
+      }
+    | null = null;
+
+  const nodeRects = (): { id: string; rect: Rect }[] => {
+    const out: { id: string; rect: Rect }[] = [];
+    for (const element of canvas.querySelectorAll<HTMLElement>("jmnode")) {
+      const id = element.getAttribute("nodeid");
+      if (
+        !id ||
+        element.classList.contains("jsmind-draggable-shadow-node")
+      ) {
+        continue;
+      }
+      const rect = element.getBoundingClientRect();
+      out.push({
+        id,
+        rect: {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+        },
+      });
+    }
+    return out;
+  };
+
+  const moveMarquee = (event: MouseEvent): void => {
+    if (!marquee) return;
+    marquee.moved = true;
+    const left = Math.min(event.clientX, marquee.startX);
+    const top = Math.min(event.clientY, marquee.startY);
+    marquee.box.style.left = `${left}px`;
+    marquee.box.style.top = `${top}px`;
+    marquee.box.style.width = `${Math.abs(event.clientX - marquee.startX)}px`;
+    marquee.box.style.height = `${Math.abs(event.clientY - marquee.startY)}px`;
+  };
+
+  const finishMarquee = (event: MouseEvent): void => {
+    if (!marquee) return;
+    const current = marquee;
+    marquee = null;
+    document.removeEventListener("mousemove", moveMarquee);
+    document.removeEventListener("mouseup", finishMarquee);
+    current.box.remove();
+    if (!current.moved) {
+      setSelection([]);
+      return;
+    }
+    const rect: Rect = {
+      left: Math.min(event.clientX, current.startX),
+      top: Math.min(event.clientY, current.startY),
+      right: Math.max(event.clientX, current.startX),
+      bottom: Math.max(event.clientY, current.startY),
+    };
+    setSelection(marqueeHits(nodeRects(), rect));
+  };
+
+  const beginMarquee = (event: MouseEvent): void => {
+    if (event.button !== 0) return;
+    const onNode = (event.target as HTMLElement | null)?.closest("jmnode");
+    if (onNode) return;
+    const box = document.createElement("div");
+    box.className = "mm-marquee";
+    box.style.left = `${event.clientX}px`;
+    box.style.top = `${event.clientY}px`;
+    document.body.appendChild(box);
+    marquee = {
+      startX: event.clientX,
+      startY: event.clientY,
+      box,
+      moved: false,
+    };
+    document.addEventListener("mousemove", moveMarquee);
+    document.addEventListener("mouseup", finishMarquee);
+  };
+  canvas.addEventListener("mousedown", beginMarquee);
+
   return {
     destroy: () => {
       window.clearTimeout(timer);
       themeObserver.disconnect();
       canvas.removeEventListener("mousedown", beginDrag, true);
       canvas.removeEventListener("click", onCanvasClick);
+      canvas.removeEventListener("mousedown", beginMarquee);
       document.removeEventListener("mousemove", moveDrag);
       document.removeEventListener("mouseup", finishDrag);
+      document.removeEventListener("mousemove", moveMarquee);
+      document.removeEventListener("mouseup", finishMarquee);
       drag?.ghost?.remove();
+      marquee?.box.remove();
       document.body.classList.remove("mm-node-dragging");
       host.replaceChildren();
     },

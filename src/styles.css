@@ -499,6 +499,14 @@ jmnode.mm-multi-selected {
   outline-offset: 1px;
 }
 
+.mm-marquee {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid var(--accent);
+}
+
 .window-document-board .jsmind-inner {
   background: var(--bg-preview, #171922);
 }
