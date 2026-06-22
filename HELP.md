@@ -40,6 +40,17 @@ JSON, and YAML use language-aware syntax highlighting.
 
 Use `⌘S` to save or `⌘⇧S` for Save As. Tabs show a dirty marker for unsaved changes.
 
+MDflow keeps crash-recovery drafts outside the document itself while you edit. After
+an interrupted session, use the launch banner to restore or discard the recovered
+buffers. The real file still changes only when you explicitly save.
+
+When a file changes in another app, MDflow reloads a clean buffer or asks before
+discarding unsaved work. Saving over newer disk contents also requires confirmation.
+
+Use `⌘K` and choose **Snapshot Now** or **Show Version History** for saved files.
+History can compare an older snapshot with the current buffer or restore it as
+unsaved edits.
+
 ## Mindmaps
 
 Open or create a `.mind` file to use the visual mindmap editor.

@@ -6,6 +6,15 @@ All notable changes to MDflow are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Crash-recovery drafts for dirty saved and untitled documents, with a launch banner
+  to restore or discard interrupted work without changing the explicit-save model.
+- External file-change detection on focus, tab activation, and save, including clean
+  reloads, dirty-buffer comparison, deleted-file recovery, and overwrite protection.
+- Per-file local snapshots on changed saves, manual snapshots from the command
+  palette, retention pruning, and a version-history panel with Compare and Restore.
+
 ## [0.2.3] — 2026-06-21
 
 ### Added
