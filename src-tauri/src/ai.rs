@@ -70,6 +70,11 @@ pub fn ai_run(
     if let Some(dir) = cwd.filter(|value| !value.is_empty()) {
         command.current_dir(dir);
     }
+    #[cfg(target_family = "unix")]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
     let mut child = command.spawn().map_err(|error| {
         let message = format!("Failed to start: {error}");
         let _ = app.emit(
@@ -172,9 +177,17 @@ pub fn ai_cancel(app: tauri::AppHandle, request_id: String) -> Result<(), String
         return Ok(());
     };
     #[cfg(target_family = "unix")]
-    let status = Command::new("kill")
-        .args(["-TERM", &pid.to_string()])
-        .status();
+    let status = {
+        let group = Command::new("kill")
+            .args(["-TERM", &format!("-{pid}")])
+            .status();
+        match group {
+            Ok(result) if result.success() => Ok(result),
+            _ => Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .status(),
+        }
+    };
     #[cfg(target_family = "windows")]
     let status = Command::new("taskkill")
         .args(["/PID", &pid.to_string(), "/T", "/F"])

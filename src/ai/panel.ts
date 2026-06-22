@@ -1,18 +1,34 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AISettings, Provider } from "./aisettings";
+import type { AISettings, PermissionMode, Provider } from "./aisettings";
 import { streamChat } from "./client";
 import { buildMessages, type AttachedFile } from "./conversation";
 import { lineDiff } from "./diff";
+import { validateBinding, type EditBinding } from "./edit-binding";
 import { matchAccelerator } from "../keymap";
 import { rankItems } from "../fuzzy";
+import { hashText } from "../hash";
 import { chatContentText, type ChatMessage } from "./providers";
 
 export type AIPanelDeps = {
   getSettings: () => AISettings;
   onSettingsChange: (settings: AISettings) => void;
-  getDoc: () => { text: string; selection: string };
-  onApply: (newText: string) => void;
+  getDoc: () => {
+    text: string;
+    selection: string;
+    windowId: string;
+    tabId: string;
+    from: number;
+    to: number;
+  };
+  lookupTabText: (windowId: string, tabId: string) => string | null;
+  applyEditTo: (
+    windowId: string,
+    tabId: string,
+    newText: string,
+    selection: { text: string; from: number; to: number },
+  ) => void;
+  confirmBypass: (label: string) => Promise<boolean>;
   onInsert: (text: string) => void;
   onClose: () => void;
   getSendAccelerator: () => string;
@@ -96,6 +112,7 @@ export function createAIPanel(
   };
   let activeTab: "chat" | "terminal" = "chat";
   let editMode = false;
+  let sessionPermissionMode: PermissionMode = "ask";
   let renderVersion = 0;
   let terminalView: {
     resize: () => void;
@@ -126,7 +143,8 @@ export function createAIPanel(
     afterElement: HTMLElement,
     reply: string,
     wasEdit: boolean,
-    document: { text: string; selection: string },
+    binding: EditBinding,
+    oldText: string,
   ): void {
     const row = window.document.createElement("div");
     row.className = "ai-actions";
@@ -147,11 +165,7 @@ export function createAIPanel(
       apply.type = "button";
       apply.textContent = "Apply (diff)";
       apply.addEventListener("click", () => {
-        showDiff(
-          row,
-          document.selection.trim() ? document.selection : document.text,
-          reply,
-        );
+        showDiff(row, oldText, reply, binding);
       });
       row.appendChild(apply);
     }
@@ -162,6 +176,7 @@ export function createAIPanel(
     anchor: HTMLElement,
     oldText: string,
     newText: string,
+    binding: EditBinding,
   ): void {
     const view = window.document.createElement("div");
     view.className = "ai-diff";
@@ -180,7 +195,26 @@ export function createAIPanel(
     accept.type = "button";
     accept.textContent = "Accept";
     accept.addEventListener("click", () => {
-      deps.onApply(newText);
+      const state = validateBinding(binding, deps.lookupTabText);
+      if (state === "closed") {
+        showInlineMessage(
+          actions,
+          "The document this edit was for is no longer open — regenerate.",
+        );
+        return;
+      }
+      if (state === "changed") {
+        showInlineMessage(
+          actions,
+          "The document changed since this reply — regenerate.",
+        );
+        return;
+      }
+      deps.applyEditTo(binding.windowId, binding.tabId, newText, {
+        text: binding.selection,
+        from: binding.from,
+        to: binding.to,
+      });
       view.remove();
       actions.remove();
     });
@@ -193,6 +227,14 @@ export function createAIPanel(
     });
     actions.append(accept, reject);
     anchor.after(view, actions);
+  }
+
+  function showInlineMessage(host: HTMLElement, text: string): void {
+    host.querySelector(".ai-inline-msg")?.remove();
+    const message = document.createElement("div");
+    message.className = "ai-inline-msg";
+    message.textContent = text;
+    host.appendChild(message);
   }
 
   function renderChat(): void {
@@ -248,13 +290,10 @@ export function createAIPanel(
     });
     const permissionSelect =
       body.querySelector<HTMLSelectElement>(".ai-permission")!;
-    permissionSelect.value = settings.permissionMode;
+    permissionSelect.value = sessionPermissionMode;
     permissionSelect.addEventListener("change", () => {
-      deps.onSettingsChange({
-        ...deps.getSettings(),
-        permissionMode:
-          permissionSelect.value === "bypass" ? "bypass" : "ask",
-      });
+      sessionPermissionMode =
+        permissionSelect.value === "bypass" ? "bypass" : "ask";
     });
     body
       .querySelector<HTMLInputElement>(".ai-editmode")!
@@ -386,6 +425,15 @@ export function createAIPanel(
         );
         return;
       }
+      const runMode = sessionPermissionMode;
+      if (
+        runMode === "bypass" &&
+        provider.type === "command" &&
+        provider.bypassRun &&
+        !(await deps.confirmBypass(provider.label))
+      ) {
+        return;
+      }
 
       input.value = "";
       const attached = [...referencedFiles];
@@ -443,6 +491,14 @@ export function createAIPanel(
       refreshAttachments();
 
       const document = deps.getDoc();
+      const binding: EditBinding = {
+        windowId: document.windowId,
+        tabId: document.tabId,
+        baseHash: hashText(document.text),
+        selection: document.selection,
+        from: document.from,
+        to: document.to,
+      };
       const messages = buildMessages({
         history,
         prompt,
@@ -465,7 +521,7 @@ export function createAIPanel(
             replyElement.textContent = reply;
             messagesElement.scrollTop = messagesElement.scrollHeight;
           },
-          currentSettings.permissionMode,
+          runMode,
           {
             cwd: deps.getWorkingDir(),
             attachmentPaths,
@@ -477,7 +533,13 @@ export function createAIPanel(
           { role: "assistant", content: reply },
         );
         saveHistory();
-        addActions(replyElement, reply, editMode, document);
+        addActions(
+          replyElement,
+          reply,
+          editMode,
+          binding,
+          document.selection.trim() ? document.selection : document.text,
+        );
       } catch (error) {
         if (reply) {
           history.push(

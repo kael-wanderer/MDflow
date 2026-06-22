@@ -9,6 +9,58 @@ import {
   type ChatMessage,
 } from "./providers";
 
+export function connectionDetail(
+  status: number,
+  bodyText: string,
+): { ok: boolean; detail: string } {
+  if (status >= 200 && status < 300) {
+    return { ok: true, detail: "OK" };
+  }
+  if (status === 401) {
+    return { ok: false, detail: "API key rejected (401)" };
+  }
+  if (status === 404) {
+    return { ok: false, detail: "Model or endpoint not found (404)" };
+  }
+  return {
+    ok: false,
+    detail: `HTTP ${status}: ${bodyText.slice(0, 200)}`,
+  };
+}
+
+export async function testConnection(
+  provider: Extract<Provider, { type: "http" }>,
+): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    const key = await invoke<string | null>("get_secret", { id: provider.id });
+    if (key) headers.Authorization = `Bearer ${key}`;
+    const response = await fetch(
+      `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model: provider.model,
+          messages: [{ role: "user", content: "ping" }],
+          max_tokens: 1,
+        }),
+      },
+    );
+    return connectionDetail(
+      response.status,
+      response.ok ? "" : await response.text(),
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 async function streamHttp(
   provider: Extract<Provider, { type: "http" }>,
   messages: ChatMessage[],

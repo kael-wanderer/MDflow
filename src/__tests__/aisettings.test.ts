@@ -56,7 +56,7 @@ describe("parseAISettings", () => {
     expect(parseAISettings(raw).defaultProvider).toBe("x");
   });
 
-  it("keeps bypass command and permission mode", () => {
+  it("keeps the bypass command but never restores bypass mode", () => {
     const settings = parseAISettings(
       JSON.stringify({
         providers: [
@@ -71,10 +71,19 @@ describe("parseAISettings", () => {
         permissionMode: "bypass",
       }),
     );
-    expect(settings.permissionMode).toBe("bypass");
+    expect(settings.permissionMode).toBe("ask");
     expect(settings.providers[0]).toMatchObject({
       bypassRun: "x --yes {prompt}",
     });
+  });
+
+  it("bundles the current Anthropic model id", () => {
+    const provider = DEFAULT_AI_SETTINGS.providers.find(
+      (candidate) => candidate.id === "anthropic",
+    );
+    expect(provider?.type === "http" && provider.model).toBe(
+      "claude-haiku-4-5-20251001",
+    );
   });
 });
 

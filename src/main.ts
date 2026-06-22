@@ -1524,17 +1524,36 @@ function buildAIPanel(): void {
       return {
         text: tab ? view.editor.getText(tab.id) : "",
         selection: selection.text,
+        windowId: getState().activeWindowId,
+        tabId: tab?.id ?? "",
+        from: selection.from,
+        to: selection.to,
       };
     },
-    onApply: (newText) => {
-      const editor = activeView().editor;
-      const selection = editor.getSelection();
+    lookupTabText: (windowId, tabId) => {
+      const windowState = getWindow(windowId);
+      if (!windowState?.tabs.some((tab) => tab.id === tabId)) return null;
+      return views.get(windowId)?.editor.getText(tabId) ?? null;
+    },
+    applyEditTo: (windowId, tabId, newText, selection) => {
+      activateTab(windowId, tabId);
+      const editor = views.get(windowId)!.editor;
       if (selection.text) {
         editor.replaceRange(selection.from, selection.to, newText);
       } else {
         editor.setText(newText);
       }
     },
+    confirmBypass: (label) =>
+      confirm(
+        `Run ${label} with approvals bypassed? It can read and modify files and run commands without prompting.`,
+        {
+          title: "Bypass approvals?",
+          kind: "warning",
+          okLabel: "Run once",
+          cancelLabel: "Cancel",
+        },
+      ),
     onInsert: (text) => {
       const editor = activeView().editor;
       const selection = editor.getSelection();

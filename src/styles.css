@@ -1635,6 +1635,7 @@ body.no-folder .explorer-empty {
 
 .ai-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 0 10px 8px;
 }
@@ -1648,6 +1649,13 @@ body.no-folder .explorer-empty {
   border: 1px solid var(--border);
   border-radius: 6px;
   cursor: default;
+}
+
+.ai-inline-msg {
+  flex-basis: 100%;
+  color: #e9b57b;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .ai-input-row {
@@ -2615,6 +2623,25 @@ body.resizing-ai {
 .agent-key-badge {
   color: var(--tok-string);
   font-size: 11px;
+}
+
+.provider-status {
+  display: none;
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.provider-status:not(:empty) {
+  display: block;
+}
+
+.provider-status.ok {
+  color: var(--tok-string);
+}
+
+.provider-status.err {
+  color: #e99;
 }
 
 .agent-keyform {

@@ -1,119 +1,69 @@
 import { describe, expect, it } from "vitest";
 import { buildMessages } from "../ai/conversation";
-import { chatContentText } from "../ai/providers";
-
-describe("buildMessages", () => {
-  it("injects the document and the prompt", () => {
-    const output = buildMessages({
-      history: [],
-      prompt: "summarize",
-      docText: "# Hi",
-      selection: "",
-      editMode: false,
-    });
-    expect(output[0].role).toBe("system");
-    expect(output.some((message) => chatContentText(message.content).includes("# Hi"))).toBe(
-      true,
-    );
-    expect(output[output.length - 1]).toEqual({
-      role: "user",
-      content: "summarize",
-    });
-  });
-
-  it("prioritizes the selection when present", () => {
-    const output = buildMessages({
-      history: [],
-      prompt: "fix",
-      docText: "full doc",
-      selection: "just this",
-      editMode: false,
-    });
-    expect(
-      output.find((message) => chatContentText(message.content).includes("just this")),
-    ).toBeTruthy();
-    expect(
-      output.some((message) => chatContentText(message.content).includes("full doc")),
-    ).toBe(false);
-  });
-
-  it("adds an edit instruction in edit mode", () => {
-    const output = buildMessages({
-      history: [],
-      prompt: "rewrite",
-      docText: "x",
-      selection: "",
-      editMode: true,
-    });
-    expect(chatContentText(output[0].content).toLowerCase()).toContain("return only");
-  });
-
-  it("keeps prior history", () => {
-    const history = [{ role: "user" as const, content: "earlier" }];
-    const output = buildMessages({
-      history,
-      prompt: "next",
-      docText: "",
-      selection: "",
-      editMode: false,
-    });
-    expect(output.some((message) => chatContentText(message.content) === "earlier")).toBe(
-      true,
-    );
-  });
-
-  it("inlines attached file contents as system messages", () => {
-    const output = buildMessages({
-      history: [],
-      prompt: "summarize",
-      docText: "",
-      selection: "",
-      editMode: false,
-      files: [{ kind: "text", name: "notes.txt", content: "hello world" }],
-    });
-    const fileMsg = output.find((m) =>
-      chatContentText(m.content).includes('Attached file "notes.txt"'),
-    );
-    expect(fileMsg?.role).toBe("system");
-    expect(chatContentText(fileMsg?.content ?? "")).toContain("hello world");
-    expect(output[output.length - 1]).toEqual({
-      role: "user",
-      content: "summarize",
-    });
-  });
-
-  it("omits the file block when no files are attached", () => {
+describe("buildMessages untrusted boundary", () => {
+  it("keeps one system message with the untrusted-data note", () => {
     const output = buildMessages({
       history: [],
       prompt: "hi",
-      docText: "",
+      docText: "DOC",
       selection: "",
       editMode: false,
     });
-    expect(output.some((m) => chatContentText(m.content).includes("Attached file"))).toBe(false);
+    const systems = output.filter((message) => message.role === "system");
+    expect(systems).toHaveLength(1);
+    expect(systems[0].content).toContain("untrusted data");
   });
 
-  it("adds image attachments as multimodal user content", () => {
+  it("puts document and text attachments in the delimited user turn", () => {
     const output = buildMessages({
       history: [],
-      prompt: "describe",
+      prompt: "improve",
+      docText: "DOC",
+      selection: "",
+      editMode: true,
+      files: [{ kind: "text", name: "a.md", content: "ATTACH" }],
+    });
+    const last = output[output.length - 1];
+    expect(last.role).toBe("user");
+    const text = typeof last.content === "string" ? last.content : "";
+    expect(text).toContain("<document>\nDOC\n</document>");
+    expect(text).toContain('<attachment name="a.md">\nATTACH\n</attachment>');
+    expect(text).toContain("improve");
+  });
+
+  it("prefers selection over the full document", () => {
+    const output = buildMessages({
+      history: [],
+      prompt: "x",
+      docText: "DOC",
+      selection: "SEL",
+      editMode: false,
+    });
+    const last = output[output.length - 1];
+    const text = typeof last.content === "string" ? last.content : "";
+    expect(text).toContain("<document>\nSEL\n</document>");
+    expect(text).not.toContain("DOC");
+  });
+
+  it("keeps images as user multimodal parts with text first", () => {
+    const output = buildMessages({
+      history: [],
+      prompt: "p",
       docText: "",
       selection: "",
       editMode: false,
       files: [
         {
           kind: "image",
-          name: "screen.png",
-          dataUrl: "data:image/png;base64,AA==",
+          name: "i.png",
+          dataUrl: "data:image/png;base64,AAA",
         },
       ],
     });
-    expect(output[output.length - 1]?.content).toEqual([
-      { type: "text", text: "describe" },
-      {
-        type: "image_url",
-        image_url: { url: "data:image/png;base64,AA==" },
-      },
-    ]);
+    const last = output[output.length - 1];
+    expect(Array.isArray(last.content)).toBe(true);
+    const parts = last.content as Array<{ type: string }>;
+    expect(parts[0].type).toBe("text");
+    expect(parts.some((part) => part.type === "image_url")).toBe(true);
   });
 });

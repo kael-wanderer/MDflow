@@ -15,16 +15,6 @@ const KEEP_MIN = 10;
 const MAX_TOTAL = 50;
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
-// FNV-1a 32-bit. These hashes are identifiers and de-duplication hints, not secrets.
-export function hashText(text: string): string {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
-
 export function fileIdFor(path: string): string {
   return `f${hashText(path)}`;
 }
@@ -74,3 +64,6 @@ export function snapshotsToPrune(
   }
   return prune;
 }
+import { hashText } from "./hash";
+
+export { hashText } from "./hash";

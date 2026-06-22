@@ -65,7 +65,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
       label: "Anthropic",
       type: "http",
       baseUrl: "https://api.anthropic.com/v1",
-      model: "claude-3-5-haiku-latest",
+      model: "claude-haiku-4-5-20251001",
     },
     {
       id: "openrouter",
@@ -201,8 +201,6 @@ export function parseAISettings(raw: string): AISettings {
   }
   const requestedProvider = stringValue(data.defaultProvider);
   const requestedTerminal = stringValue(data.defaultTerminal);
-  const permissionMode: PermissionMode =
-    data.permissionMode === "bypass" ? "bypass" : "ask";
   const rawSize = Number(data.terminalFontSize);
   const terminalFontSize = Number.isFinite(rawSize)
     ? Math.min(32, Math.max(8, Math.round(rawSize)))
@@ -229,7 +227,8 @@ export function parseAISettings(raw: string): AISettings {
     )
       ? requestedTerminal
       : terminals[0].id,
-    permissionMode,
+    // Bypass is a single-run choice and never restored from agent.json.
+    permissionMode: "ask",
     terminalFont: stringValue(data.terminalFont),
     terminalFontSize,
     terminalApp,

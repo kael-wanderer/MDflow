@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AISettings, Provider } from "./ai/aisettings";
+import { testConnection } from "./ai/client";
 import {
   normalizeThemeName,
   THEME_OPTIONS,
@@ -389,6 +390,9 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
 
       const actions = document.createElement("span");
       actions.className = "agent-actions";
+      const status = document.createElement("span");
+      status.className = "provider-status";
+      status.setAttribute("role", "status");
 
       const use = document.createElement("button");
       use.type = "button";
@@ -437,6 +441,24 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
           keyForm.querySelector("input")?.focus();
         });
         actions.appendChild(setKey);
+
+        const test = document.createElement("button");
+        test.type = "button";
+        test.className = "agent-test";
+        test.textContent = "Test connection";
+        test.addEventListener("click", async () => {
+          test.disabled = true;
+          test.textContent = "Testing…";
+          status.textContent = "";
+          status.classList.remove("ok", "err");
+          const result = await testConnection(provider);
+          status.textContent = result.detail;
+          status.classList.toggle("ok", result.ok);
+          status.classList.toggle("err", !result.ok);
+          test.textContent = "Test connection";
+          test.disabled = false;
+        });
+        actions.appendChild(test);
       }
 
       if (provider.type === "command") {
@@ -504,6 +526,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       actions.appendChild(remove);
 
       rowEl.append(info, actions);
+      if (provider.type === "http") rowEl.appendChild(status);
       list.appendChild(rowEl);
     }
     if (!providers.length) {
