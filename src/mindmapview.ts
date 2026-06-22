@@ -8,6 +8,7 @@ import {
   readNodeStyle,
   type MindShape,
 } from "./mindmap-style";
+import { toggleSelection } from "./mindmap-selection";
 
 export type MindmapHandle = {
   destroy: () => void;
@@ -202,6 +203,18 @@ export async function mountMindmapBoard(
     const el = canvas.querySelector(`jmnode[nodeid="${CSS.escape(id)}"]`);
     if (!el) return;
     for (const s of SHAPES) el.classList.toggle(`mm-shape-${s}`, s === shape);
+  };
+  const selection = new Set<string>();
+  const applyHighlight = (): void => {
+    for (const el of canvas.querySelectorAll<HTMLElement>("jmnode")) {
+      const id = el.getAttribute("nodeid");
+      el.classList.toggle("mm-multi-selected", !!id && selection.has(id));
+    }
+  };
+  const setSelection = (ids: Iterable<string>): void => {
+    selection.clear();
+    for (const id of ids) selection.add(id);
+    applyHighlight();
   };
   const reapplyShapes = (): void => {
     for (const el of canvas.querySelectorAll<HTMLElement>("jmnode")) {
@@ -427,6 +440,10 @@ export async function mountMindmapBoard(
   };
   const listener = (): void => {
     reapplyShapes();
+    for (const id of [...selection]) {
+      if (!jm.get_node(id)) selection.delete(id);
+    }
+    applyHighlight();
     drawBorderAwareLines();
     updateFormatRow();
     if (accepting) persist();
@@ -508,6 +525,7 @@ export async function mountMindmapBoard(
 
   const beginDrag = (event: MouseEvent): void => {
     if (event.button !== 0) return;
+    if (event.shiftKey || event.metaKey || event.ctrlKey) return;
     const element = (event.target as HTMLElement | null)?.closest<HTMLElement>(
       "jmnode",
     );
@@ -534,11 +552,29 @@ export async function mountMindmapBoard(
   };
   canvas.addEventListener("mousedown", beginDrag, true);
 
+  const onCanvasClick = (event: MouseEvent): void => {
+    const element = (
+      event.target as HTMLElement | null
+    )?.closest<HTMLElement>("jmnode");
+    if (
+      !element ||
+      element.classList.contains("jsmind-draggable-shadow-node")
+    ) {
+      return;
+    }
+    const id = element.getAttribute("nodeid");
+    if (!id) return;
+    const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+    setSelection(toggleSelection(selection, id, additive));
+  };
+  canvas.addEventListener("click", onCanvasClick);
+
   return {
     destroy: () => {
       window.clearTimeout(timer);
       themeObserver.disconnect();
       canvas.removeEventListener("mousedown", beginDrag, true);
+      canvas.removeEventListener("click", onCanvasClick);
       document.removeEventListener("mousemove", moveDrag);
       document.removeEventListener("mouseup", finishDrag);
       drag?.ghost?.remove();
