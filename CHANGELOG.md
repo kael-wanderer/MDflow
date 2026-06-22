@@ -4,7 +4,7 @@ All notable changes to MDflow are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.3] — 2026-06-22
 
 ### Added
 
@@ -22,11 +22,6 @@ All notable changes to MDflow are documented here. The format is based on
   cancellation so CLI-agent child processes do not survive a cancelled reply.
 - Mindmap multi-selection with shift/⌘-click and marquee selection, theme-aware
   highlights, Escape-to-clear, and safe bulk subtree deletion.
-
-## [0.2.3] — 2026-06-21
-
-### Added
-
 - Stage 7: PDF page-text search and page navigation; advanced folder-search toggles,
   highlighted snippets, and per-file counts.
 - `⌘F` now searches directly inside Markdown Reading mode and text-based PDFs, with

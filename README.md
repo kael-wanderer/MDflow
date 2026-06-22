@@ -34,6 +34,12 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
 - **Finder drag/drop** — open files by dropping onto a document pane, copy them
   into Explorer folders/file locations, or drop onto the AI panel to attach them.
 - **Compare** — select two files and view a side-by-side diff.
+- **Recovery & version history** — unsaved edits are continuously drafted in the
+  background and offered back after a crash or quit (restore / discard banner on
+  launch), without changing the explicit-save model. MDflow detects when an open file
+  changes on disk (reload when clean, conflict prompt when dirty, overwrite
+  protection on save) and keeps per-file local snapshots on save plus manual
+  snapshots, browsable in a version-history panel with Compare and Restore.
 - **Rich preview** — [mermaid](https://mermaid.js.org) diagrams, [KaTeX](https://katex.org)
   math (`$…$`, `$$…$$`), and raw HTML.
 - **PDF reader** — open `.pdf` files rendered with pdf.js.
@@ -42,12 +48,16 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
 - **Mindmap boards** — open and edit `.mind` files (jsMind) with an on-board toolbar:
   add / rename / delete nodes, and format a selected node's shape (rect / rounded /
   pill / circle), fill & text color, font size, and bold. Styling is saved in the
-  `.mind` file.
+  `.mind` file. Select several nodes at once with shift/⌘-click or a marquee drag and
+  delete them in one step (Delete/Backspace or the toolbar); Escape clears selection.
 - **AI panel** — a right-side assistant with a **Chat** tab (provider + permission-mode
   selectors, document/selection context, file attachments via 📎 / drag-drop /
   `@`-mention, streamed replies, copy / insert-at-cursor / apply-as-diff) and a
   **Terminal** tab (an embedded terminal running an agent CLI, with a live picker and
-  configurable font/size).
+  configurable font/size). Providers offer a connection test; document and attachment
+  text is passed inside an untrusted boundary; and apply-as-diff edits are bound to
+  their originating tab and selection, so a reply is rejected if that source has
+  changed or closed instead of patching the wrong document.
 - **Settings** — an in-app panel (Theme, Font, Size, Session, Update, Agent) plus raw
   `settings.json` / `agent.json` for advanced edits.
 - **Updates** — manual checks from Help and optional once-daily automatic checks;
@@ -135,12 +145,18 @@ src/
   excalidrawview.ts lazy board-only runtime loader
   mindmap-document.ts jsMind node_tree validation and serialization
   mindmap-style.ts pure per-node style helpers (shape/color/size)
-  mindmapview.ts   lazy jsMind board (node + format toolbars, screenshot)
+  mindmap-selection.ts pure multi-select math (toggle, marquee, subtree filter)
+  mindmapview.ts   lazy jsMind board (node + format toolbars, multi-select, screenshot)
+  recovery-policy.ts pure recovery decisions (ids, conflict, retention)
+  recovery.ts      draft autosave, crash restore, external-change detection, snapshots
+  historyview.ts   version-history panel (list / compare / restore)
+  hash.ts          shared deterministic text hash (recovery + AI edit binding)
   ai/              AI panel: aisettings, providers, client, conversation, diff,
-                   terminal, panel
+                   edit-binding, terminal, panel
 src-tauri/src/
   lib.rs           Tauri builder: command registry + plugins
   files.rs         file IPC, settings/ai-settings files, recursive walk
+  recovery.rs      atomic draft/snapshot store + file_stat
   ai.rs            command-provider streaming
   secrets.rs       API keys in the OS keychain (keyring crate)
   pty.rs           embedded-terminal PTY
