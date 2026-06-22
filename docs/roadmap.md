@@ -132,6 +132,8 @@ of the MDflow window while preserving a minimum document area.
 - ✅ In-file Markdown outline / heading jump in the command palette
 - ✅ Open Recent files/folders in the command palette
 - ✅ Export: preflight check for `pandoc` / `typst` with install guidance
+- ✅ Mindmap multi-select via shift/⌘-click and marquee, with theme-aware
+  highlights and safe bulk subtree deletion
 - ⏳ Cleanup: keep the `ai.json → agent.json` migration shim for a few more releases,
   as originally planned, so users upgrading from older versions are not stranded.
 
@@ -140,9 +142,3 @@ of the MDflow window while preserving a minimum document area.
 ## Backlog — feature requests 🔜
 
 Ideas raised during use that aren't planned for a specific stage yet.
-
-- 🔜 **Mindmap: multi-select + bulk delete.** Select several nodes (e.g. marquee /
-  rubber-band drag, or shift-click) and delete them at once. jsMind has no native
-  multi-selection, so this is custom work: track a selection set, render highlights
-  on selected nodes, and extend delete to act on the set. Today only single-node
-  selection is supported. (Requested 2026-06-21.)

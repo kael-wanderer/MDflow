@@ -10,6 +10,7 @@ import {
 } from "./mindmap-style";
 import {
   marqueeHits,
+  topLevelSelection,
   toggleSelection,
   type Rect,
 } from "./mindmap-selection";
@@ -154,6 +155,7 @@ export async function mountMindmapBoard(
   const canvas = document.createElement("div");
   canvas.id = canvasId;
   canvas.className = "mm-canvas";
+  canvas.tabIndex = 0;
   const bar = document.createElement("div");
   bar.className = "mm-toolbar";
   const nodeRow = document.createElement("div");
@@ -266,9 +268,18 @@ export async function mountMindmapBoard(
     const sel = jm.get_selected_node();
     if (sel) jm.begin_edit(sel);
   };
-  const removeSelected = (): void => {
-    const sel = jm.get_selected_node();
-    if (sel && sel.parent) jm.remove_node(sel);
+  const parentOf = (id: string): string | null =>
+    jm.get_node(id)?.parent?.id ?? null;
+  const deleteSelection = (): void => {
+    const selected = jm.get_selected_node();
+    const ids =
+      selection.size > 0 ? [...selection] : selected ? [selected.id] : [];
+    const targets = topLevelSelection(ids, parentOf, jm.mind.root.id);
+    for (const id of targets) {
+      const node = jm.get_node(id);
+      if (node && node.parent) jm.remove_node(node);
+    }
+    setSelection([]);
   };
   const makeButton = (label: string, onClick: () => void): HTMLButtonElement => {
     const button = document.createElement("button");
@@ -289,7 +300,7 @@ export async function mountMindmapBoard(
     makeButton("+ Child", addChild),
     makeButton("+ Sibling", addSibling),
     makeButton("Rename", renameSelected),
-    makeButton("Delete", removeSelected),
+    makeButton("Delete", deleteSelection),
     docActions,
   );
   const zoomActions = document.createElement("span");
@@ -657,6 +668,35 @@ export async function mountMindmapBoard(
   };
   canvas.addEventListener("mousedown", beginMarquee);
 
+  const focusCanvas = (): void => {
+    canvas.focus({ preventScroll: true });
+  };
+  const isEditingNode = (): boolean => {
+    const active = document.activeElement as HTMLElement | null;
+    return (
+      !!active &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable)
+    );
+  };
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (isEditingNode()) return;
+    if (event.key === "Escape") {
+      setSelection([]);
+      return;
+    }
+    if (
+      (event.key === "Delete" || event.key === "Backspace") &&
+      (selection.size > 0 || jm.get_selected_node())
+    ) {
+      event.preventDefault();
+      deleteSelection();
+    }
+  };
+  canvas.addEventListener("mousedown", focusCanvas);
+  canvas.addEventListener("keydown", onKeyDown);
+
   return {
     destroy: () => {
       window.clearTimeout(timer);
@@ -664,6 +704,8 @@ export async function mountMindmapBoard(
       canvas.removeEventListener("mousedown", beginDrag, true);
       canvas.removeEventListener("click", onCanvasClick);
       canvas.removeEventListener("mousedown", beginMarquee);
+      canvas.removeEventListener("mousedown", focusCanvas);
+      canvas.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("mousemove", moveDrag);
       document.removeEventListener("mouseup", finishDrag);
       document.removeEventListener("mousemove", moveMarquee);

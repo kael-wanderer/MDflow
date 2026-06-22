@@ -20,6 +20,8 @@ All notable changes to MDflow are documented here. The format is based on
   source rejection instead of applying to whichever document is currently active.
 - Single-run approval bypass with confirmation on every run, plus process-group
   cancellation so CLI-agent child processes do not survive a cancelled reply.
+- Mindmap multi-selection with shift/⌘-click and marquee selection, theme-aware
+  highlights, Escape-to-clear, and safe bulk subtree deletion.
 
 ## [0.2.3] — 2026-06-21
 

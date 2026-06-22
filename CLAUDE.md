@@ -131,7 +131,10 @@ Special-pane document types: `.excalidraw` files open as an editable Excalidraw 
 per-node shape (rect/rounded/pill/circle), fill/text color, font size, and bold, stored
 in node `data` and persisted in the `.mind` file (no format change). Dedicated activity-bar
 buttons create untitled boards of either type. jsMind nodes and connector lines derive
-their colors from the active MDflow theme and update when the theme changes.
+their colors from the active MDflow theme and update when the theme changes. Mindmaps
+support transient multi-selection via shift/⌘-click or marquee drag; Delete/Backspace
+and the toolbar Delete action remove the selected subtrees without changing the
+`.mind` format.
 
 Editor settings live at `<app config dir>/settings.json`; AI providers and terminals
 live at `<app config dir>/agent.json` (legacy `ai.json` is auto-migrated on first
