@@ -65,6 +65,100 @@ body {
   overflow: hidden;
 }
 
+.recovery-banner {
+  position: absolute;
+  top: 0;
+  left: 46px;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+}
+
+.recovery-actions,
+.history-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.recovery-banner button,
+.history-panel button {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 9px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.recovery-banner button:hover,
+.history-panel button:hover {
+  border-color: var(--accent);
+  color: var(--text-strong);
+}
+
+.history-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 30;
+  width: min(380px, 45vw);
+  height: 100%;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: -12px 0 28px rgb(0 0 0 / 20%);
+}
+
+.history-panel header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.history-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-panel li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.history-panel li > span:first-child {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.history-panel .history-empty {
+  color: var(--muted);
+}
+
 /* ---------- Windows & Panes ---------- */
 #editorarea {
   grid-area: editor;

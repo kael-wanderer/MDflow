@@ -39,6 +39,7 @@ import {
   revealInFinder,
 } from "./filesys";
 import { createPalette, type PaletteItem } from "./palette";
+import { openHistoryPanel } from "./historyview";
 import { markdownOutline } from "./outline";
 import { addRecent, loadRecent, saveRecent } from "./recent";
 import { breadcrumbsPath, joinPath, relativePath } from "./paths";
@@ -73,6 +74,19 @@ import {
 } from "./keymap";
 import { createSettingsPanel } from "./settingspanel";
 import { createSearchPanel } from "./search";
+import {
+  checkExternalChange,
+  clearDraft,
+  clearDraftById,
+  forgetStat,
+  hasDiskChanged,
+  manualSnapshot,
+  recordStat,
+  restoreDrafts,
+  scheduleDraft,
+  snapshotOnSave,
+} from "./recovery";
+import type { DraftRecord } from "./recovery-policy";
 import { checkForUpdates, startDailyUpdateChecks } from "./updater";
 import {
   freshState,
@@ -112,6 +126,8 @@ let fileList: string[] = [];
 let indexedFolder: string | null = null;
 let tabSeq = 0;
 const nextId = () => `t${++tabSeq}`;
+const cleanReloads = new Set<string>();
+const recoveredDraftIds = new Map<string, string>();
 
 function persistUiState(): void {
   if (isPrimaryNativeWindow) saveState(ui);
@@ -256,6 +272,8 @@ function commandItems(): PaletteItem[] {
       document.getElementById("ab-explorer")?.click();
     }),
     command("settings", "Open Settings", openSettings),
+    command("historySnapshot", "Snapshot Now", snapshotActiveDocument),
+    command("historyShow", "Show Version History", showActiveHistory),
     command("help", "MDflow Help", openHelp),
     ...recent.files.map((path) =>
       command(`recent-file:${path}`, `Open Recent File: ${basename(path)}`, () =>
@@ -358,7 +376,17 @@ async function closeTabs(windowId: string, tabIds: string[]): Promise<void> {
   if (toClose.size === 0) return;
 
   const view = views.get(windowId)!;
-  for (const id of toClose) view.editor.closeState(id);
+  for (const id of toClose) {
+    const tab = w.tabs.find((item) => item.id === id);
+    if (tab) {
+      clearDraft(tab.path, tab.id);
+      const recoveredId = recoveredDraftIds.get(tab.id);
+      if (recoveredId) clearDraftById(recoveredId);
+      recoveredDraftIds.delete(tab.id);
+      if (tab.path) forgetStat(tab.path);
+    }
+    view.editor.closeState(id);
+  }
 
   const remaining = w.tabs.filter((x) => !toClose.has(x.id));
   let nextActive = w.activeTabId;
@@ -543,6 +571,7 @@ function activateTab(windowId: string, tabId: string): void {
   syncExplorerActivePath();
   renderAll();
   v.focus();
+  void checkActiveForExternalChange(windowId);
 }
 
 function openInWindow(windowId: string, opts: { path: string | null; name: string; text: string }): void {
@@ -566,6 +595,7 @@ function openInWindow(windowId: string, opts: { path: string | null; name: strin
       opts.text,
       editorKind(opts.path ?? opts.name),
     );
+  if (opts.path) void recordStat(opts.path);
   activateTab(windowId, id);
 }
 
@@ -582,6 +612,11 @@ async function closeTab(windowId: string, tabId: string): Promise<boolean> {
     if (!approved) return false;
   }
 
+  clearDraft(t.path, t.id);
+  const recoveredId = recoveredDraftIds.get(t.id);
+  if (recoveredId) clearDraftById(recoveredId);
+  recoveredDraftIds.delete(t.id);
+  if (t.path) forgetStat(t.path);
   const next = nextActiveAfterClose(w.tabs, tabId, w.activeTabId);
   views.get(windowId)!.editor.closeState(tabId);
   patchWindow(windowId, {
@@ -605,9 +640,21 @@ async function closeTab(windowId: string, tabId: string): Promise<boolean> {
 function onDocChange(windowId: string, tabId: string, text: string): void {
   const w = getWindow(windowId)!;
   const t = w.tabs.find((x) => x.id === tabId);
+  const changeKey = `${windowId}:${tabId}`;
+  if (cleanReloads.has(changeKey)) return;
   if (t && !t.dirty) {
     patchWindow(windowId, {
       tabs: w.tabs.map((x) => (x.id === tabId ? { ...x, dirty: true } : x)),
+    });
+  }
+  if (t) {
+    scheduleDraft({
+      windowId,
+      tabId,
+      path: t.path,
+      name: t.name,
+      contents: text,
+      replacedDraftId: recoveredDraftIds.get(tabId),
     });
   }
   if (windowId === getState().activeWindowId && tabId === w.activeTabId) {
@@ -872,7 +919,26 @@ async function doSave(saveAs = false): Promise<void> {
     }
 
     const text = view.editor.getText(t.id);
+    if (t.path && (await hasDiskChanged(t.path))) {
+      const overwrite = await confirm(
+        `"${t.path}" changed on disk since you opened it. Overwrite it with your version?`,
+        {
+          title: "Overwrite external changes?",
+          kind: "warning",
+          okLabel: "Overwrite",
+          cancelLabel: "Cancel",
+        },
+      );
+      if (!overwrite) return;
+    }
+    const previousPath = t.path;
     await writeFile(target, text);
+    clearDraft(previousPath, t.id);
+    const recoveredId = recoveredDraftIds.get(t.id);
+    if (recoveredId) clearDraftById(recoveredId);
+    recoveredDraftIds.delete(t.id);
+    void recordStat(target);
+    void snapshotOnSave(target, text);
     if (target === settingsPath) {
       currentSettings = parseSettings(text);
       applySettings(currentSettings);
@@ -897,6 +963,111 @@ async function doSave(saveAs = false): Promise<void> {
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
     await message(text, { title: "Save file", kind: "error" });
+  }
+}
+
+function snapshotActiveDocument(): void {
+  const tab = activeMeta();
+  if (!tab?.path || isPdfFile(tab.path)) return;
+  void manualSnapshot(tab.path, activeView().editor.getText(tab.id));
+}
+
+function showActiveHistory(): void {
+  const windowState = activeWindow();
+  const tab = windowState.tabs.find((item) => item.id === windowState.activeTabId);
+  if (!tab?.path || isPdfFile(tab.path)) return;
+  const view = activeView();
+  void openHistoryPanel({
+    host: document.getElementById("editorarea")!,
+    path: tab.path,
+    name: tab.name,
+    currentText: view.editor.getText(tab.id),
+    onRestore: (text) => {
+      view.editor.setText(text);
+      view.renderPreview(text, tab.path!);
+    },
+  });
+}
+
+async function checkActiveForExternalChange(windowId: string): Promise<void> {
+  const windowState = getWindow(windowId);
+  if (!windowState) return;
+  const tab = windowState.tabs.find(
+    (item) => item.id === windowState.activeTabId,
+  );
+  if (!tab?.path || isPdfFile(tab.path)) return;
+  const view = views.get(windowId);
+  if (!view) return;
+  const changeKey = `${windowId}:${tab.id}`;
+  const bufferText = view.editor.getText(tab.id);
+  await checkExternalChange(tab.path, tab.dirty, bufferText, {
+    reload: (text) => {
+      cleanReloads.add(changeKey);
+      try {
+        view.editor.setText(text);
+      } finally {
+        cleanReloads.delete(changeKey);
+      }
+      clearDraft(tab.path, tab.id);
+      patchWindow(windowId, {
+        tabs: getWindow(windowId)!.tabs.map((item) =>
+          item.id === tab.id ? { ...item, dirty: false } : item,
+        ),
+      });
+      view.renderPreview(text, tab.path!);
+      renderAll();
+    },
+    markDirty: () => {
+      const current = getWindow(windowId);
+      if (!current) return;
+      patchWindow(windowId, {
+        tabs: current.tabs.map((item) =>
+          item.id === tab.id ? { ...item, dirty: true } : item,
+        ),
+      });
+      scheduleDraft({
+        windowId,
+        tabId: tab.id,
+        path: tab.path,
+        name: tab.name,
+        contents: bufferText,
+      });
+      renderAll();
+    },
+    host: document.getElementById("editorarea")!,
+  });
+}
+
+function openDraft(draft: DraftRecord): void {
+  const preferredWindowId = getWindow(draft.windowId)
+    ? draft.windowId
+    : "main";
+  if (draft.path) {
+    const found = findTabByPath(getState().windows, draft.path);
+    if (found) {
+      activateTab(found.windowId, found.tab.id);
+      const view = views.get(found.windowId)!;
+      view.editor.setText(draft.contents);
+      recoveredDraftIds.set(found.tab.id, draft.id);
+      return;
+    }
+  }
+  openInWindow(preferredWindowId, {
+    path: draft.path,
+    name: draft.name,
+    text: draft.contents,
+  });
+  const windowState = getWindow(preferredWindowId)!;
+  if (windowState.activeTabId) {
+    recoveredDraftIds.set(windowState.activeTabId, draft.id);
+    patchWindow(preferredWindowId, {
+      tabs: windowState.tabs.map((item) =>
+        item.id === windowState.activeTabId
+          ? { ...item, dirty: true }
+          : item,
+      ),
+    });
+    renderAll();
   }
 }
 
@@ -1023,7 +1194,8 @@ function handleExplorerPathChange(from: string, to: string | null): void {
   const separatorMatches = (path: string): boolean =>
     path === from || path.startsWith(`${from}/`) || path.startsWith(`${from}\\`);
 
-  const updatedWindows = getState().windows.map((w) => {
+  const previousWindows = getState().windows;
+  const updatedWindows = previousWindows.map((w) => {
     const tabs = w.tabs.map((tab) => {
       if (!tab.path || !separatorMatches(tab.path)) return tab;
       if (to === null) {
@@ -1035,6 +1207,29 @@ function handleExplorerPathChange(from: string, to: string | null): void {
     return { ...w, tabs };
   });
   setState({ windows: updatedWindows });
+  for (const previousWindow of previousWindows) {
+    const nextWindow = updatedWindows.find(
+      (windowState) => windowState.id === previousWindow.id,
+    );
+    if (!nextWindow) continue;
+    for (const previousTab of previousWindow.tabs) {
+      if (!previousTab.path || !separatorMatches(previousTab.path)) continue;
+      const nextTab = nextWindow.tabs.find((tab) => tab.id === previousTab.id);
+      if (!nextTab) continue;
+      clearDraft(previousTab.path, previousTab.id);
+      forgetStat(previousTab.path);
+      if (nextTab.path) void recordStat(nextTab.path);
+      if (nextTab.dirty) {
+        scheduleDraft({
+          windowId: previousWindow.id,
+          tabId: nextTab.id,
+          path: nextTab.path,
+          name: nextTab.name,
+          contents: views.get(previousWindow.id)!.editor.getText(nextTab.id),
+        });
+      }
+    }
+  }
   for (const windowState of updatedWindows) {
     const view = views.get(windowState.id);
     if (!view) continue;
@@ -1686,6 +1881,7 @@ window.addEventListener("focus", () => {
     void refreshDir(folder).catch(() => {});
     void refreshFileList();
   }
+  void checkActiveForExternalChange(getState().activeWindowId);
 });
 
 listen<string>("menu", (event) => {
@@ -1779,6 +1975,8 @@ listen<string>("menu", (event) => {
 const appKeyActions: Record<string, () => void> = {
   "palette.open": () => palette.open(),
   "search.find_in_files": () => toggleSearch(),
+  "history.show": showActiveHistory,
+  "history.snapshot": snapshotActiveDocument,
   "file.close": () => {
     const w = activeWindow();
     if (w.activeTabId) void closeTab(w.id, w.activeTabId);
@@ -1893,6 +2091,9 @@ async function boot(): Promise<void> {
       }
     }
     renderAll();
+  }
+  if (isPrimaryNativeWindow) {
+    await restoreDrafts({ openDraft, host: document.getElementById("app")! });
   }
 }
 
