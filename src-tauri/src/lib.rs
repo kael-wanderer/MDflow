@@ -7,6 +7,7 @@ mod macos_dock;
 mod menu;
 mod native_windows;
 mod pty;
+mod recovery;
 mod secrets;
 
 use std::collections::{HashMap, HashSet};
@@ -198,6 +199,15 @@ pub fn run() {
             files::search_in_folder,
             files::get_settings,
             files::get_ai_settings,
+            recovery::recovery_write_draft,
+            recovery::recovery_clear_draft,
+            recovery::recovery_list_drafts,
+            recovery::file_stat,
+            recovery::recovery_save_snapshot,
+            recovery::recovery_save_snapshot_labeled,
+            recovery::recovery_list_snapshots,
+            recovery::recovery_read_snapshot,
+            recovery::recovery_delete_snapshots,
             pty::pty_open,
             pty::pty_write,
             pty::pty_resize,
