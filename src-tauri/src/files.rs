@@ -284,7 +284,13 @@ pub fn get_ai_settings(app: tauri::AppHandle, default: String) -> Result<Setting
         .path()
         .app_config_dir()
         .map_err(|error| error.to_string())?;
-    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    resolve_ai_settings_at(&dir, &default)
+}
+
+// Resolve the agent.json settings file, migrating the legacy ai.json name on
+// first run. Pure (dir + default in, file out) so the migration is unit-testable.
+pub fn resolve_ai_settings_at(dir: &Path, default: &str) -> Result<SettingsFile, String> {
+    fs::create_dir_all(dir).map_err(|error| error.to_string())?;
     let file = dir.join("agent.json");
     // Migrate the legacy ai.json name to agent.json on first run.
     let legacy = dir.join("ai.json");
@@ -292,7 +298,7 @@ pub fn get_ai_settings(app: tauri::AppHandle, default: String) -> Result<Setting
         let _ = fs::rename(&legacy, &file);
     }
     if !file.exists() {
-        fs::write(&file, &default).map_err(|error| error.to_string())?;
+        fs::write(&file, default).map_err(|error| error.to_string())?;
     }
     let contents = fs::read_to_string(&file).map_err(|error| error.to_string())?;
     Ok(SettingsFile {
@@ -675,5 +681,61 @@ mod walk_tests {
             vec!["readme.md".to_string(), "src/main.ts".to_string()]
         );
         let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
+#[cfg(test)]
+mod ai_settings_tests {
+    use super::resolve_ai_settings_at;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn tmp() -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("mdflow_ai_settings_{nanos}"));
+        let _ = fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[test]
+    fn creates_agent_json_with_default_when_none_exist() {
+        let dir = tmp();
+        let got = resolve_ai_settings_at(&dir, "{\"default\":true}").unwrap();
+        assert_eq!(got.contents, "{\"default\":true}");
+        assert!(dir.join("agent.json").exists());
+        assert!(!dir.join("ai.json").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn migrates_legacy_ai_json_to_agent_json() {
+        let dir = tmp();
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("ai.json"), "{\"legacy\":1}").unwrap();
+        let got = resolve_ai_settings_at(&dir, "{\"default\":true}").unwrap();
+        // Legacy contents are preserved, not overwritten by the default.
+        assert_eq!(got.contents, "{\"legacy\":1}");
+        assert!(dir.join("agent.json").exists());
+        assert!(!dir.join("ai.json").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn keeps_agent_json_and_ignores_stale_ai_json() {
+        let dir = tmp();
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("agent.json"), "{\"current\":1}").unwrap();
+        fs::write(dir.join("ai.json"), "{\"legacy\":1}").unwrap();
+        let got = resolve_ai_settings_at(&dir, "{\"default\":true}").unwrap();
+        // agent.json wins; the stale legacy file is left untouched (no migration).
+        assert_eq!(got.contents, "{\"current\":1}");
+        assert_eq!(
+            fs::read_to_string(dir.join("ai.json")).unwrap(),
+            "{\"legacy\":1}"
+        );
+        let _ = fs::remove_dir_all(&dir);
     }
 }
