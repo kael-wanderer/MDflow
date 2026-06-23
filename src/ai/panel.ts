@@ -5,6 +5,12 @@ import { streamChat } from "./client";
 import { buildMessages, type AttachedFile } from "./conversation";
 import { showDiff } from "./edit-review";
 import type { EditBinding } from "./edit-binding";
+import {
+  captureFolderState,
+  diffFolderState,
+  type FolderDiff,
+  type FolderState,
+} from "./run-summary";
 import { matchAccelerator } from "../keymap";
 import { rankItems } from "../fuzzy";
 import { hashText } from "../hash";
@@ -31,6 +37,7 @@ export type AIPanelDeps = {
   confirmBypass: (label: string) => Promise<boolean>;
   beforeApply?: (binding: EditBinding) => void | Promise<void>;
   onInsert: (text: string) => void;
+  onOpenChangedFile: (dir: string, relativePath: string) => void;
   onClose: () => void;
   getSendAccelerator: () => string;
   getWorkingDir: () => string | null;
@@ -79,6 +86,40 @@ function bytesToDataUrl(bytes: number[], mime: string): string {
     binary += String.fromCharCode(...bytes.slice(index, index + 0x8000));
   }
   return `data:${mime};base64,${btoa(binary)}`;
+}
+
+function renderRunSummary(
+  host: HTMLElement,
+  diff: FolderDiff,
+  onOpen: (rel: string) => void,
+): void {
+  const total = diff.added.length + diff.modified.length + diff.deleted.length;
+  if (total === 0) return;
+  const box = document.createElement("div");
+  box.className = "ai-run-summary";
+  const title = document.createElement("div");
+  title.className = "ai-run-summary-title";
+  title.textContent = `${total} file${total === 1 ? "" : "s"} changed`;
+  box.appendChild(title);
+  const groups: [string, string[]][] = [
+    ["added", diff.added],
+    ["modified", diff.modified],
+    ["deleted", diff.deleted],
+  ];
+  for (const [kind, files] of groups) {
+    for (const rel of files) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `ai-run-file ${kind}`;
+      const mark = kind === "added" ? "+" : kind === "deleted" ? "−" : "~";
+      row.textContent = `${mark} ${rel}`;
+      if (kind === "deleted") row.disabled = true;
+      else row.addEventListener("click", () => onOpen(rel));
+      box.appendChild(row);
+    }
+  }
+  host.appendChild(box);
+  host.scrollTop = host.scrollHeight;
 }
 
 function loadHistory(key: string): ChatMessage[] {
@@ -447,6 +488,14 @@ export function createAIPanel(
         editMode,
         files,
       });
+      // CLI agents run with cwd = the open folder and can write files; snapshot
+      // the folder before the run so we can summarize what changed afterward.
+      const workingDir = deps.getWorkingDir();
+      const runDir =
+        provider.type === "command" && workingDir ? workingDir : null;
+      let beforeState: FolderState | null = null;
+      if (runDir) beforeState = await captureFolderState(runDir);
+
       const replyElement = addBubble("assistant", "");
       let reply = "";
       activeRequest = new AbortController();
@@ -480,6 +529,14 @@ export function createAIPanel(
           binding,
           document.selection.trim() ? document.selection : document.text,
         );
+        if (runDir && beforeState) {
+          const after = await captureFolderState(runDir);
+          renderRunSummary(
+            messagesElement,
+            diffFolderState(beforeState, after),
+            (rel) => deps.onOpenChangedFile(runDir, rel),
+          );
+        }
       } catch (error) {
         if (reply) {
           history.push(

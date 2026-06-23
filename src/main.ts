@@ -1584,6 +1584,7 @@ function buildAIPanel(): void {
       const selection = editor.getSelection();
       editor.replaceRange(selection.from, selection.to, text);
     },
+    onOpenChangedFile: (dir, rel) => void doOpenPath(joinPath(dir, rel)),
     onClose: () => setAIVisible(false),
     getSendAccelerator: () => resolvedAccel("ai.send"),
     getWorkingDir: () => {
