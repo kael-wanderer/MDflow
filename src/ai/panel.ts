@@ -3,8 +3,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import type { AISettings, PermissionMode, Provider } from "./aisettings";
 import { streamChat } from "./client";
 import { buildMessages, type AttachedFile } from "./conversation";
-import { lineDiff } from "./diff";
-import { validateBinding, type EditBinding } from "./edit-binding";
+import { showDiff } from "./edit-review";
+import type { EditBinding } from "./edit-binding";
 import { matchAccelerator } from "../keymap";
 import { rankItems } from "../fuzzy";
 import { hashText } from "../hash";
@@ -29,6 +29,7 @@ export type AIPanelDeps = {
     selection: { text: string; from: number; to: number },
   ) => void;
   confirmBypass: (label: string) => Promise<boolean>;
+  beforeApply?: (binding: EditBinding) => void | Promise<void>;
   onInsert: (text: string) => void;
   onClose: () => void;
   getSendAccelerator: () => string;
@@ -165,76 +166,15 @@ export function createAIPanel(
       apply.type = "button";
       apply.textContent = "Apply (diff)";
       apply.addEventListener("click", () => {
-        showDiff(row, oldText, reply, binding);
+        showDiff(row, oldText, reply, binding, {
+          lookupTabText: deps.lookupTabText,
+          applyEditTo: deps.applyEditTo,
+          beforeApply: deps.beforeApply,
+        });
       });
       row.appendChild(apply);
     }
     afterElement.after(row);
-  }
-
-  function showDiff(
-    anchor: HTMLElement,
-    oldText: string,
-    newText: string,
-    binding: EditBinding,
-  ): void {
-    const view = window.document.createElement("div");
-    view.className = "ai-diff";
-    for (const line of lineDiff(oldText, newText)) {
-      const lineElement = window.document.createElement("div");
-      lineElement.className = `ai-diff-line ${line.type}`;
-      const prefix =
-        line.type === "add" ? "+ " : line.type === "del" ? "- " : "  ";
-      lineElement.textContent = `${prefix}${line.text}`;
-      view.appendChild(lineElement);
-    }
-
-    const actions = window.document.createElement("div");
-    actions.className = "ai-actions";
-    const accept = window.document.createElement("button");
-    accept.type = "button";
-    accept.textContent = "Accept";
-    accept.addEventListener("click", () => {
-      const state = validateBinding(binding, deps.lookupTabText);
-      if (state === "closed") {
-        showInlineMessage(
-          actions,
-          "The document this edit was for is no longer open — regenerate.",
-        );
-        return;
-      }
-      if (state === "changed") {
-        showInlineMessage(
-          actions,
-          "The document changed since this reply — regenerate.",
-        );
-        return;
-      }
-      deps.applyEditTo(binding.windowId, binding.tabId, newText, {
-        text: binding.selection,
-        from: binding.from,
-        to: binding.to,
-      });
-      view.remove();
-      actions.remove();
-    });
-    const reject = window.document.createElement("button");
-    reject.type = "button";
-    reject.textContent = "Reject";
-    reject.addEventListener("click", () => {
-      view.remove();
-      actions.remove();
-    });
-    actions.append(accept, reject);
-    anchor.after(view, actions);
-  }
-
-  function showInlineMessage(host: HTMLElement, text: string): void {
-    host.querySelector(".ai-inline-msg")?.remove();
-    const message = document.createElement("div");
-    message.className = "ai-inline-msg";
-    message.textContent = text;
-    host.appendChild(message);
   }
 
   function renderChat(): void {
