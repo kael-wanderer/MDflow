@@ -11,16 +11,23 @@ const TRANSIENT_APP_STATE = new Set([
   "editingElement",
   "editingGroupId",
   "editingLinearElement",
+  "height",
   "multiElement",
+  "offsetLeft",
+  "offsetTop",
   "openMenu",
   "openPopup",
   "openSidebar",
   "previousSelectedElementIds",
   "resizingElement",
+  "scrollX",
+  "scrollY",
   "selectedElementIds",
   "selectedGroupIds",
   "selectionElement",
   "toast",
+  "width",
+  "zoom",
 ]);
 
 function objectValue(value: unknown): Record<string, unknown> {

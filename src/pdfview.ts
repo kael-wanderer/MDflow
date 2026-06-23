@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { installReadableStreamAsyncIterator } from "./readable-stream-iter";
 
 export type PdfFindHandle = {
   setQuery: (query: string) => number;
@@ -13,6 +14,7 @@ export async function renderPdf(
   initialPage?: number,
 ): Promise<PdfFindHandle> {
   host.innerHTML = '<div class="pdf-loading">Loading PDF…</div>';
+  installReadableStreamAsyncIterator();
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
   const bytes = await invoke<number[]>("read_file_bytes", { path });
@@ -40,20 +42,6 @@ export async function renderPdf(
     canvas.height = viewport.height;
     pageElement.appendChild(canvas);
     container.appendChild(pageElement);
-    const textContent = await page.getTextContent();
-    const textLayer = window.document.createElement("div");
-    textLayer.className = "pdf-text-layer";
-    textLayer.style.setProperty("--total-scale-factor", String(viewport.scale));
-    pageElement.appendChild(textLayer);
-    await new pdfjs.TextLayer({
-      textContentSource: textContent,
-      container: textLayer,
-      viewport,
-    }).render();
-    const pageText = textContent.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .join(" ");
-    pages.push({ element: pageElement, text: pageText });
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Canvas rendering is unavailable");
     await page.render({
@@ -61,6 +49,30 @@ export async function renderPdf(
       canvasContext: context,
       viewport,
     }).promise;
+    // Text extraction powers the find feature; never let it block the visible
+    // page render (it can fail per-file on some PDFs).
+    let pageText = "";
+    try {
+      const textContent = await page.getTextContent();
+      const textLayer = window.document.createElement("div");
+      textLayer.className = "pdf-text-layer";
+      textLayer.style.setProperty(
+        "--total-scale-factor",
+        String(viewport.scale),
+      );
+      pageElement.appendChild(textLayer);
+      await new pdfjs.TextLayer({
+        textContentSource: textContent,
+        container: textLayer,
+        viewport,
+      }).render();
+      pageText = textContent.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ");
+    } catch {
+      // Page stays visible; it just won't be searchable.
+    }
+    pages.push({ element: pageElement, text: pageText });
     if (pageNumber === initialPage) {
       pageElement.scrollIntoView({ block: "start" });
     }

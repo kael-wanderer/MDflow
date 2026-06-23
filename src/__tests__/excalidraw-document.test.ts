@@ -60,4 +60,29 @@ describe("serializeExcalidrawDocument", () => {
     expect(output.appState.selectedElementIds).toBeUndefined();
     expect(output.appState.collaborators).toBeUndefined();
   });
+
+  it("ignores viewport state so pan/zoom do not dirty the document", () => {
+    const before = serializeExcalidrawDocument(
+      [{ id: "a" }],
+      { viewBackgroundColor: "#fff", scrollX: 0, scrollY: 0, zoom: { value: 1 } },
+      {},
+    );
+    const after = serializeExcalidrawDocument(
+      [{ id: "a" }],
+      {
+        viewBackgroundColor: "#fff",
+        scrollX: 320,
+        scrollY: -120,
+        zoom: { value: 2.5 },
+        width: 1000,
+        height: 800,
+        offsetTop: 40,
+        offsetLeft: 60,
+      },
+      {},
+    );
+    expect(after).toBe(before);
+    expect(JSON.parse(after).appState.scrollX).toBeUndefined();
+    expect(JSON.parse(after).appState.zoom).toBeUndefined();
+  });
 });
