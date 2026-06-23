@@ -33,6 +33,7 @@ export type AISettings = {
   terminalFont: string;
   terminalFontSize: number;
   terminalApp: TerminalApp;
+  quickActionProvider?: string;
 };
 
 export type PermissionMode = "ask" | "bypass";
@@ -213,6 +214,12 @@ export function parseAISettings(raw: string): AISettings {
   ].includes(String(data.terminalApp))
     ? (data.terminalApp as TerminalApp)
     : "embedded";
+  const requestedQuickProvider = stringValue(data.quickActionProvider);
+  const quickActionProvider = providers.some(
+    (provider) => provider.id === requestedQuickProvider,
+  )
+    ? requestedQuickProvider
+    : undefined;
 
   return {
     providers,
@@ -232,6 +239,7 @@ export function parseAISettings(raw: string): AISettings {
     terminalFont: stringValue(data.terminalFont),
     terminalFontSize,
     terminalApp,
+    quickActionProvider,
   };
 }
 
