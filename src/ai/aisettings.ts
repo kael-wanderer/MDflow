@@ -34,6 +34,7 @@ export type AISettings = {
   terminalFontSize: number;
   terminalApp: TerminalApp;
   quickActionProvider?: string;
+  maxContextChars: number;
 };
 
 export type PermissionMode = "ask" | "bypass";
@@ -111,6 +112,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
   terminalFont: "",
   terminalFontSize: 13,
   terminalApp: "embedded",
+  maxContextChars: 120_000,
 };
 
 export const DEFAULT_AI_SETTINGS_JSON = JSON.stringify(
@@ -220,6 +222,10 @@ export function parseAISettings(raw: string): AISettings {
   )
     ? requestedQuickProvider
     : undefined;
+  const rawContextChars = Number(data.maxContextChars);
+  const maxContextChars = Number.isFinite(rawContextChars)
+    ? Math.min(2_000_000, Math.max(4_000, Math.round(rawContextChars)))
+    : DEFAULT_AI_SETTINGS.maxContextChars;
 
   return {
     providers,
@@ -240,6 +246,7 @@ export function parseAISettings(raw: string): AISettings {
     terminalFontSize,
     terminalApp,
     quickActionProvider,
+    maxContextChars,
   };
 }
 

@@ -2457,12 +2457,17 @@ body.resizing-ai {
   font-size: 12px;
 }
 
-.agent-quick-action select {
+.agent-quick-action select,
+.agent-quick-action input {
   padding: 8px 9px;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+.agent-quick-action small {
+  line-height: 1.4;
 }
 
 .settings-custom label,

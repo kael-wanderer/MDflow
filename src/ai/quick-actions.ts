@@ -3,6 +3,7 @@ import { hashText } from "../hash";
 import { buildMessages } from "./conversation";
 import { streamChat } from "./client";
 import type { EditBinding } from "./edit-binding";
+import { contextTrimWarning } from "./context-budget";
 
 export type QuickActionKind = "edit" | "chat";
 
@@ -99,14 +100,18 @@ export async function runQuickAction(
     return;
   }
 
-  const messages = buildMessages({
+  const built = buildMessages({
     history: [],
     prompt: action.prompt,
     docText: scope.text,
     selection: "",
     editMode: action.kind === "edit",
     files: [],
+    maxContextChars: settings.maxContextChars,
   });
+  if (built.truncatedChars > 0) {
+    deps.appendBubble("system", contextTrimWarning(built.truncatedChars));
+  }
 
   const bubble = deps.appendBubble("assistant", "");
   let reply = "";
@@ -114,7 +119,7 @@ export async function runQuickAction(
   try {
     await streamChat(
       provider,
-      messages,
+      built.messages,
       (chunk) => {
         reply += chunk;
         bubble.textContent = reply;

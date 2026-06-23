@@ -15,6 +15,7 @@ import { matchAccelerator } from "../keymap";
 import { rankItems } from "../fuzzy";
 import { hashText } from "../hash";
 import { chatContentText, type ChatMessage } from "./providers";
+import { contextTrimWarning } from "./context-budget";
 
 export type AIPanelDeps = {
   getSettings: () => AISettings;
@@ -481,14 +482,18 @@ export function createAIPanel(
         from: document.from,
         to: document.to,
       };
-      const messages = buildMessages({
+      const built = buildMessages({
         history,
         prompt,
         docText: document.text,
         selection: document.selection,
         editMode,
         files,
+        maxContextChars: currentSettings.maxContextChars,
       });
+      if (built.truncatedChars > 0) {
+        addBubble("system", contextTrimWarning(built.truncatedChars));
+      }
       // CLI agents run with cwd = the open folder and can write files; snapshot
       // the folder before the run so we can summarize what changed afterward.
       const workingDir = deps.getWorkingDir();
@@ -505,7 +510,7 @@ export function createAIPanel(
       try {
         await streamChat(
           provider,
-          messages,
+          built.messages,
           (chunk) => {
             reply += chunk;
             replyElement.textContent = reply;

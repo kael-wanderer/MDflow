@@ -8,10 +8,14 @@ describe("buildMessages untrusted boundary", () => {
       docText: "DOC",
       selection: "",
       editMode: false,
+      maxContextChars: 120_000,
     });
-    const systems = output.filter((message) => message.role === "system");
+    const systems = output.messages.filter(
+      (message) => message.role === "system",
+    );
     expect(systems).toHaveLength(1);
     expect(systems[0].content).toContain("untrusted data");
+    expect(output.truncatedChars).toBe(0);
   });
 
   it("puts document and text attachments in the delimited user turn", () => {
@@ -22,8 +26,9 @@ describe("buildMessages untrusted boundary", () => {
       selection: "",
       editMode: true,
       files: [{ kind: "text", name: "a.md", content: "ATTACH" }],
+      maxContextChars: 120_000,
     });
-    const last = output[output.length - 1];
+    const last = output.messages[output.messages.length - 1];
     expect(last.role).toBe("user");
     const text = typeof last.content === "string" ? last.content : "";
     expect(text).toContain("<document>\nDOC\n</document>");
@@ -38,8 +43,9 @@ describe("buildMessages untrusted boundary", () => {
       docText: "DOC",
       selection: "SEL",
       editMode: false,
+      maxContextChars: 120_000,
     });
-    const last = output[output.length - 1];
+    const last = output.messages[output.messages.length - 1];
     const text = typeof last.content === "string" ? last.content : "";
     expect(text).toContain("<document>\nSEL\n</document>");
     expect(text).not.toContain("DOC");
@@ -59,11 +65,36 @@ describe("buildMessages untrusted boundary", () => {
           dataUrl: "data:image/png;base64,AAA",
         },
       ],
+      maxContextChars: 120_000,
     });
-    const last = output[output.length - 1];
+    const last = output.messages[output.messages.length - 1];
     expect(Array.isArray(last.content)).toBe(true);
     const parts = last.content as Array<{ type: string }>;
     expect(parts[0].type).toBe("text");
     expect(parts.some((part) => part.type === "image_url")).toBe(true);
+  });
+
+  it("budgets the document before text attachments and reports trimming", () => {
+    const documentBlock = "<document>\nPRIMARY\n</document>";
+    const emptyAttachment =
+      '<attachment name="notes.md">\n\n</attachment>';
+    const output = buildMessages({
+      history: [],
+      prompt: "answer",
+      docText: "PRIMARY",
+      selection: "",
+      editMode: false,
+      files: [{ kind: "text", name: "notes.md", content: "SECONDARY" }],
+      maxContextChars:
+        documentBlock.length + 2 + emptyAttachment.length,
+    });
+    const last = output.messages[output.messages.length - 1];
+    const text = typeof last.content === "string" ? last.content : "";
+
+    expect(text).toContain(documentBlock);
+    expect(text).toContain(emptyAttachment);
+    expect(text).not.toContain("SECONDARY");
+    expect(text).toContain("answer");
+    expect(output.truncatedChars).toBe("SECONDARY".length);
   });
 });

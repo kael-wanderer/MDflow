@@ -129,6 +129,25 @@ describe("runQuickAction", () => {
     expect(review).not.toHaveBeenCalled();
   });
 
+  it("warns when the action context is trimmed", async () => {
+    const append = vi.fn(() => bubble());
+    await runQuickAction(
+      QUICK_ACTIONS.find((a) => a.id === "ai.quick.summarize")!,
+      {
+        ...baseDeps(),
+        getSettings: () => ({
+          ...DEFAULT_AI_SETTINGS,
+          maxContextChars: 25,
+        }),
+        appendBubble: append,
+      },
+    );
+    expect(append).toHaveBeenCalledWith(
+      "system",
+      expect.stringContaining("dropped"),
+    );
+  });
+
   it("opens a diff review for an edit-kind action bound to the source", async () => {
     const review = vi.fn();
     await runQuickAction(

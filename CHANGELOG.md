@@ -12,6 +12,11 @@ All notable changes to MDflow are documented here. The format is based on
   and keyboard zoom controls, use an instant CSS-scale followed by debounced crisp
   re-rendering, and allow horizontal navigation with Cmd/Shift-wheel plus Space or
   middle-mouse drag panning while preserving normal text selection.
+- **AI context controls** — Agent ▸ Models now includes a configurable inline
+  context character cap (120,000 by default, approximately 30,000 tokens).
+  Oversized document/selection and text-attachment context is trimmed
+  deterministically, preserving the document/selection first, and the AI panel
+  reports the exact number of dropped characters before sending.
 
 ### Fixed
 

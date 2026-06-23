@@ -153,6 +153,30 @@ describe("http providers carry no key", () => {
     const raw = JSON.stringify({ ...DEFAULT_AI_SETTINGS });
     expect(parseAISettings(raw).quickActionProvider).toBeUndefined();
   });
+
+  it("uses the default context cap when absent or invalid", () => {
+    expect(parseAISettings("{}").maxContextChars).toBe(
+      DEFAULT_AI_SETTINGS.maxContextChars,
+    );
+    expect(
+      parseAISettings(JSON.stringify({ maxContextChars: "many" }))
+        .maxContextChars,
+    ).toBe(DEFAULT_AI_SETTINGS.maxContextChars);
+  });
+
+  it("rounds and clamps the context cap", () => {
+    expect(
+      parseAISettings(JSON.stringify({ maxContextChars: 50_000.7 }))
+        .maxContextChars,
+    ).toBe(50_001);
+    expect(
+      parseAISettings(JSON.stringify({ maxContextChars: 10 })).maxContextChars,
+    ).toBe(4_000);
+    expect(
+      parseAISettings(JSON.stringify({ maxContextChars: 9_000_000 }))
+        .maxContextChars,
+    ).toBe(2_000_000);
+  });
 });
 
 describe("extractLegacyKeys", () => {

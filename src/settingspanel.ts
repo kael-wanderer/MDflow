@@ -561,6 +561,30 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
       });
       quickRow.append(quickLabel, quickSelect);
       content.appendChild(quickRow);
+
+      const contextRow = document.createElement("label");
+      contextRow.className = "agent-quick-action";
+      const contextLabel = document.createElement("span");
+      contextLabel.textContent = "Max context characters";
+      const contextInput = document.createElement("input");
+      contextInput.type = "number";
+      contextInput.min = "4000";
+      contextInput.max = "2000000";
+      contextInput.step = "1000";
+      contextInput.value = String(settings.maxContextChars);
+      contextInput.addEventListener("change", () => {
+        const value = Number(contextInput.value);
+        updateAI((next) => {
+          next.maxContextChars = Number.isFinite(value)
+            ? Math.min(2_000_000, Math.max(4_000, Math.round(value)))
+            : 120_000;
+        });
+      });
+      const contextHelp = document.createElement("small");
+      contextHelp.textContent =
+        "About 4 characters per token. Document or selection is kept before attachments.";
+      contextRow.append(contextLabel, contextInput, contextHelp);
+      content.appendChild(contextRow);
     }
 
     const form = document.createElement("form");

@@ -59,9 +59,12 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
   `@`-mention, streamed replies, copy / insert-at-cursor / apply-as-diff) and a
   **Terminal** tab (an embedded terminal running an agent CLI, with a live picker and
   configurable font/size). Providers offer a connection test; document and attachment
-  text is passed inside an untrusted boundary; and apply-as-diff edits are bound to
-  their originating tab and selection, so a reply is rejected if that source has
-  changed or closed instead of patching the wrong document.
+  text is passed inside an untrusted boundary and capped by the configurable
+  **Max context characters** setting. Oversized inline context keeps the active
+  document/selection before attachments and reports the exact number of dropped
+  characters in a system bubble. Apply-as-diff edits are bound to their originating
+  tab and selection, so a reply is rejected if that source has changed or closed
+  instead of patching the wrong document.
 - **AI quick actions** — Proofread / Rewrite / Summarize / Generate outline from the
   command palette (`⌘K`) or the editor right-click menu, acting on the selection (or
   the whole document). Proofread and Rewrite replace text through the diff review;
@@ -116,7 +119,8 @@ cd src-tauri && cargo check  # fast backend compile-check
 AI providers are configured in `agent.json` (in the app config directory; open it from the
 gear menu → **Open agent.json**). The Agent panel has **CLI Agents** and **Models** tabs;
 Models combines local and hosted endpoints. OpenAI, Anthropic, and OpenRouter
-templates ship by default. Each provider is one of:
+templates ship by default. The Models tab also controls the inline context cap
+(120,000 characters by default, roughly 30,000 tokens). Each provider is one of:
 
 - `http` — an OpenAI-compatible endpoint: `{ "type": "http", "baseUrl": "http://localhost:11434/v1", "model": "llama3" }`
 - `command` — a headless agent CLI: `{ "type": "command", "run": "claude -p {prompt}" }`

@@ -141,7 +141,7 @@ of the MDflow window while preserving a minimum document area.
 - ⏳ Cleanup: keep the `ai.json → agent.json` migration shim for a few more releases,
   as originally planned, so users upgrading from older versions are not stranded.
 
-## Stage 8 — AI Trust & Agency, Group C ✅ (2026-06-23)
+## Stage 8 — AI Trust & Agency ✅ (2026-06-23)
 
 - ✅ **Inline quick actions** — Proofread / Rewrite / Summarize / Generate outline
   from the command palette and editor right-click; edit-kind actions replace the
@@ -150,7 +150,9 @@ of the MDflow window while preserving a minimum document area.
 - ✅ **Run safety** — labeled pre-run snapshot before AI edits land (revert via
   Version History); post-run changed-files summary after CLI agent runs.
 - ✅ **Quick actions model** setting (defaults to the default provider).
-- 🔜 Group B (context size caps + truncation warning) remains outlined, not built.
+- ✅ **Context controls** — configurable inline character cap; deterministic
+  document/selection-first trimming for text context; visible system warning with
+  the exact dropped-character count.
 
 ---
 

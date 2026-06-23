@@ -1,4 +1,5 @@
 import type { ChatContentPart, ChatMessage } from "./providers";
+import { fitContext, type ContextBlock } from "./context-budget";
 
 const CHAT_SYSTEM =
   "You are an assistant inside a markdown editor. Help the user understand and improve the open document. Be concise.";
@@ -18,7 +19,8 @@ export function buildMessages(options: {
   selection: string;
   editMode: boolean;
   files?: AttachedFile[];
-}): ChatMessage[] {
+  maxContextChars: number;
+}): { messages: ChatMessage[]; truncatedChars: number } {
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -28,12 +30,16 @@ export function buildMessages(options: {
   ];
   messages.push(...options.history);
 
-  const blocks: string[] = [];
+  const blocks: ContextBlock[] = [];
   const context = options.selection.trim()
     ? options.selection
     : options.docText;
   if (context.trim()) {
-    blocks.push(`<document>\n${context}\n</document>`);
+    blocks.push({
+      prefix: "<document>\n",
+      content: context,
+      suffix: "\n</document>",
+    });
   }
   for (const file of options.files ?? []) {
     if (file.kind === "text") {
@@ -42,13 +48,17 @@ export function buildMessages(options: {
         .replace(/"/g, "&quot;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
-      blocks.push(
-        `<attachment name="${name}">\n${file.content}\n</attachment>`,
-      );
+      blocks.push({
+        prefix: `<attachment name="${name}">\n`,
+        content: file.content,
+        suffix: "\n</attachment>",
+      });
     }
   }
-  blocks.push(options.prompt);
-  const userText = blocks.join("\n\n");
+  const fitted = fitContext(blocks, options.maxContextChars);
+  const userText = fitted.text
+    ? `${fitted.text}\n\n${options.prompt}`
+    : options.prompt;
   const images = (options.files ?? []).filter(
     (file): file is Extract<AttachedFile, { kind: "image" }> =>
       file.kind === "image",
@@ -65,5 +75,8 @@ export function buildMessages(options: {
   } else {
     messages.push({ role: "user", content: userText });
   }
-  return messages;
+  return {
+    messages,
+    truncatedChars: fitted.truncatedChars,
+  };
 }
