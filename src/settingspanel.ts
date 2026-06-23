@@ -537,6 +537,32 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     }
     content.appendChild(list);
 
+    if (activeAgentGroup === "model") {
+      const quickRow = document.createElement("label");
+      quickRow.className = "agent-quick-action";
+      const quickLabel = document.createElement("span");
+      quickLabel.textContent = "Quick actions model";
+      const quickSelect = document.createElement("select");
+      const sameOption = document.createElement("option");
+      sameOption.value = "";
+      sameOption.textContent = "Same as default";
+      quickSelect.appendChild(sameOption);
+      for (const provider of settings.providers) {
+        const option = document.createElement("option");
+        option.value = provider.id;
+        option.textContent = provider.label;
+        quickSelect.appendChild(option);
+      }
+      quickSelect.value = settings.quickActionProvider ?? "";
+      quickSelect.addEventListener("change", () => {
+        updateAI((next) => {
+          next.quickActionProvider = quickSelect.value || undefined;
+        });
+      });
+      quickRow.append(quickLabel, quickSelect);
+      content.appendChild(quickRow);
+    }
+
     const form = document.createElement("form");
     form.className = "agent-form";
     if (activeAgentGroup === "command") {

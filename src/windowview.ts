@@ -45,6 +45,7 @@ export type WindowHandlers = {
   onResetMindmap: (windowId: string) => void;
   onThemeChange: (theme: ThemeName) => void;
   getTheme: () => ThemeName;
+  onEditorContextMenu: (windowId: string, x: number, y: number) => void;
 };
 
 export type WindowView = {
@@ -299,6 +300,10 @@ export function createWindowView(
       wsCursor.textContent = `Ln ${line}, Col ${column}`;
     },
   );
+  editorSurface.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    h.onEditorContextMenu(windowId, event.clientX, event.clientY);
+  });
   formatToolbar
     .querySelectorAll<HTMLButtonElement>("[data-format]")
     .forEach((button) => {

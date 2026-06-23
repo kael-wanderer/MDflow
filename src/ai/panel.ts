@@ -50,6 +50,7 @@ export type AIPanel = {
   resize: () => void;
   addAttachments: (paths: string[]) => void;
   refreshTheme: () => void;
+  appendBubble: (role: string, text: string) => HTMLElement;
 };
 
 const TEXT_EXTENSIONS = new Set([
@@ -727,6 +728,22 @@ export function createAIPanel(
         render();
       }
       addAttachments(paths);
+    },
+    appendBubble: (role, text) => {
+      if (activeTab !== "chat") {
+        activeTab = "chat";
+        tabs.forEach((tab) =>
+          tab.classList.toggle("active", tab.dataset.tab === "chat"),
+        );
+        render();
+      }
+      const element = window.document.createElement("div");
+      element.className = `ai-bubble ai-${role}`;
+      element.textContent = text;
+      const host = body.querySelector<HTMLElement>(".ai-messages");
+      host?.appendChild(element);
+      if (host) host.scrollTop = host.scrollHeight;
+      return element;
     },
   };
 }
