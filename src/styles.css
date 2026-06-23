@@ -1877,6 +1877,44 @@ body.no-folder .explorer-empty {
   background: rgba(220, 100, 100, 0.16);
 }
 
+.ai-run-summary {
+  margin: 0 10px 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.ai-run-summary-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ai-run-file {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.ai-run-file.added {
+  color: #2e7d32;
+}
+
+.ai-run-file.deleted {
+  color: #c62828;
+  cursor: default;
+}
+
+.ai-run-file:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
 .ai-terminal-host {
   flex: 1;
   min-height: 0;
@@ -2378,6 +2416,22 @@ body.resizing-ai {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
+}
+
+.agent-quick-action {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-quick-action select {
+  padding: 8px 9px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
 .settings-custom label,

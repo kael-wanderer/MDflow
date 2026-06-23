@@ -132,6 +132,27 @@ describe("http providers carry no key", () => {
       parseAISettings(JSON.stringify({ terminalApp: "unknown" })).terminalApp,
     ).toBe("embedded");
   });
+
+  it("keeps a valid quickActionProvider", () => {
+    const raw = JSON.stringify({
+      ...DEFAULT_AI_SETTINGS,
+      quickActionProvider: "openai",
+    });
+    expect(parseAISettings(raw).quickActionProvider).toBe("openai");
+  });
+
+  it("drops a quickActionProvider that names no provider", () => {
+    const raw = JSON.stringify({
+      ...DEFAULT_AI_SETTINGS,
+      quickActionProvider: "ghost",
+    });
+    expect(parseAISettings(raw).quickActionProvider).toBeUndefined();
+  });
+
+  it("leaves quickActionProvider undefined when absent", () => {
+    const raw = JSON.stringify({ ...DEFAULT_AI_SETTINGS });
+    expect(parseAISettings(raw).quickActionProvider).toBeUndefined();
+  });
 });
 
 describe("extractLegacyKeys", () => {

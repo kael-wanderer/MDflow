@@ -36,6 +36,10 @@ export const KEYMAP_COMMANDS: KeymapCommand[] = [
   { id: "history.show", label: "Show Version History", category: "App", default: "", scope: "app" },
   { id: "history.snapshot", label: "Snapshot Now", category: "App", default: "", scope: "app" },
   { id: "ai.send", label: "Send AI Message", category: "App", default: "Enter", scope: "app" },
+  { id: "ai.quick.proofread", label: "AI: Proofread", category: "AI", default: "", scope: "app" },
+  { id: "ai.quick.rewrite", label: "AI: Rewrite", category: "AI", default: "", scope: "app" },
+  { id: "ai.quick.summarize", label: "AI: Summarize", category: "AI", default: "", scope: "app" },
+  { id: "ai.quick.outline", label: "AI: Generate outline", category: "AI", default: "", scope: "app" },
 ];
 
 export type Keymap = Record<string, string>;

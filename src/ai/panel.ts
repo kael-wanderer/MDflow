@@ -3,8 +3,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import type { AISettings, PermissionMode, Provider } from "./aisettings";
 import { streamChat } from "./client";
 import { buildMessages, type AttachedFile } from "./conversation";
-import { lineDiff } from "./diff";
-import { validateBinding, type EditBinding } from "./edit-binding";
+import { showDiff } from "./edit-review";
+import type { EditBinding } from "./edit-binding";
+import {
+  captureFolderState,
+  diffFolderState,
+  type FolderDiff,
+  type FolderState,
+} from "./run-summary";
 import { matchAccelerator } from "../keymap";
 import { rankItems } from "../fuzzy";
 import { hashText } from "../hash";
@@ -29,7 +35,9 @@ export type AIPanelDeps = {
     selection: { text: string; from: number; to: number },
   ) => void;
   confirmBypass: (label: string) => Promise<boolean>;
+  beforeApply?: (binding: EditBinding) => void | Promise<void>;
   onInsert: (text: string) => void;
+  onOpenChangedFile: (dir: string, relativePath: string) => void;
   onClose: () => void;
   getSendAccelerator: () => string;
   getWorkingDir: () => string | null;
@@ -42,6 +50,7 @@ export type AIPanel = {
   resize: () => void;
   addAttachments: (paths: string[]) => void;
   refreshTheme: () => void;
+  appendBubble: (role: string, text: string) => HTMLElement;
 };
 
 const TEXT_EXTENSIONS = new Set([
@@ -78,6 +87,40 @@ function bytesToDataUrl(bytes: number[], mime: string): string {
     binary += String.fromCharCode(...bytes.slice(index, index + 0x8000));
   }
   return `data:${mime};base64,${btoa(binary)}`;
+}
+
+function renderRunSummary(
+  host: HTMLElement,
+  diff: FolderDiff,
+  onOpen: (rel: string) => void,
+): void {
+  const total = diff.added.length + diff.modified.length + diff.deleted.length;
+  if (total === 0) return;
+  const box = document.createElement("div");
+  box.className = "ai-run-summary";
+  const title = document.createElement("div");
+  title.className = "ai-run-summary-title";
+  title.textContent = `${total} file${total === 1 ? "" : "s"} changed`;
+  box.appendChild(title);
+  const groups: [string, string[]][] = [
+    ["added", diff.added],
+    ["modified", diff.modified],
+    ["deleted", diff.deleted],
+  ];
+  for (const [kind, files] of groups) {
+    for (const rel of files) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `ai-run-file ${kind}`;
+      const mark = kind === "added" ? "+" : kind === "deleted" ? "−" : "~";
+      row.textContent = `${mark} ${rel}`;
+      if (kind === "deleted") row.disabled = true;
+      else row.addEventListener("click", () => onOpen(rel));
+      box.appendChild(row);
+    }
+  }
+  host.appendChild(box);
+  host.scrollTop = host.scrollHeight;
 }
 
 function loadHistory(key: string): ChatMessage[] {
@@ -165,76 +208,15 @@ export function createAIPanel(
       apply.type = "button";
       apply.textContent = "Apply (diff)";
       apply.addEventListener("click", () => {
-        showDiff(row, oldText, reply, binding);
+        showDiff(row, oldText, reply, binding, {
+          lookupTabText: deps.lookupTabText,
+          applyEditTo: deps.applyEditTo,
+          beforeApply: deps.beforeApply,
+        });
       });
       row.appendChild(apply);
     }
     afterElement.after(row);
-  }
-
-  function showDiff(
-    anchor: HTMLElement,
-    oldText: string,
-    newText: string,
-    binding: EditBinding,
-  ): void {
-    const view = window.document.createElement("div");
-    view.className = "ai-diff";
-    for (const line of lineDiff(oldText, newText)) {
-      const lineElement = window.document.createElement("div");
-      lineElement.className = `ai-diff-line ${line.type}`;
-      const prefix =
-        line.type === "add" ? "+ " : line.type === "del" ? "- " : "  ";
-      lineElement.textContent = `${prefix}${line.text}`;
-      view.appendChild(lineElement);
-    }
-
-    const actions = window.document.createElement("div");
-    actions.className = "ai-actions";
-    const accept = window.document.createElement("button");
-    accept.type = "button";
-    accept.textContent = "Accept";
-    accept.addEventListener("click", () => {
-      const state = validateBinding(binding, deps.lookupTabText);
-      if (state === "closed") {
-        showInlineMessage(
-          actions,
-          "The document this edit was for is no longer open — regenerate.",
-        );
-        return;
-      }
-      if (state === "changed") {
-        showInlineMessage(
-          actions,
-          "The document changed since this reply — regenerate.",
-        );
-        return;
-      }
-      deps.applyEditTo(binding.windowId, binding.tabId, newText, {
-        text: binding.selection,
-        from: binding.from,
-        to: binding.to,
-      });
-      view.remove();
-      actions.remove();
-    });
-    const reject = window.document.createElement("button");
-    reject.type = "button";
-    reject.textContent = "Reject";
-    reject.addEventListener("click", () => {
-      view.remove();
-      actions.remove();
-    });
-    actions.append(accept, reject);
-    anchor.after(view, actions);
-  }
-
-  function showInlineMessage(host: HTMLElement, text: string): void {
-    host.querySelector(".ai-inline-msg")?.remove();
-    const message = document.createElement("div");
-    message.className = "ai-inline-msg";
-    message.textContent = text;
-    host.appendChild(message);
   }
 
   function renderChat(): void {
@@ -507,6 +489,14 @@ export function createAIPanel(
         editMode,
         files,
       });
+      // CLI agents run with cwd = the open folder and can write files; snapshot
+      // the folder before the run so we can summarize what changed afterward.
+      const workingDir = deps.getWorkingDir();
+      const runDir =
+        provider.type === "command" && workingDir ? workingDir : null;
+      let beforeState: FolderState | null = null;
+      if (runDir) beforeState = await captureFolderState(runDir);
+
       const replyElement = addBubble("assistant", "");
       let reply = "";
       activeRequest = new AbortController();
@@ -540,6 +530,14 @@ export function createAIPanel(
           binding,
           document.selection.trim() ? document.selection : document.text,
         );
+        if (runDir && beforeState) {
+          const after = await captureFolderState(runDir);
+          renderRunSummary(
+            messagesElement,
+            diffFolderState(beforeState, after),
+            (rel) => deps.onOpenChangedFile(runDir, rel),
+          );
+        }
       } catch (error) {
         if (reply) {
           history.push(
@@ -730,6 +728,22 @@ export function createAIPanel(
         render();
       }
       addAttachments(paths);
+    },
+    appendBubble: (role, text) => {
+      if (activeTab !== "chat") {
+        activeTab = "chat";
+        tabs.forEach((tab) =>
+          tab.classList.toggle("active", tab.dataset.tab === "chat"),
+        );
+        render();
+      }
+      const element = window.document.createElement("div");
+      element.className = `ai-bubble ai-${role}`;
+      element.textContent = text;
+      const host = body.querySelector<HTMLElement>(".ai-messages");
+      host?.appendChild(element);
+      if (host) host.scrollTop = host.scrollHeight;
+      return element;
     },
   };
 }

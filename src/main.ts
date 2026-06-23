@@ -11,6 +11,12 @@ import {
   type AISettings,
 } from "./ai/aisettings";
 import { createAIPanel, type AIPanel } from "./ai/panel";
+import { showDiff, type EditReviewDeps } from "./ai/edit-review";
+import {
+  QUICK_ACTIONS,
+  runQuickAction,
+  type QuickActionDeps,
+} from "./ai/quick-actions";
 import { clampAgentPanelWidth } from "./ai-layout";
 import { showComparison } from "./compareview";
 import { showContextMenu, type MenuItem } from "./contextmenu";
@@ -275,6 +281,11 @@ function commandItems(): PaletteItem[] {
     command("historySnapshot", "Snapshot Now", snapshotActiveDocument),
     command("historyShow", "Show Version History", showActiveHistory),
     command("help", "MDflow Help", openHelp),
+    ...QUICK_ACTIONS.map((action) =>
+      command(action.id, `AI: ${action.label}`, () =>
+        runQuickActionById(action.id),
+      ),
+    ),
     ...recent.files.map((path) =>
       command(`recent-file:${path}`, `Open Recent File: ${basename(path)}`, () =>
         void doOpenPath(path),
@@ -354,6 +365,21 @@ const handlers = {
   onResetMindmap: (wid: string) => void resetMindmap(wid),
   onThemeChange: (theme: ThemeName) => setMenuTheme(theme),
   getTheme: () => currentSettings.theme,
+  onEditorContextMenu: (wid: string, x: number, y: number) => {
+    if (getState().activeWindowId !== wid) {
+      setState({ activeWindowId: wid });
+      renderAll();
+    }
+    showContextMenu(x, y, [
+      {
+        label: "AI",
+        children: QUICK_ACTIONS.map((action) => ({
+          label: action.label,
+          action: () => runQuickActionById(action.id),
+        })),
+      },
+    ]);
+  },
 };
 
 async function closeTabs(windowId: string, tabIds: string[]): Promise<void> {
@@ -1513,7 +1539,42 @@ function removeSplitter(): void {
 
 const aiPanelElement = document.getElementById("ai-panel")!;
 
+// Shared diff-review deps for both the AI panel's Apply and quick actions.
+// beforeApply snapshots a saved document before an AI edit lands so the change
+// is one-click revertible from the Version History panel.
+function editReviewDeps(actionLabel: string): EditReviewDeps {
+  return {
+    lookupTabText: (windowId, tabId) => {
+      const windowState = getWindow(windowId);
+      if (!windowState?.tabs.some((tab) => tab.id === tabId)) return null;
+      return views.get(windowId)?.editor.getText(tabId) ?? null;
+    },
+    applyEditTo: (windowId, tabId, newText, selection) => {
+      activateTab(windowId, tabId);
+      const editor = views.get(windowId)!.editor;
+      if (selection.text) {
+        editor.replaceRange(selection.from, selection.to, newText);
+      } else {
+        editor.setText(newText);
+      }
+    },
+    beforeApply: (binding) => {
+      const windowState = getWindow(binding.windowId);
+      const tab = windowState?.tabs.find((t) => t.id === binding.tabId);
+      if (!tab?.path) return; // untitled → editor undo covers it
+      const text = views.get(binding.windowId)?.editor.getText(binding.tabId);
+      if (text === undefined) return;
+      void manualSnapshot(
+        tab.path,
+        text,
+        `Before AI edit · ${actionLabel} · ${new Date().toLocaleTimeString()}`,
+      );
+    },
+  };
+}
+
 function buildAIPanel(): void {
+  const panelReview = editReviewDeps("AI edit");
   aiPanel = createAIPanel(aiPanelElement, {
     getSettings: () => currentAISettings,
     onSettingsChange: saveAISettingsFromPanel,
@@ -1530,20 +1591,9 @@ function buildAIPanel(): void {
         to: selection.to,
       };
     },
-    lookupTabText: (windowId, tabId) => {
-      const windowState = getWindow(windowId);
-      if (!windowState?.tabs.some((tab) => tab.id === tabId)) return null;
-      return views.get(windowId)?.editor.getText(tabId) ?? null;
-    },
-    applyEditTo: (windowId, tabId, newText, selection) => {
-      activateTab(windowId, tabId);
-      const editor = views.get(windowId)!.editor;
-      if (selection.text) {
-        editor.replaceRange(selection.from, selection.to, newText);
-      } else {
-        editor.setText(newText);
-      }
-    },
+    lookupTabText: panelReview.lookupTabText,
+    applyEditTo: panelReview.applyEditTo,
+    beforeApply: panelReview.beforeApply,
     confirmBypass: (label) =>
       confirm(
         `Run ${label} with approvals bypassed? It can read and modify files and run commands without prompting.`,
@@ -1559,6 +1609,7 @@ function buildAIPanel(): void {
       const selection = editor.getSelection();
       editor.replaceRange(selection.from, selection.to, text);
     },
+    onOpenChangedFile: (dir, rel) => void doOpenPath(joinPath(dir, rel)),
     onClose: () => setAIVisible(false),
     getSendAccelerator: () => resolvedAccel("ai.send"),
     getWorkingDir: () => {
@@ -1597,6 +1648,53 @@ function setAIVisible(aiVisible: boolean): void {
 
 function toggleAI(): void {
   setAIVisible(!ui.aiVisible);
+}
+
+function quickActionDeps(actionLabel: string): QuickActionDeps {
+  const review = editReviewDeps(actionLabel);
+  return {
+    getSettings: () => currentAISettings,
+    getProviderById: (id) =>
+      currentAISettings.providers.find((p) => p.id === id),
+    getDoc: () => {
+      const view = activeView();
+      const tab = activeMeta();
+      const selection = view.editor.getSelection();
+      return {
+        text: tab ? view.editor.getText(tab.id) : "",
+        selection: selection.text,
+        windowId: getState().activeWindowId,
+        tabId: tab?.id ?? "",
+        from: selection.from,
+        to: selection.to,
+      };
+    },
+    reviewEdit: (base, reply, binding) => {
+      setAIVisible(true);
+      const messages =
+        aiPanelElement.querySelector<HTMLElement>(".ai-messages");
+      const anchor = messages?.lastElementChild as HTMLElement | null;
+      if (!anchor) return;
+      showDiff(anchor, base, reply, binding, review);
+    },
+    appendBubble: (role, text) => {
+      setAIVisible(true);
+      return aiPanel!.appendBubble(role, text);
+    },
+    getWorkingDir: () => {
+      const folder = getState().folder;
+      if (folder) return folder;
+      const path = activeMeta()?.path;
+      return path ? path.replace(/[\\/][^\\/]*$/, "") || null : null;
+    },
+    makeAbort: () => new AbortController(),
+  };
+}
+
+function runQuickActionById(id: string): void {
+  const action = QUICK_ACTIONS.find((a) => a.id === id);
+  if (!action) return;
+  void runQuickAction(action, quickActionDeps(action.label));
 }
 
 async function openInSub(path: string): Promise<void> {
@@ -1996,6 +2094,10 @@ const appKeyActions: Record<string, () => void> = {
   "search.find_in_files": () => toggleSearch(),
   "history.show": showActiveHistory,
   "history.snapshot": snapshotActiveDocument,
+  "ai.quick.proofread": () => runQuickActionById("ai.quick.proofread"),
+  "ai.quick.rewrite": () => runQuickActionById("ai.quick.rewrite"),
+  "ai.quick.summarize": () => runQuickActionById("ai.quick.summarize"),
+  "ai.quick.outline": () => runQuickActionById("ai.quick.outline"),
   "file.close": () => {
     const w = activeWindow();
     if (w.activeTabId) void closeTab(w.id, w.activeTabId);

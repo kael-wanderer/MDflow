@@ -58,6 +58,12 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
   text is passed inside an untrusted boundary; and apply-as-diff edits are bound to
   their originating tab and selection, so a reply is rejected if that source has
   changed or closed instead of patching the wrong document.
+- **AI quick actions** — Proofread / Rewrite / Summarize / Generate outline from the
+  command palette (`⌘K`) or the editor right-click menu, acting on the selection (or
+  the whole document). Proofread and Rewrite replace text through the diff review;
+  Summarize and Generate outline stream into the panel. Applying an AI edit snapshots
+  the file first (revert from Version History), and CLI agent runs show a changed-files
+  summary afterward. The quick-actions model is set in Agent ▸ Models.
 - **Settings** — an in-app panel (Theme, Font, Size, Session, Update, Agent) plus raw
   `settings.json` / `agent.json` for advanced edits.
 - **Updates** — manual checks from Help and optional once-daily automatic checks;
