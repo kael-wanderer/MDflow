@@ -4,6 +4,23 @@ All notable changes to MDflow are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **AI inline quick actions** — Proofread, Rewrite, Summarize, and Generate
+  outline, invokable from the command palette (`⌘K`) and the editor right-click
+  menu. They act on the current selection, or the whole document when nothing is
+  selected. Proofread and Rewrite return revised text through the source-bound
+  diff review and replace in place; Summarize and Generate outline stream into
+  the AI Chat panel with Copy / Insert.
+- **Run safety** — applying an AI edit to a saved document now records a labeled
+  snapshot first, so the change is one-click revertible from the Version History
+  panel. After a CLI agent run in the open folder, a changed-files summary
+  (added / modified / deleted, click-to-open) appears in the panel.
+- **Quick actions model** setting (Agent ▸ Models) selects the provider used for
+  quick actions, defaulting to the default provider.
+
 ## [0.2.4] — 2026-06-23
 
 ### Fixed

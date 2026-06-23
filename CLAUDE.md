@@ -159,6 +159,18 @@ binary/image files. The Terminal tab has a live terminal picker; terminals (and
 their font/size) are edited in the settings Agent ▸ Terminals section. `ai_run`
 takes an optional `cwd`.
 
+The AI panel also offers inline **quick actions** (Proofread / Rewrite / Summarize
+/ Generate outline) from the command palette (`⌘K`) and the editor right-click
+menu. Edit-kind actions (Proofread, Rewrite) replace the selection — or the whole
+document when nothing is selected — through the source-bound diff review
+(`src/ai/edit-review.ts`); chat-kind actions (Summarize, Generate outline) stream
+into the panel. `src/ai/quick-actions.ts` holds the catalog + a DOM-free runner.
+Before an AI edit lands on a saved document, a labeled snapshot is written via the
+Recovery store (revert from Version History). After a CLI agent run in the open
+folder, a changed-files summary (`src/ai/run-summary.ts`) lists added/modified/
+deleted files. The model used for quick actions is `quickActionProvider`
+(Agent ▸ Models; defaults to the default provider).
+
 Document PDF/DOCX export requires Pandoc and Typst:
 
 ```bash
