@@ -4,6 +4,19 @@ All notable changes to MDflow are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] — 2026-06-23
+
+### Fixed
+
+- Excalidraw boards no longer lag when panning or zooming. Viewport state
+  (scroll position, zoom, and container size) is now excluded from the saved
+  document, so navigating the canvas no longer rewrites the editor buffer on
+  every frame.
+- The PDF viewer renders again under the macOS webview. Added a `ReadableStream`
+  async-iterator polyfill (WKWebView lacks it, which made PDF.js text extraction
+  throw `undefined is not a function`) and made per-page text extraction
+  non-fatal, so a page always displays even if its text layer fails.
+
 ## [0.2.3] — 2026-06-22
 
 ### Added
