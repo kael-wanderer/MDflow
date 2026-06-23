@@ -11,6 +11,7 @@ import {
   type AISettings,
 } from "./ai/aisettings";
 import { createAIPanel, type AIPanel } from "./ai/panel";
+import type { EditReviewDeps } from "./ai/edit-review";
 import { clampAgentPanelWidth } from "./ai-layout";
 import { showComparison } from "./compareview";
 import { showContextMenu, type MenuItem } from "./contextmenu";
@@ -1513,7 +1514,42 @@ function removeSplitter(): void {
 
 const aiPanelElement = document.getElementById("ai-panel")!;
 
+// Shared diff-review deps for both the AI panel's Apply and quick actions.
+// beforeApply snapshots a saved document before an AI edit lands so the change
+// is one-click revertible from the Version History panel.
+function editReviewDeps(actionLabel: string): EditReviewDeps {
+  return {
+    lookupTabText: (windowId, tabId) => {
+      const windowState = getWindow(windowId);
+      if (!windowState?.tabs.some((tab) => tab.id === tabId)) return null;
+      return views.get(windowId)?.editor.getText(tabId) ?? null;
+    },
+    applyEditTo: (windowId, tabId, newText, selection) => {
+      activateTab(windowId, tabId);
+      const editor = views.get(windowId)!.editor;
+      if (selection.text) {
+        editor.replaceRange(selection.from, selection.to, newText);
+      } else {
+        editor.setText(newText);
+      }
+    },
+    beforeApply: (binding) => {
+      const windowState = getWindow(binding.windowId);
+      const tab = windowState?.tabs.find((t) => t.id === binding.tabId);
+      if (!tab?.path) return; // untitled → editor undo covers it
+      const text = views.get(binding.windowId)?.editor.getText(binding.tabId);
+      if (text === undefined) return;
+      void manualSnapshot(
+        tab.path,
+        text,
+        `Before AI edit · ${actionLabel} · ${new Date().toLocaleTimeString()}`,
+      );
+    },
+  };
+}
+
 function buildAIPanel(): void {
+  const panelReview = editReviewDeps("AI edit");
   aiPanel = createAIPanel(aiPanelElement, {
     getSettings: () => currentAISettings,
     onSettingsChange: saveAISettingsFromPanel,
@@ -1530,20 +1566,9 @@ function buildAIPanel(): void {
         to: selection.to,
       };
     },
-    lookupTabText: (windowId, tabId) => {
-      const windowState = getWindow(windowId);
-      if (!windowState?.tabs.some((tab) => tab.id === tabId)) return null;
-      return views.get(windowId)?.editor.getText(tabId) ?? null;
-    },
-    applyEditTo: (windowId, tabId, newText, selection) => {
-      activateTab(windowId, tabId);
-      const editor = views.get(windowId)!.editor;
-      if (selection.text) {
-        editor.replaceRange(selection.from, selection.to, newText);
-      } else {
-        editor.setText(newText);
-      }
-    },
+    lookupTabText: panelReview.lookupTabText,
+    applyEditTo: panelReview.applyEditTo,
+    beforeApply: panelReview.beforeApply,
     confirmBypass: (label) =>
       confirm(
         `Run ${label} with approvals bypassed? It can read and modify files and run commands without prompting.`,
