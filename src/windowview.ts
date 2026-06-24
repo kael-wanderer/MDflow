@@ -825,16 +825,12 @@ export function createWindowView(
     if (!isMarkdownFile(previewPathOrName) || !previewAutoFit) return;
     const article = previewPane.querySelector<HTMLElement>("article.doc");
     if (!article) return;
+    // Fit on the article's own overflow only. Wide tables/code/diagrams are
+    // overflow-x:auto + max-width:100%, so they scroll on their own without widening
+    // the article — a text doc that merely contains one stays at 100%. Fit shrinks
+    // only when content genuinely overflows the article (e.g. an uncapped wide image).
     article.style.zoom = "1";
-    let widest = 0;
-    article
-      .querySelectorAll<HTMLElement>(
-        "pre.hljs, table, .mermaid-rendered, .katex-display, img",
-      )
-      .forEach((el) => {
-        widest = Math.max(widest, el.scrollWidth);
-      });
-    const fit = mdFitZoom(widest, previewPane.clientWidth);
+    const fit = mdFitZoom(article.scrollWidth, previewPane.clientWidth);
     previewZoom = fit;
     article.style.zoom = String(fit);
     updateZoomLabel();

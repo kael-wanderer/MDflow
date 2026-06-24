@@ -16,10 +16,11 @@ All notable changes to MDflow are documented here. The format is based on
   viewport (and re-render only the visible pages on zoom), so large multi-page PDFs
   open quickly and zoom stays responsive. The full-text search index is still built
   eagerly, and matches highlight as their page is rendered.
-- **Markdown auto-fit** — the Markdown preview auto-scales to fit its widest
-  non-reflowing block (wide tables, code, Mermaid, math) to the pane on open and on
-  resize, floored at 50% so text stays legible. Manual zoom disables auto-fit; Reset
-  re-enables it.
+- **Markdown auto-fit** — the Markdown preview shows a normal document at 100% and
+  fills the pane (wide tables, code, Mermaid, and math scroll on their own). It scales
+  down only when the document genuinely overflows the pane (e.g. an oversized image),
+  never below 50% so text stays legible, and re-fits on resize. Manual zoom disables
+  auto-fit; Reset re-enables it.
 - **Workspace context retrieval** — a "Use workspace context" toggle in the AI panel
   (default on) retrieves the most relevant chunks from the open folder into chat
   context using a local lexical (BM25) ranker — no model, network, or API key. The

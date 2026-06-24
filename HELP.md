@@ -15,9 +15,27 @@ pane. Main and Sub have independent tabs and view modes.
 ## Document modes
 
 - **Markdown and HTML:** Editor, Read, or Editor + Preview.
-- **PDF:** Read-only.
+- **PDF:** read-only, with zoom and pan (see Preview navigation below).
 - **TypeScript, JavaScript, JSON, YAML/YML, and other text/config files:** Editor-only.
 - **Excalidraw and Mindmap:** focused full-pane visual editors.
+
+## Preview navigation, zoom, and fit
+
+The preview toolbar has zoom out / reset / zoom in controls (`⌘−` / `⌘0` / `⌘+`).
+The reset button shows the current zoom, or **Fit** when a pane is auto-fitting.
+
+- **Markdown preview** auto-fits to the pane: a normal document shows at 100% and
+  fills the width, and wide tables, code blocks, Mermaid diagrams, and math scroll
+  on their own. If a document genuinely overflows the pane (for example an oversized
+  image), the preview scales down to fit, never below 50% so text stays legible.
+  Zooming manually turns auto-fit off; the reset button turns it back on.
+- **HTML preview** makes the pane the scroll surface: a document wider than the pane
+  shows real scrollbars. Scroll with the wheel, scroll horizontally with `⌘`/`Shift`
+  + wheel, and drag to pan. In a split pane it auto-fits to the pane width.
+- **PDF** opens fit-to-width (reset returns to Fit). Zoom is instant and then
+  re-renders crisply; pages render as you scroll. Scroll horizontally with
+  `⌘`/`Shift` + wheel, and pan with **Space + drag** or a **middle-mouse drag** —
+  plain dragging still selects text.
 
 ## Opening and dropping files
 
@@ -81,14 +99,23 @@ dirty-close confirmation, tabs, and session workflows still apply.
 
 Toggle the right-side panel with the activity-bar agent button. It has two tabs:
 
-- **Chat** — pick an agent and a permission mode (Ask / Bypass approvals). The open
-  document (or your selection) is sent as context. **Enter** sends; **Shift+Enter**
-  inserts a newline. Replies stream in, with Copy, Insert-at-cursor, and Apply-as-diff
-  actions. Attach files with the 📎 button, by dragging files onto the panel, or by
-  typing `@` to mention a file from the open folder. CLI agents read attached files
-  themselves and run in the open folder; HTTP models receive text inline and common
-  image formats as vision inputs. Click **Cancel** to stop a streaming reply. Chat
-  history persists independently in each native window.
+- **Chat** — pick an agent and a permission profile. The open document (or your
+  selection) is sent as context. **Enter** sends; **Shift+Enter** inserts a newline.
+  Replies stream in, with Copy, Insert-at-cursor, and Apply-as-diff actions. Attach
+  files with the 📎 button, by dragging files onto the panel, or by typing `@` to
+  mention a file from the open folder. CLI agents read attached files themselves and
+  run in the open folder; HTTP models receive text inline and common image formats as
+  vision inputs. Click **Cancel** to stop a streaming reply. Chat history persists
+  independently in each native window.
+  - **Use workspace context** — when this toggle is on (default), each message also
+    retrieves the most relevant passages from the open folder using a local keyword
+    search (no extra service or key) and lists which files were used. Turn it off for
+    a focused chat. The amount of inline context is capped by the **Max context
+    characters** setting (Gear → Agent → Models); oversized context is trimmed,
+    keeping the document/selection first.
+- **Runs** — lists CLI agent runs from this session with their status (running, done,
+  failed, cancelled), a Cancel action for an in-progress run, and the changed-files
+  summary produced after a run in the open folder.
 - **Agent Console** — choose an **Agent command** such as Claude Code, Codex, Pi,
   Shell, or a custom alias, then choose the **Terminal app** that runs it: Embedded,
   Apple Terminal, Ghostty, or cmux. Manage commands and the default terminal app under
@@ -98,7 +125,9 @@ Toggle the right-side panel with the activity-bar agent button. It has two tabs:
   up to 80% of the MDflow window while retaining a narrow document workspace.
 
 Agents, models, and terminals are configured in `agent.json` (open it from
-**Gear → Open agent.json**). API keys are stored in the macOS Keychain.
+**Gear → Open agent.json**). API keys are stored in the macOS Keychain. HTTP model
+providers can use an OpenAI-compatible endpoint or Anthropic's native Messages API
+(`"api": "anthropic"`); the bundled Anthropic preset uses the native path.
 
 Under **Gear → Agent → Models**, use **Test connection** to check a provider's
 saved key, endpoint, and model before starting a chat.
@@ -107,9 +136,11 @@ Document text and attachments are sent as untrusted user context, never as syste
 instructions. Edit-mode replies stay bound to the tab and selection that produced
 them: Apply returns to that tab, and refuses if it was closed or changed meanwhile.
 
-**Bypass approvals** applies to one CLI-agent run at a time. Every bypassed send
-requires confirmation, the choice is not written to `agent.json`, and MDflow starts
-in **Ask before doing** after launch.
+**Permission profiles** select which command template a CLI agent runs. The built-in
+profiles are **Ask before doing** and full-access; an agent can define more in
+`agent.json`. A full-access (bypass) profile requires confirmation on every send, is
+not persisted as the default, and MDflow starts in **Ask before doing** after launch.
+MDflow chooses the command template — the CLI agent still enforces its own permissions.
 
 ## Keyboard shortcuts
 
