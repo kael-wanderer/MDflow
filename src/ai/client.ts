@@ -139,6 +139,7 @@ async function streamCommand(
   permissionMode: PermissionMode,
   cwd: string | null,
   attachmentPaths: string[],
+  onCommandStart?: (requestId: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const preamble = attachmentPaths.length
@@ -157,6 +158,7 @@ async function streamCommand(
   const profile = resolveCommandPermissionProfile(provider, permissionMode);
   const args = substitutePrompt(profile.run, prompt);
   const requestId = `ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  onCommandStart?.(requestId);
   const unlisteners: UnlistenFn[] = [];
   let resolveStream: () => void = () => {};
   let rejectStream: (error: unknown) => void = () => {};
@@ -215,6 +217,7 @@ export function streamChat(
   options: {
     cwd?: string | null;
     attachmentPaths?: string[];
+    onCommandStart?: (requestId: string) => void;
     signal?: AbortSignal;
   } = {},
 ): Promise<void> {
@@ -227,6 +230,11 @@ export function streamChat(
         permissionMode,
         options.cwd ?? null,
         options.attachmentPaths ?? [],
+        options.onCommandStart,
         options.signal,
       );
+}
+
+export function cancelCommandRun(requestId: string): Promise<void> {
+  return invoke("ai_cancel", { requestId });
 }

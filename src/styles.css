@@ -1937,6 +1937,77 @@ body.no-folder .explorer-empty {
   text-decoration: underline;
 }
 
+.ai-runs {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+}
+
+.ai-runs-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ai-run-record {
+  position: relative;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+}
+
+.ai-run-record-header {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.ai-run-record-title {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-run-record-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.ai-run-status {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.ai-run-status.running {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.ai-run-status.failed,
+.ai-run-status.cancelled {
+  color: #c62828;
+  background: rgba(198, 40, 40, 0.12);
+}
+
+.ai-run-cancel {
+  margin-top: 8px;
+}
+
+.ai-run-record .ai-run-summary {
+  margin: 8px 0 0;
+}
+
 .ai-terminal-host {
   flex: 1;
   min-height: 0;

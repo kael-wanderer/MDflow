@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AISettings, PermissionMode, Provider } from "./aisettings";
-import { streamChat } from "./client";
+import { cancelCommandRun, streamChat } from "./client";
 import { buildMessages, type AttachedFile } from "./conversation";
 import { createWorkspaceIndex } from "./workspace-index";
 import { showDiff } from "./edit-review";
@@ -12,6 +12,12 @@ import {
   type FolderDiff,
   type FolderState,
 } from "./run-summary";
+import {
+  attachSummary,
+  markStatus,
+  startRun,
+  type RunRecord,
+} from "./run-log";
 import { matchAccelerator } from "../keymap";
 import { rankItems } from "../fuzzy";
 import { hashText } from "../hash";
@@ -92,6 +98,8 @@ const IMAGE_MIME: Record<string, string> = {
   webp: "image/webp",
 };
 
+type AITab = "chat" | "runs" | "terminal";
+
 function imageMime(path: string): string | null {
   return IMAGE_MIME[path.split(".").pop()?.toLowerCase() ?? ""] ?? null;
 }
@@ -147,6 +155,15 @@ function loadHistory(key: string): ChatMessage[] {
   }
 }
 
+function relativeRunTime(startedAt: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
 export function createAIPanel(
   panelElement: HTMLElement,
   deps: AIPanelDeps,
@@ -168,10 +185,13 @@ export function createAIPanel(
     }
     refreshAttachments();
   };
-  let activeTab: "chat" | "terminal" = "chat";
+  let activeTab: AITab = "chat";
   let editMode = false;
   let sessionPermissionMode: PermissionMode = "ask";
   let renderVersion = 0;
+  let runs: RunRecord[] = [];
+  let refreshRuns: () => void = () => {};
+  let activeRunId: string | null = null;
   let terminalView: {
     resize: () => void;
     destroy: () => void;
@@ -182,7 +202,7 @@ export function createAIPanel(
 
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
-      activeTab = tab.dataset.tab as "chat" | "terminal";
+      activeTab = tab.dataset.tab as AITab;
       tabs.forEach((candidate) => {
         candidate.classList.toggle("active", candidate === tab);
       });
@@ -579,6 +599,7 @@ export function createAIPanel(
 
       const replyElement = addBubble("assistant", "");
       let reply = "";
+      let commandRunId: string | null = null;
       activeRequest = new AbortController();
       sendButton.textContent = "Cancel";
       sendButton.classList.add("cancel");
@@ -595,9 +616,25 @@ export function createAIPanel(
           {
             cwd: deps.getWorkingDir(),
             attachmentPaths,
+            onCommandStart: (requestId) => {
+              if (provider.type !== "command") return;
+              commandRunId = requestId;
+              activeRunId = requestId;
+              runs = startRun(runs, {
+                id: requestId,
+                prompt,
+                provider: provider.label,
+                cwd: runDir,
+              });
+              refreshRuns();
+            },
             signal: activeRequest.signal,
           },
         );
+        if (commandRunId) {
+          runs = markStatus(runs, commandRunId, "done");
+          refreshRuns();
+        }
         history.push(
           { role: "user", content: prompt },
           { role: "assistant", content: reply },
@@ -612,9 +649,14 @@ export function createAIPanel(
         );
         if (runDir && beforeState) {
           const after = await captureFolderState(runDir);
+          const summary = diffFolderState(beforeState, after);
+          if (commandRunId) {
+            runs = attachSummary(runs, commandRunId, summary);
+            refreshRuns();
+          }
           renderRunSummary(
             messagesElement,
-            diffFolderState(beforeState, after),
+            summary,
             (rel) => deps.onOpenChangedFile(runDir, rel),
           );
         }
@@ -630,6 +672,14 @@ export function createAIPanel(
         }
         const cancelled =
           error instanceof DOMException && error.name === "AbortError";
+        if (commandRunId) {
+          runs = markStatus(
+            runs,
+            commandRunId,
+            cancelled ? "cancelled" : "failed",
+          );
+          refreshRuns();
+        }
         addBubble(
           cancelled ? "system" : "error",
           cancelled
@@ -640,6 +690,7 @@ export function createAIPanel(
         );
       } finally {
         activeRequest = null;
+        activeRunId = null;
         sendButton.textContent = "Send";
         sendButton.classList.remove("cancel");
       }
@@ -679,6 +730,64 @@ export function createAIPanel(
         void send();
       }
     });
+  }
+
+  function renderRuns(): void {
+    terminalView?.destroy();
+    terminalView = null;
+    body.innerHTML = '<div class="ai-runs"></div>';
+    const host = body.querySelector<HTMLElement>(".ai-runs")!;
+    refreshRuns = () => {
+      host.replaceChildren();
+      if (!runs.length) {
+        const empty = document.createElement("div");
+        empty.className = "ai-runs-empty";
+        empty.textContent = "No CLI agent runs yet.";
+        host.appendChild(empty);
+        return;
+      }
+      for (const run of runs) {
+        const item = document.createElement("div");
+        item.className = `ai-run-record ${run.status}`;
+        const header = document.createElement("div");
+        header.className = "ai-run-record-header";
+        const title = document.createElement("div");
+        title.className = "ai-run-record-title";
+        title.textContent =
+          run.prompt.length > 90
+            ? `${run.prompt.slice(0, 87).trimEnd()}...`
+            : run.prompt;
+        title.title = run.prompt;
+        const badge = document.createElement("span");
+        badge.className = `ai-run-status ${run.status}`;
+        badge.textContent = run.status;
+        header.append(title, badge);
+        const meta = document.createElement("div");
+        meta.className = "ai-run-record-meta";
+        meta.textContent = `${run.provider} · ${relativeRunTime(run.startedAt)}`;
+        item.append(header, meta);
+        if (run.status === "running") {
+          const cancel = document.createElement("button");
+          cancel.type = "button";
+          cancel.className = "ai-run-cancel";
+          cancel.textContent = "Cancel";
+          cancel.addEventListener("click", () => {
+            if (activeRunId === run.id) activeRequest?.abort();
+            else void cancelCommandRun(run.id);
+            runs = markStatus(runs, run.id, "cancelled");
+            refreshRuns();
+          });
+          item.appendChild(cancel);
+        }
+        if (run.cwd && run.changedFiles) {
+          renderRunSummary(item, run.changedFiles, (rel) =>
+            deps.onOpenChangedFile(run.cwd!, rel),
+          );
+        }
+        host.appendChild(item);
+      }
+    };
+    refreshRuns();
   }
 
   async function renderTerminal(version: number): Promise<void> {
@@ -791,6 +900,7 @@ export function createAIPanel(
   function render(): void {
     renderVersion += 1;
     if (activeTab === "chat") renderChat();
+    else if (activeTab === "runs") renderRuns();
     else void renderTerminal(renderVersion);
   }
 
