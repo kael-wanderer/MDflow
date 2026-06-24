@@ -177,6 +177,7 @@ export function createWindowView(
   let textFindMatches: HTMLElement[] = [];
   let textFindIndex = -1;
   let previewFrame: HTMLIFrameElement | null = null;
+  let previewCanvas: HTMLElement | null = null;
   let lastMode: ViewMode | null = null;
   let boardDestroy: (() => void) | null = null;
   let boardCapture: {
@@ -435,6 +436,7 @@ export function createWindowView(
       boardCapture = null;
       boardZoom = null;
       previewFrame = null;
+      previewCanvas = null;
       pdfFind = null;
       previewPane.innerHTML = '<div class="board-loading">Loading PDF…</div>';
       wsWords.textContent = "PDF";
@@ -455,6 +457,8 @@ export function createWindowView(
       return;
     }
     if (isExcalidrawFile(pathOrName)) {
+      previewFrame = null;
+      previewCanvas = null;
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
@@ -493,6 +497,8 @@ export function createWindowView(
       return;
     }
     if (isMindmapFile(pathOrName)) {
+      previewFrame = null;
+      previewCanvas = null;
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
@@ -540,6 +546,7 @@ export function createWindowView(
     boardCapture = null;
     boardZoom = null;
     previewFrame = null;
+    previewCanvas = null;
     pdfFind = null;
     previewPane.replaceChildren();
     if (!isMarkdownFile(pathOrName) && !isHtmlFile(pathOrName)) {
@@ -562,14 +569,19 @@ export function createWindowView(
         focusedPane = "preview";
       });
       frame.addEventListener("load", () => {
+        if (frame.contentDocument) bindHtmlPreviewNav(frame.contentDocument);
         if (previewAutoFit && getWindow(windowId)?.mode === "split") {
           fitHtmlPreview();
         } else {
           applyHtmlZoom(previewZoom);
         }
       });
-      previewPane.appendChild(frame);
+      const canvas = document.createElement("div");
+      canvas.className = "html-preview-canvas";
+      canvas.appendChild(frame);
+      previewPane.appendChild(canvas);
       previewFrame = frame;
+      previewCanvas = canvas;
     } else {
       const article = document.createElement("article");
       article.className = "doc";
@@ -591,14 +603,75 @@ export function createWindowView(
         : `${Math.round(previewZoom * 100)}%`;
   }
 
+  // The HTML iframe swallows mouse/wheel events, so navigation is bound to its
+  // same-origin contentDocument and drives the outer pane's scroll offsets.
+  function bindHtmlPreviewNav(doc: Document): void {
+    doc.addEventListener(
+      "wheel",
+      (event) => {
+        if (event.ctrlKey) return; // leave pinch-zoom gestures alone
+        if (event.metaKey || event.shiftKey) {
+          const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+          if (delta !== 0) {
+            previewPane.scrollLeft += delta;
+            event.preventDefault();
+          }
+          return;
+        }
+        previewPane.scrollTop += event.deltaY;
+        previewPane.scrollLeft += event.deltaX;
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+
+    let panning = false;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let startScrollX = 0;
+    let startScrollY = 0;
+
+    doc.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      panning = true;
+      moved = false;
+      startX = event.clientX;
+      startY = event.clientY;
+      startScrollX = previewPane.scrollLeft;
+      startScrollY = previewPane.scrollTop;
+    });
+
+    doc.addEventListener("mousemove", (event) => {
+      if (!panning) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) < 4) return;
+      moved = true;
+      previewCanvas?.classList.add("panning");
+      previewPane.scrollLeft = startScrollX - dx;
+      previewPane.scrollTop = startScrollY - dy;
+      event.preventDefault();
+    });
+
+    const endPan = (): void => {
+      panning = false;
+      previewCanvas?.classList.remove("panning");
+    };
+    doc.addEventListener("mouseup", endPan);
+    doc.addEventListener("mouseleave", endPan);
+  }
+
   // Scale the already-painted iframe surface. This stays on the compositor path,
   // avoiding the multi-second document reflow/repaint caused by CSS `zoom`.
   function applyHtmlZoom(zoom: number): void {
-    if (!previewFrame) return;
+    if (!previewFrame || !previewCanvas) return;
     const scaled = htmlPreviewFrameScale(zoom);
     previewFrame.style.transform = scaled.transform;
     previewFrame.style.width = scaled.width;
     previewFrame.style.height = scaled.height;
+    previewCanvas.style.width = scaled.canvasWidth;
+    previewCanvas.style.height = scaled.canvasHeight;
   }
 
   // Scale the HTML preview to fit the pane (used in split auto-fit mode).
