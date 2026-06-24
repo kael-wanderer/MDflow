@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { HttpProvider } from "../ai/aisettings";
 import {
+  buildAnthropicBody,
   buildHttpBody,
+  parseAnthropicSSEDelta,
   parseSSEDelta,
   substitutePrompt,
 } from "../ai/providers";
@@ -27,6 +29,33 @@ describe("buildHttpBody", () => {
     expect(body.stream).toBe(true);
     expect(body.messages[0]).toEqual({ role: "user", content: "hi" });
   });
+
+  it("produces a native Anthropic Messages body", () => {
+    const body = buildHttpBody(
+      { ...provider, api: "anthropic", maxTokens: 2048 },
+      [
+        { role: "system", content: "System A" },
+        { role: "user", content: "hi" },
+        { role: "system", content: "System B" },
+        { role: "assistant", content: "hello" },
+      ],
+    ) as ReturnType<typeof buildAnthropicBody>;
+    expect(body).toEqual({
+      model: "m",
+      max_tokens: 2048,
+      system: "System A\n\nSystem B",
+      messages: [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: "hello" },
+      ],
+      stream: true,
+    });
+  });
+
+  it("defaults native Anthropic max tokens to 4096", () => {
+    const body = buildAnthropicBody({ ...provider, api: "anthropic" }, []);
+    expect(body.max_tokens).toBe(4096);
+  });
 });
 
 describe("parseSSEDelta", () => {
@@ -45,6 +74,29 @@ describe("parseSSEDelta", () => {
   it("returns null for empty or non-data lines", () => {
     expect(parseSSEDelta("")).toBeNull();
     expect(parseSSEDelta(": ping")).toBeNull();
+  });
+});
+
+describe("parseAnthropicSSEDelta", () => {
+  it("extracts text deltas", () => {
+    expect(
+      parseAnthropicSSEDelta(
+        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"He"}}',
+      ),
+    ).toBe("He");
+  });
+
+  it("returns DONE on message_stop", () => {
+    expect(
+      parseAnthropicSSEDelta('data: {"type":"message_stop"}'),
+    ).toBe("DONE");
+  });
+
+  it("ignores non-text events", () => {
+    expect(
+      parseAnthropicSSEDelta('data: {"type":"message_start"}'),
+    ).toBeNull();
+    expect(parseAnthropicSSEDelta("event: ping")).toBeNull();
   });
 });
 

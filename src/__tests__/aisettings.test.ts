@@ -81,9 +81,43 @@ describe("parseAISettings", () => {
     const provider = DEFAULT_AI_SETTINGS.providers.find(
       (candidate) => candidate.id === "anthropic",
     );
-    expect(provider?.type === "http" && provider.model).toBe(
-      "claude-haiku-4-5-20251001",
+    expect(provider).toMatchObject({
+      type: "http",
+      api: "anthropic",
+      model: "claude-sonnet-4-6",
+      maxTokens: 4096,
+    });
+  });
+
+  it("parses http api shape and max tokens", () => {
+    const settings = parseAISettings(
+      JSON.stringify({
+        providers: [
+          {
+            id: "a",
+            label: "A",
+            type: "http",
+            baseUrl: "u",
+            model: "m",
+            api: "anthropic",
+            maxTokens: 1234,
+          },
+          {
+            id: "b",
+            label: "B",
+            type: "http",
+            baseUrl: "u",
+            model: "m",
+            api: "bogus",
+          },
+        ],
+      }),
     );
+    expect(settings.providers[0]).toMatchObject({
+      api: "anthropic",
+      maxTokens: 1234,
+    });
+    expect(settings.providers[1]).toMatchObject({ api: "openai" });
   });
 });
 

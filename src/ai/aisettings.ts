@@ -4,6 +4,8 @@ export type HttpProvider = {
   type: "http";
   baseUrl: string;
   model: string;
+  api?: "openai" | "anthropic";
+  maxTokens?: number;
 };
 
 export type CommandProvider = {
@@ -67,7 +69,9 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
       label: "Anthropic",
       type: "http",
       baseUrl: "https://api.anthropic.com/v1",
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-sonnet-4-6",
+      api: "anthropic",
+      maxTokens: 4096,
     },
     {
       id: "openrouter",
@@ -139,12 +143,23 @@ function parseProvider(raw: unknown): Provider | null {
     ) {
       return null;
     }
+    const api =
+      value.api === "anthropic" || value.api === "openai"
+        ? value.api
+        : "openai";
+    const rawMaxTokens = Number(value.maxTokens);
+    const maxTokens =
+      Number.isFinite(rawMaxTokens) && rawMaxTokens > 0
+        ? Math.round(rawMaxTokens)
+        : undefined;
     return {
       id: value.id,
       label: value.label,
       type: "http",
       baseUrl: value.baseUrl,
       model: value.model,
+      api,
+      maxTokens,
     };
   }
 

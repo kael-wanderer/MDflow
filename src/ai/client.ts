@@ -4,6 +4,7 @@ import type { PermissionMode, Provider } from "./aisettings";
 import {
   buildHttpBody,
   chatContentText,
+  parseAnthropicSSEDelta,
   parseSSEDelta,
   substitutePrompt,
   type ChatMessage,
@@ -32,21 +33,20 @@ export async function testConnection(
   provider: Extract<Provider, { type: "http" }>,
 ): Promise<{ ok: boolean; detail: string }> {
   try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
     const key = await invoke<string | null>("get_secret", { id: provider.id });
-    if (key) headers.Authorization = `Bearer ${key}`;
+    const headers = httpHeaders(provider, key);
+    const body = buildHttpBody(provider, [
+      { role: "user", content: "ping" },
+    ]) as Record<string, unknown>;
+    body.stream = false;
+    if (provider.api === "anthropic") body.max_tokens = 1;
+    else body.max_tokens = 1;
     const response = await fetch(
-      `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`,
+      httpEndpoint(provider),
       {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          model: provider.model,
-          messages: [{ role: "user", content: "ping" }],
-          max_tokens: 1,
-        }),
+        body: JSON.stringify(body),
       },
     );
     return connectionDetail(
@@ -61,26 +61,45 @@ export async function testConnection(
   }
 }
 
+function httpEndpoint(provider: Extract<Provider, { type: "http" }>): string {
+  const baseUrl = provider.baseUrl.replace(/\/$/, "");
+  return provider.api === "anthropic"
+    ? `${baseUrl}/messages`
+    : `${baseUrl}/chat/completions`;
+}
+
+function httpHeaders(
+  provider: Extract<Provider, { type: "http" }>,
+  key: string | null,
+): Record<string, string> {
+  if (provider.api === "anthropic") {
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      "anthropic-version": "2023-06-01",
+    };
+    if (key) headers["x-api-key"] = key;
+    return headers;
+  }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (key) headers.Authorization = `Bearer ${key}`;
+  return headers;
+}
+
 async function streamHttp(
   provider: Extract<Provider, { type: "http" }>,
   messages: ChatMessage[],
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
   const key = await invoke<string | null>("get_secret", { id: provider.id });
-  if (key) headers.Authorization = `Bearer ${key}`;
-  const response = await fetch(
-    `${provider.baseUrl.replace(/\/$/, "")}/chat/completions`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify(buildHttpBody(provider, messages)),
-      signal,
-    },
-  );
+  const response = await fetch(httpEndpoint(provider), {
+    method: "POST",
+    headers: httpHeaders(provider, key),
+    body: JSON.stringify(buildHttpBody(provider, messages)),
+    signal,
+  });
   if (!response.ok || !response.body) {
     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
   }
@@ -94,13 +113,19 @@ async function streamHttp(
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() ?? "";
     for (const line of lines) {
-      const delta = parseSSEDelta(line);
+      const delta =
+        provider.api === "anthropic"
+          ? parseAnthropicSSEDelta(line)
+          : parseSSEDelta(line);
       if (delta === "DONE") return;
       if (typeof delta === "string") onChunk(delta);
     }
     if (done) break;
   }
-  const finalDelta = parseSSEDelta(buffer);
+  const finalDelta =
+    provider.api === "anthropic"
+      ? parseAnthropicSSEDelta(buffer)
+      : parseSSEDelta(buffer);
   if (typeof finalDelta === "string" && finalDelta !== "DONE") {
     onChunk(finalDelta);
   }

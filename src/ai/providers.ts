@@ -9,6 +9,14 @@ export type ChatMessage = {
   content: string | ChatContentPart[];
 };
 
+export type AnthropicBody = {
+  model: string;
+  max_tokens: number;
+  system?: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+  stream: boolean;
+};
+
 export function chatContentText(content: ChatMessage["content"]): string {
   return typeof content === "string"
     ? content
@@ -24,7 +32,39 @@ export function buildHttpBody(
   provider: HttpProvider,
   messages: ChatMessage[],
 ): object {
+  if (provider.api === "anthropic") {
+    return buildAnthropicBody(provider, messages);
+  }
   return { model: provider.model, messages, stream: true };
+}
+
+export function buildAnthropicBody(
+  provider: HttpProvider,
+  messages: ChatMessage[],
+): AnthropicBody {
+  const system = messages
+    .filter((message) => message.role === "system")
+    .map((message) => chatContentText(message.content))
+    .filter((text) => text.trim().length > 0)
+    .join("\n\n");
+  const body: AnthropicBody = {
+    model: provider.model,
+    max_tokens: provider.maxTokens ?? 4096,
+    messages: messages
+      .filter(
+        (
+          message,
+        ): message is ChatMessage & { role: "user" | "assistant" } =>
+          message.role === "user" || message.role === "assistant",
+      )
+      .map((message) => ({
+        role: message.role,
+        content: chatContentText(message.content),
+      })),
+    stream: true,
+  };
+  if (system) body.system = system;
+  return body;
 }
 
 export function parseSSEDelta(line: string): string | null | "DONE" {
@@ -36,6 +76,26 @@ export function parseSSEDelta(line: string): string | null | "DONE" {
     const json = JSON.parse(payload);
     const content = json?.choices?.[0]?.delta?.content;
     return typeof content === "string" ? content : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseAnthropicSSEDelta(line: string): string | null | "DONE" {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("data:")) return null;
+  const payload = trimmed.slice(5).trim();
+  try {
+    const json = JSON.parse(payload);
+    if (json?.type === "message_stop") return "DONE";
+    if (
+      json?.type === "content_block_delta" &&
+      json?.delta?.type === "text_delta" &&
+      typeof json.delta.text === "string"
+    ) {
+      return json.delta.text;
+    }
+    return null;
   } catch {
     return null;
   }
