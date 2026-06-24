@@ -177,6 +177,7 @@ export function createWindowView(
   let textFindMatches: HTMLElement[] = [];
   let textFindIndex = -1;
   let previewFrame: HTMLIFrameElement | null = null;
+  let previewCanvas: HTMLElement | null = null;
   let lastMode: ViewMode | null = null;
   let boardDestroy: (() => void) | null = null;
   let boardCapture: {
@@ -540,6 +541,7 @@ export function createWindowView(
     boardCapture = null;
     boardZoom = null;
     previewFrame = null;
+    previewCanvas = null;
     pdfFind = null;
     previewPane.replaceChildren();
     if (!isMarkdownFile(pathOrName) && !isHtmlFile(pathOrName)) {
@@ -568,8 +570,12 @@ export function createWindowView(
           applyHtmlZoom(previewZoom);
         }
       });
-      previewPane.appendChild(frame);
+      const canvas = document.createElement("div");
+      canvas.className = "html-preview-canvas";
+      canvas.appendChild(frame);
+      previewPane.appendChild(canvas);
       previewFrame = frame;
+      previewCanvas = canvas;
     } else {
       const article = document.createElement("article");
       article.className = "doc";
@@ -594,11 +600,13 @@ export function createWindowView(
   // Scale the already-painted iframe surface. This stays on the compositor path,
   // avoiding the multi-second document reflow/repaint caused by CSS `zoom`.
   function applyHtmlZoom(zoom: number): void {
-    if (!previewFrame) return;
+    if (!previewFrame || !previewCanvas) return;
     const scaled = htmlPreviewFrameScale(zoom);
     previewFrame.style.transform = scaled.transform;
     previewFrame.style.width = scaled.width;
     previewFrame.style.height = scaled.height;
+    previewCanvas.style.width = scaled.canvasWidth;
+    previewCanvas.style.height = scaled.canvasHeight;
   }
 
   // Scale the HTML preview to fit the pane (used in split auto-fit mode).
