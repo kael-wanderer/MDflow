@@ -111,7 +111,11 @@ export function htmlWithPreviewZoom(html: string, zoom: number): string {
   return `${injection}${html}`;
 }
 
-export function htmlPreviewFrameScale(zoom: number): {
+export function htmlPreviewLayout(
+  contentWidth: number,
+  contentHeight: number,
+  zoom: number,
+): {
   transform: string;
   width: string;
   height: string;
@@ -119,13 +123,13 @@ export function htmlPreviewFrameScale(zoom: number): {
   canvasHeight: string;
 } {
   const safeZoom = Math.max(0.1, zoom);
-  const inverse = 100 / safeZoom;
-  const outer = Math.max(100, 100 * safeZoom);
+  const width = Math.max(1, contentWidth);
+  const height = Math.max(1, contentHeight);
   return {
     transform: `scale(${safeZoom})`,
-    width: `${inverse}%`,
-    height: `${inverse}%`,
-    canvasWidth: `${outer}%`,
-    canvasHeight: `${outer}%`,
+    width: `${width}px`,
+    height: `${height}px`,
+    canvasWidth: `${width * safeZoom}px`,
+    canvasHeight: `${height * safeZoom}px`,
   };
 }

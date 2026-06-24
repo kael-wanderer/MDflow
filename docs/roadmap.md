@@ -34,6 +34,8 @@ Legend: ✅ done · 🔜 planned/deferred
 ## Stage 2 — Rich documents & export ✅
 
 - ✅ **Phases 6–7** — Mermaid + KaTeX + raw-HTML preview pipeline
+- ✅ HTML preview pan/scroll: measured pixel iframe layout makes the preview pane
+  the scroll container for wide standalone HTML documents
 - ✅ PDF reader (pdf.js)
 - ✅ Document-aware export: PDF/DOCX (Pandoc + Typst), HTML, PNG/JPG
 - ✅ **M10** — Excalidraw boards (`.excalidraw`, isolated React runtime)

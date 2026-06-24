@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  htmlPreviewFrameScale,
+  htmlPreviewLayout,
   htmlWithPreviewZoom,
   isExcalidrawFile,
   isHtmlFile,
@@ -24,41 +24,41 @@ describe("isHtmlFile", () => {
   });
 });
 
-describe("htmlPreviewFrameScale", () => {
-  it("expands the iframe viewport inversely while clamping the wrapper to pane size for zoom ≤ 1", () => {
-    expect(htmlPreviewFrameScale(0.5)).toEqual({
+describe("htmlPreviewLayout", () => {
+  it("sizes the iframe to measured content pixels and the canvas to scaled pixels", () => {
+    expect(htmlPreviewLayout(1500, 900, 0.5)).toEqual({
       transform: "scale(0.5)",
-      width: "200%",
-      height: "200%",
-      canvasWidth: "100%",
-      canvasHeight: "100%",
+      width: "1500px",
+      height: "900px",
+      canvasWidth: "750px",
+      canvasHeight: "450px",
     });
-    expect(htmlPreviewFrameScale(2)).toEqual({
+    expect(htmlPreviewLayout(1500, 900, 2)).toEqual({
       transform: "scale(2)",
-      width: "50%",
-      height: "50%",
-      canvasWidth: "200%",
-      canvasHeight: "200%",
+      width: "1500px",
+      height: "900px",
+      canvasWidth: "3000px",
+      canvasHeight: "1800px",
     });
   });
 
-  it("leaves the wrapper at pane size when zoom is 1", () => {
-    expect(htmlPreviewFrameScale(1)).toEqual({
+  it("keeps measured content dimensions at zoom 1", () => {
+    expect(htmlPreviewLayout(1200, 700, 1)).toEqual({
       transform: "scale(1)",
-      width: "100%",
-      height: "100%",
-      canvasWidth: "100%",
-      canvasHeight: "100%",
+      width: "1200px",
+      height: "700px",
+      canvasWidth: "1200px",
+      canvasHeight: "700px",
     });
   });
 
   it("guards against a zero scale", () => {
-    expect(htmlPreviewFrameScale(0)).toEqual({
+    expect(htmlPreviewLayout(1000, 600, 0)).toEqual({
       transform: "scale(0.1)",
-      width: "1000%",
-      height: "1000%",
-      canvasWidth: "100%",
-      canvasHeight: "100%",
+      width: "1000px",
+      height: "600px",
+      canvasWidth: "100px",
+      canvasHeight: "60px",
     });
   });
 });

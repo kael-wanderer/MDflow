@@ -2,7 +2,7 @@ import { createEditor, type EditorHandle } from "./editor";
 import {
   documentViewModes,
   fileLanguageInfo,
-  htmlPreviewFrameScale,
+  htmlPreviewLayout,
   htmlWithPreviewZoom,
   isExcalidrawFile,
   isHtmlFile,
@@ -178,6 +178,7 @@ export function createWindowView(
   let textFindIndex = -1;
   let previewFrame: HTMLIFrameElement | null = null;
   let previewCanvas: HTMLElement | null = null;
+  let htmlPreviewContentSize: { width: number; height: number } | null = null;
   let lastMode: ViewMode | null = null;
   let boardDestroy: (() => void) | null = null;
   let boardCapture: {
@@ -437,6 +438,7 @@ export function createWindowView(
       boardZoom = null;
       previewFrame = null;
       previewCanvas = null;
+      htmlPreviewContentSize = null;
       pdfFind = null;
       previewPane.innerHTML = '<div class="board-loading">Loading PDF…</div>';
       wsWords.textContent = "PDF";
@@ -459,6 +461,7 @@ export function createWindowView(
     if (isExcalidrawFile(pathOrName)) {
       previewFrame = null;
       previewCanvas = null;
+      htmlPreviewContentSize = null;
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
@@ -499,6 +502,7 @@ export function createWindowView(
     if (isMindmapFile(pathOrName)) {
       previewFrame = null;
       previewCanvas = null;
+      htmlPreviewContentSize = null;
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
@@ -547,6 +551,7 @@ export function createWindowView(
     boardZoom = null;
     previewFrame = null;
     previewCanvas = null;
+    htmlPreviewContentSize = null;
     pdfFind = null;
     previewPane.replaceChildren();
     if (!isMarkdownFile(pathOrName) && !isHtmlFile(pathOrName)) {
@@ -570,11 +575,14 @@ export function createWindowView(
       });
       frame.addEventListener("load", () => {
         if (frame.contentDocument) bindHtmlPreviewNav(frame.contentDocument);
-        if (previewAutoFit && getWindow(windowId)?.mode === "split") {
-          fitHtmlPreview();
-        } else {
-          applyHtmlZoom(previewZoom);
-        }
+        requestAnimationFrame(() => {
+          measureHtmlPreview();
+          if (previewAutoFit && getWindow(windowId)?.mode === "split") {
+            fitHtmlPreview();
+          } else {
+            applyHtmlZoom(previewZoom);
+          }
+        });
       });
       const canvas = document.createElement("div");
       canvas.className = "html-preview-canvas";
@@ -662,11 +670,43 @@ export function createWindowView(
     doc.addEventListener("mouseleave", endPan);
   }
 
+  function measureHtmlPreview(): void {
+    const doc = previewFrame?.contentDocument;
+    const rootEl = doc?.documentElement;
+    if (!previewFrame || !previewCanvas || !rootEl) return;
+    const paneWidth = Math.max(1, previewPane.clientWidth);
+    const paneHeight = Math.max(1, previewPane.clientHeight);
+    previewFrame.style.transform = "scale(1)";
+    previewFrame.style.width = `${paneWidth}px`;
+    previewFrame.style.height = `${paneHeight}px`;
+    previewCanvas.style.width = `${paneWidth}px`;
+    previewCanvas.style.height = `${paneHeight}px`;
+
+    const body = doc.body;
+    htmlPreviewContentSize = {
+      width: Math.max(
+        1,
+        rootEl.scrollWidth,
+        body?.scrollWidth ?? 0,
+        paneWidth,
+      ),
+      height: Math.max(
+        1,
+        rootEl.scrollHeight,
+        body?.scrollHeight ?? 0,
+        paneHeight,
+      ),
+    };
+  }
+
   // Scale the already-painted iframe surface. This stays on the compositor path,
   // avoiding the multi-second document reflow/repaint caused by CSS `zoom`.
   function applyHtmlZoom(zoom: number): void {
     if (!previewFrame || !previewCanvas) return;
-    const scaled = htmlPreviewFrameScale(zoom);
+    if (!htmlPreviewContentSize) measureHtmlPreview();
+    const size = htmlPreviewContentSize;
+    if (!size) return;
+    const scaled = htmlPreviewLayout(size.width, size.height, zoom);
     previewFrame.style.transform = scaled.transform;
     previewFrame.style.width = scaled.width;
     previewFrame.style.height = scaled.height;
@@ -676,24 +716,20 @@ export function createWindowView(
 
   // Scale the HTML preview to fit the pane (used in split auto-fit mode).
   function fitHtmlPreview(): void {
-    const doc = previewFrame?.contentDocument;
-    if (!doc) return;
-    applyHtmlZoom(1);
-    requestAnimationFrame(() => {
-      const target =
-        doc.querySelector<HTMLElement>("#frame,[data-mdflow-fit],svg,canvas,img") ??
-        doc.body;
-      if (!target) return;
-      const width = Math.max(target.scrollWidth, target.offsetWidth ?? 0, 1);
-      const height = Math.max(target.scrollHeight, target.offsetHeight ?? 0, 1);
-      const scale = Math.max(
-        0.1,
-        Math.min(previewPane.clientWidth / width, previewPane.clientHeight / height, 1),
-      );
-      previewZoom = scale;
-      applyHtmlZoom(scale);
-      updateZoomLabel();
-    });
+    if (!htmlPreviewContentSize) measureHtmlPreview();
+    const size = htmlPreviewContentSize;
+    if (!size) return;
+    const scale = Math.max(
+      0.1,
+      Math.min(
+        previewPane.clientWidth / size.width,
+        previewPane.clientHeight / size.height,
+        1,
+      ),
+    );
+    previewZoom = scale;
+    applyHtmlZoom(scale);
+    updateZoomLabel();
   }
 
   function setPreviewZoom(next: number): void {
@@ -720,11 +756,14 @@ export function createWindowView(
   const previewResizeObserver = new ResizeObserver(() => {
     if (
       isHtmlFile(previewPathOrName) &&
-      previewFrame &&
-      previewAutoFit &&
-      getWindow(windowId)?.mode === "split"
+      previewFrame
     ) {
-      fitHtmlPreview();
+      measureHtmlPreview();
+      if (previewAutoFit && getWindow(windowId)?.mode === "split") {
+        fitHtmlPreview();
+      } else {
+        applyHtmlZoom(previewZoom);
+      }
     }
   });
   previewResizeObserver.observe(previewPane);
