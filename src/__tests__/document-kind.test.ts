@@ -25,13 +25,13 @@ describe("isHtmlFile", () => {
 });
 
 describe("htmlPreviewFrameScale", () => {
-  it("expands the iframe viewport inversely while scaling its painted surface", () => {
+  it("expands the iframe viewport inversely while clamping the wrapper to pane size for zoom ≤ 1", () => {
     expect(htmlPreviewFrameScale(0.5)).toEqual({
       transform: "scale(0.5)",
       width: "200%",
       height: "200%",
-      canvasWidth: "50%",
-      canvasHeight: "50%",
+      canvasWidth: "100%",
+      canvasHeight: "100%",
     });
     expect(htmlPreviewFrameScale(2)).toEqual({
       transform: "scale(2)",
@@ -57,8 +57,8 @@ describe("htmlPreviewFrameScale", () => {
       transform: "scale(0.1)",
       width: "1000%",
       height: "1000%",
-      canvasWidth: "10%",
-      canvasHeight: "10%",
+      canvasWidth: "100%",
+      canvasHeight: "100%",
     });
   });
 });

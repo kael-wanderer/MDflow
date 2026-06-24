@@ -120,7 +120,7 @@ export function htmlPreviewFrameScale(zoom: number): {
 } {
   const safeZoom = Math.max(0.1, zoom);
   const inverse = 100 / safeZoom;
-  const outer = 100 * safeZoom;
+  const outer = Math.max(100, 100 * safeZoom);
   return {
     transform: `scale(${safeZoom})`,
     width: `${inverse}%`,

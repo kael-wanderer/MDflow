@@ -436,6 +436,7 @@ export function createWindowView(
       boardCapture = null;
       boardZoom = null;
       previewFrame = null;
+      previewCanvas = null;
       pdfFind = null;
       previewPane.innerHTML = '<div class="board-loading">Loading PDF…</div>';
       wsWords.textContent = "PDF";
@@ -456,6 +457,8 @@ export function createWindowView(
       return;
     }
     if (isExcalidrawFile(pathOrName)) {
+      previewFrame = null;
+      previewCanvas = null;
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
@@ -494,6 +497,8 @@ export function createWindowView(
       return;
     }
     if (isMindmapFile(pathOrName)) {
+      previewFrame = null;
+      previewCanvas = null;
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
