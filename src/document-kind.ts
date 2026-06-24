@@ -115,12 +115,17 @@ export function htmlPreviewFrameScale(zoom: number): {
   transform: string;
   width: string;
   height: string;
+  canvasWidth: string;
+  canvasHeight: string;
 } {
   const safeZoom = Math.max(0.1, zoom);
   const inverse = 100 / safeZoom;
+  const outer = 100 * safeZoom;
   return {
     transform: `scale(${safeZoom})`,
     width: `${inverse}%`,
     height: `${inverse}%`,
+    canvasWidth: `${outer}%`,
+    canvasHeight: `${outer}%`,
   };
 }
