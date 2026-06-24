@@ -36,9 +36,12 @@ type PageInfo = {
 const RERENDER_DELAY_MS = 200;
 
 function supersample(): number {
-  return Math.max(
-    1,
-    typeof window.devicePixelRatio === "number" ? window.devicePixelRatio : 1,
+  return Math.min(
+    2,
+    Math.max(
+      1,
+      typeof window.devicePixelRatio === "number" ? window.devicePixelRatio : 1,
+    ),
   );
 }
 
