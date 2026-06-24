@@ -8,19 +8,9 @@ All notable changes to MDflow are documented here. The format is based on
 
 ### Added
 
-- **PDF zoom and pan** — PDF previews now default to fit-to-width, support toolbar
-  and keyboard zoom controls, use an instant CSS-scale followed by debounced crisp
-  re-rendering, and allow horizontal navigation with Cmd/Shift-wheel plus Space or
-  middle-mouse drag panning while preserving normal text selection.
-- **PDF lazy rendering** — pages now rasterize on demand as they approach the
-  viewport (and re-render only the visible pages on zoom), so large multi-page PDFs
-  open quickly and zoom stays responsive. The full-text search index is still built
-  eagerly, and matches highlight as their page is rendered.
-- **Markdown auto-fit** — the Markdown preview shows a normal document at 100% and
-  fills the pane (wide tables, code, Mermaid, and math scroll on their own). It scales
-  down only when the document genuinely overflows the pane (e.g. an oversized image),
-  never below 50% so text stays legible, and re-fits on resize. Manual zoom disables
-  auto-fit; Reset re-enables it.
+- **Preview zoom** — the Markdown, HTML, and PDF previews share zoom in / out / reset
+  controls, from the preview toolbar or `⌘+` / `⌘−` / `⌘0`. Each document opens at
+  100%, and scrollbars appear when it is zoomed past the pane.
 - **Workspace context retrieval** — a "Use workspace context" toggle in the AI panel
   (default on) retrieves the most relevant chunks from the open folder into chat
   context using a local lexical (BM25) ranker — no model, network, or API key. The
@@ -48,8 +38,7 @@ All notable changes to MDflow are documented here. The format is based on
 ### Fixed
 
 - HTML previews now size the iframe canvas from measured document pixels, so wide
-  standalone HTML files show real pane scrollbars at 100% zoom and wheel/drag
-  navigation moves the preview pane.
+  standalone HTML files show real pane scrollbars and the wheel scrolls the preview.
 
 ### Security
 

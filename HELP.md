@@ -15,27 +15,16 @@ pane. Main and Sub have independent tabs and view modes.
 ## Document modes
 
 - **Markdown and HTML:** Editor, Read, or Editor + Preview.
-- **PDF:** read-only, with zoom and pan (see Preview navigation below).
+- **PDF:** read-only, with zoom (see Preview zoom below).
 - **TypeScript, JavaScript, JSON, YAML/YML, and other text/config files:** Editor-only.
 - **Excalidraw and Mindmap:** focused full-pane visual editors.
 
-## Preview navigation, zoom, and fit
+## Preview zoom
 
-The preview toolbar has zoom out / reset / zoom in controls (`⌘−` / `⌘0` / `⌘+`).
-The reset button shows the current zoom, or **Fit** when a pane is auto-fitting.
-
-- **Markdown preview** auto-fits to the pane: a normal document shows at 100% and
-  fills the width, and wide tables, code blocks, Mermaid diagrams, and math scroll
-  on their own. If a document genuinely overflows the pane (for example an oversized
-  image), the preview scales down to fit, never below 50% so text stays legible.
-  Zooming manually turns auto-fit off; the reset button turns it back on.
-- **HTML preview** makes the pane the scroll surface: a document wider than the pane
-  shows real scrollbars. Scroll with the wheel, scroll horizontally with `⌘`/`Shift`
-  + wheel, and drag to pan. In a split pane it auto-fits to the pane width.
-- **PDF** opens fit-to-width (reset returns to Fit). Zoom is instant and then
-  re-renders crisply; pages render as you scroll. Scroll horizontally with
-  `⌘`/`Shift` + wheel, and pan with **Space + drag** or a **middle-mouse drag** —
-  plain dragging still selects text.
+The preview toolbar has **zoom out / reset / zoom in** controls (`−` / the percentage /
+`+`), and `⌘−` / `⌘0` / `⌘+` do the same from the keyboard. Zoom applies to the
+Markdown, HTML, and PDF previews; the reset button shows the current percentage and
+returns to 100%. When a document is zoomed in past the pane, scrollbars appear.
 
 ## Opening and dropping files
 
