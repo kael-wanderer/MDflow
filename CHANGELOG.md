@@ -4,6 +4,14 @@ All notable changes to MDflow are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- HTML previews now size the iframe canvas from measured document pixels, so wide
+  standalone HTML files show real pane scrollbars at 100% zoom and wheel/drag
+  navigation moves the preview pane.
+
 ## [0.2.5] — 2026-06-23
 
 ### Added

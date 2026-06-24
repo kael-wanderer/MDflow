@@ -41,7 +41,9 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
   protection on save) and keeps per-file local snapshots on save plus manual
   snapshots, browsable in a version-history panel with Compare and Restore.
 - **Rich preview** — [mermaid](https://mermaid.js.org) diagrams, [KaTeX](https://katex.org)
-  math (`$…$`, `$$…$$`), and raw HTML.
+  math (`$…$`, `$$…$$`), and raw HTML. Standalone HTML previews measure their
+  rendered content so wide documents scroll in the preview pane without trapping
+  overflow inside the iframe.
 - **PDF reader** — open `.pdf` files rendered with pdf.js.
 - **Excalidraw boards** — open and edit `.excalidraw` files in a focused full-pane
   canvas. Boards use the normal tab, save, dirty-close, and session workflows.
@@ -72,7 +74,7 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
   the whole UI including editor syntax.
 - **Export** — PDF and DOCX via pandoc (+ typst for PDF), HTML, and PNG / JPG of the
   rendered preview.
-- **Zoom** — editor zoom in / out, persisted.
+- **Zoom** — editor and preview zoom in / out, persisted where applicable.
 
 ## Requirements
 
