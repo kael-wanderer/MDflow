@@ -564,6 +564,7 @@ export function createWindowView(
         focusedPane = "preview";
       });
       frame.addEventListener("load", () => {
+        if (frame.contentDocument) bindHtmlPreviewNav(frame.contentDocument);
         if (previewAutoFit && getWindow(windowId)?.mode === "split") {
           fitHtmlPreview();
         } else {
@@ -595,6 +596,65 @@ export function createWindowView(
       getWindow(windowId)?.mode === "split"
         ? "Fit"
         : `${Math.round(previewZoom * 100)}%`;
+  }
+
+  // The HTML iframe swallows mouse/wheel events, so navigation is bound to its
+  // same-origin contentDocument and drives the outer pane's scroll offsets.
+  function bindHtmlPreviewNav(doc: Document): void {
+    doc.addEventListener(
+      "wheel",
+      (event) => {
+        if (event.ctrlKey) return; // leave pinch-zoom gestures alone
+        if (event.metaKey || event.shiftKey) {
+          const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+          if (delta !== 0) {
+            previewPane.scrollLeft += delta;
+            event.preventDefault();
+          }
+          return;
+        }
+        previewPane.scrollTop += event.deltaY;
+        previewPane.scrollLeft += event.deltaX;
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+
+    let panning = false;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let startScrollX = 0;
+    let startScrollY = 0;
+
+    doc.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      panning = true;
+      moved = false;
+      startX = event.clientX;
+      startY = event.clientY;
+      startScrollX = previewPane.scrollLeft;
+      startScrollY = previewPane.scrollTop;
+    });
+
+    doc.addEventListener("mousemove", (event) => {
+      if (!panning) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) < 4) return;
+      moved = true;
+      previewCanvas?.classList.add("panning");
+      previewPane.scrollLeft = startScrollX - dx;
+      previewPane.scrollTop = startScrollY - dy;
+      event.preventDefault();
+    });
+
+    const endPan = (): void => {
+      panning = false;
+      previewCanvas?.classList.remove("panning");
+    };
+    doc.addEventListener("mouseup", endPan);
+    doc.addEventListener("mouseleave", endPan);
   }
 
   // Scale the already-painted iframe surface. This stays on the compositor path,
