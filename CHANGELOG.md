@@ -4,7 +4,7 @@ All notable changes to MDflow are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.6] — 2026-06-24
 
 ### Added
 
@@ -12,17 +12,50 @@ All notable changes to MDflow are documented here. The format is based on
   and keyboard zoom controls, use an instant CSS-scale followed by debounced crisp
   re-rendering, and allow horizontal navigation with Cmd/Shift-wheel plus Space or
   middle-mouse drag panning while preserving normal text selection.
+- **PDF lazy rendering** — pages now rasterize on demand as they approach the
+  viewport (and re-render only the visible pages on zoom), so large multi-page PDFs
+  open quickly and zoom stays responsive. The full-text search index is still built
+  eagerly, and matches highlight as their page is rendered.
+- **Markdown auto-fit** — the Markdown preview auto-scales to fit its widest
+  non-reflowing block (wide tables, code, Mermaid, math) to the pane on open and on
+  resize, floored at 50% so text stays legible. Manual zoom disables auto-fit; Reset
+  re-enables it.
+- **Workspace context retrieval** — a "Use workspace context" toggle in the AI panel
+  (default on) retrieves the most relevant chunks from the open folder into chat
+  context using a local lexical (BM25) ranker — no model, network, or API key. The
+  index is built in memory and refreshed as files change; retrieved chunks are added
+  as untrusted `<context>` blocks subject to the context budget, and the sources are
+  listed in the panel.
+- **Native Anthropic provider** — HTTP model providers can target Anthropic's
+  Messages API directly (`api: "anthropic"`): `/v1/messages` with `x-api-key` and
+  `anthropic-version` headers, a top-level system prompt, and native streaming. The
+  bundled Anthropic preset now uses this path with a current model id.
 - **AI context controls** — Agent ▸ Models now includes a configurable inline
   context character cap (120,000 by default, approximately 30,000 tokens).
   Oversized document/selection and text-attachment context is trimmed
   deterministically, preserving the document/selection first, and the AI panel
   reports the exact number of dropped characters before sending.
+- **CLI permission profiles** — CLI agents can define named permission profiles that
+  select which command template runs, generalizing the previous ask/bypass switch.
+  Profiles can require confirmation on every run, and the legacy `bypassRun` is
+  migrated to a built-in full-access profile. (MDflow selects the command template;
+  per-capability enforcement remains the CLI agent's own responsibility.)
+- **In-session AI Runs view** — the AI panel lists CLI agent runs with status
+  (running / done / failed / cancelled), a Cancel action for a running agent, and the
+  post-run changed-files summary per run. The list is per-session (not persisted).
 
 ### Fixed
 
 - HTML previews now size the iframe canvas from measured document pixels, so wide
   standalone HTML files show real pane scrollbars at 100% zoom and wheel/drag
   navigation moves the preview pane.
+
+### Security
+
+- Untrusted AI context now seals closing-delimiter sequences inside document,
+  attachment, and retrieved-context block bodies, so embedded `</document>` /
+  `</attachment>` / `</context>` text can no longer break out of the untrusted
+  boundary.
 
 ## [0.2.5] — 2026-06-23
 
