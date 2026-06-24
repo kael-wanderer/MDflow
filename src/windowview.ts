@@ -174,6 +174,12 @@ export function createWindowView(
   let previewPathOrName: string | null = null;
   let pdfTargetPage: number | undefined;
   let pdfFind: PdfFindHandle | null = null;
+  let pdfSpacePan = false;
+  let pdfPanning = false;
+  let pdfPanStartX = 0;
+  let pdfPanStartY = 0;
+  let pdfPanStartScrollX = 0;
+  let pdfPanStartScrollY = 0;
   let textFindMatches: HTMLElement[] = [];
   let textFindIndex = -1;
   let previewFrame: HTMLIFrameElement | null = null;
@@ -430,6 +436,11 @@ export function createWindowView(
   ): void {
     previewText = text;
     previewPathOrName = pathOrName;
+    if (!isPdfFile(pathOrName)) {
+      pdfSpacePan = false;
+      pdfPanning = false;
+      previewPane.classList.remove("pdf-pan-mode", "pdf-panning");
+    }
     if (isPdfFile(pathOrName)) {
       const token = ++boardRenderToken;
       boardDestroy?.();
@@ -442,13 +453,15 @@ export function createWindowView(
       pdfFind = null;
       previewPane.innerHTML = '<div class="board-loading">Loading PDF…</div>';
       wsWords.textContent = "PDF";
-      void renderPdf(previewPane, pathOrName!, pdfTargetPage)
+      void renderPdf(previewPane, pathOrName!, { initialPage: pdfTargetPage })
         .then((handle) => {
           if (token !== boardRenderToken) {
             handle.clear();
             return;
           }
           pdfFind = handle;
+          previewAutoFit = true;
+          setPreviewZoom(1);
           if (!findBar.classList.contains("hidden") && findInput.value) runFind();
         })
         .catch((error) => {
@@ -604,9 +617,9 @@ export function createWindowView(
 
   function updateZoomLabel(): void {
     root.querySelector<HTMLElement>(".wt-preview-reset")!.textContent =
-      previewAutoFit &&
-      isHtmlFile(previewPathOrName) &&
-      getWindow(windowId)?.mode === "split"
+      (previewAutoFit &&
+        ((isHtmlFile(previewPathOrName) && getWindow(windowId)?.mode === "split") ||
+          isPdfFile(previewPathOrName)))
         ? "Fit"
         : `${Math.round(previewZoom * 100)}%`;
   }
@@ -699,6 +712,89 @@ export function createWindowView(
     };
   }
 
+  function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(
+      target.closest("input, textarea, select, button, [contenteditable='true']"),
+    );
+  }
+
+  function setPdfPanMode(on: boolean): void {
+    pdfSpacePan = on;
+    previewPane.classList.toggle(
+      "pdf-pan-mode",
+      on && isPdfFile(previewPathOrName),
+    );
+  }
+
+  const onPdfKeyDown = (event: KeyboardEvent): void => {
+    if (
+      event.code !== "Space" ||
+      !isPdfFile(previewPathOrName) ||
+      focusedPane !== "preview" ||
+      isEditableTarget(event.target)
+    ) {
+      return;
+    }
+    setPdfPanMode(true);
+    event.preventDefault();
+  };
+
+  const onPdfKeyUp = (event: KeyboardEvent): void => {
+    if (event.code !== "Space") return;
+    setPdfPanMode(false);
+  };
+
+  const onPdfWheel = (event: WheelEvent): void => {
+    if (!isPdfFile(previewPathOrName) || event.ctrlKey) return;
+    if (!event.metaKey && !event.shiftKey) return;
+    const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+    if (delta === 0) return;
+    previewPane.scrollLeft += delta;
+    event.preventDefault();
+  };
+
+  const onPdfMouseDown = (event: MouseEvent): void => {
+    if (!isPdfFile(previewPathOrName)) return;
+    const middlePan = event.button === 1;
+    const spacePan = event.button === 0 && pdfSpacePan;
+    if (!middlePan && !spacePan) return;
+    focusedPane = "preview";
+    pdfPanning = true;
+    pdfPanStartX = event.clientX;
+    pdfPanStartY = event.clientY;
+    pdfPanStartScrollX = previewPane.scrollLeft;
+    pdfPanStartScrollY = previewPane.scrollTop;
+    previewPane.classList.add("pdf-panning");
+    event.preventDefault();
+  };
+
+  const onPdfMouseMove = (event: MouseEvent): void => {
+    if (!pdfPanning) return;
+    previewPane.scrollLeft = pdfPanStartScrollX - (event.clientX - pdfPanStartX);
+    previewPane.scrollTop = pdfPanStartScrollY - (event.clientY - pdfPanStartY);
+    event.preventDefault();
+  };
+
+  const endPdfPan = (): void => {
+    pdfPanning = false;
+    previewPane.classList.remove("pdf-panning");
+  };
+
+  const onPdfAuxClick = (event: MouseEvent): void => {
+    if (isPdfFile(previewPathOrName) && event.button === 1) {
+      event.preventDefault();
+    }
+  };
+
+  window.addEventListener("keydown", onPdfKeyDown);
+  window.addEventListener("keyup", onPdfKeyUp);
+  window.addEventListener("mousemove", onPdfMouseMove);
+  window.addEventListener("mouseup", endPdfPan);
+  previewPane.addEventListener("wheel", onPdfWheel, { passive: false });
+  previewPane.addEventListener("mousedown", onPdfMouseDown);
+  previewPane.addEventListener("auxclick", onPdfAuxClick);
+
   // Scale the already-painted iframe surface. This stays on the compositor path,
   // avoiding the multi-second document reflow/repaint caused by CSS `zoom`.
   function applyHtmlZoom(zoom: number): void {
@@ -733,6 +829,15 @@ export function createWindowView(
   }
 
   function setPreviewZoom(next: number): void {
+    if (isPdfFile(previewPathOrName) && pdfFind) {
+      const target = previewAutoFit
+        ? pdfFind.fitWidthZoom(previewPane.clientWidth)
+        : next;
+      pdfFind.setZoom(target);
+      previewZoom = pdfFind.getZoom();
+      updateZoomLabel();
+      return;
+    }
     previewZoom = Math.max(0.25, Math.min(2, next));
     updateZoomLabel();
     // HTML preview: update in place (no iframe reload, no white flash).
@@ -754,6 +859,14 @@ export function createWindowView(
   }
 
   const previewResizeObserver = new ResizeObserver(() => {
+    if (
+      isPdfFile(previewPathOrName) &&
+      pdfFind &&
+      previewAutoFit
+    ) {
+      setPreviewZoom(1);
+      return;
+    }
     if (
       isHtmlFile(previewPathOrName) &&
       previewFrame
@@ -832,6 +945,13 @@ export function createWindowView(
       boardRenderToken += 1;
       boardDestroy?.();
       previewResizeObserver.disconnect();
+      window.removeEventListener("keydown", onPdfKeyDown);
+      window.removeEventListener("keyup", onPdfKeyUp);
+      window.removeEventListener("mousemove", onPdfMouseMove);
+      window.removeEventListener("mouseup", endPdfPan);
+      previewPane.removeEventListener("wheel", onPdfWheel);
+      previewPane.removeEventListener("mousedown", onPdfMouseDown);
+      previewPane.removeEventListener("auxclick", onPdfAuxClick);
       root.remove();
     },
     setLineNumbersFlag: (on: boolean) => {

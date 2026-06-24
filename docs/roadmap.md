@@ -37,6 +37,8 @@ Legend: ✅ done · 🔜 planned/deferred
 - ✅ HTML preview pan/scroll: measured pixel iframe layout makes the preview pane
   the scroll container for wide standalone HTML documents
 - ✅ PDF reader (pdf.js)
+- ✅ PDF preview zoom and pan: fit-to-width reset, instant CSS scale plus crisp
+  re-render, horizontal wheel navigation, and Space/middle-mouse drag panning.
 - ✅ Document-aware export: PDF/DOCX (Pandoc + Typst), HTML, PNG/JPG
 - ✅ **M10** — Excalidraw boards (`.excalidraw`, isolated React runtime)
 - ✅ **M11** — jsMind mindmaps (`.mind`) with on-board toolbar, per-node shape /

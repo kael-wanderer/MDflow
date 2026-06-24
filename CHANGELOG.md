@@ -4,7 +4,14 @@ All notable changes to MDflow are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [Unreleased]
+
+### Added
+
+- **PDF zoom and pan** — PDF previews now default to fit-to-width, support toolbar
+  and keyboard zoom controls, use an instant CSS-scale followed by debounced crisp
+  re-rendering, and allow horizontal navigation with Cmd/Shift-wheel plus Space or
+  middle-mouse drag panning while preserving normal text selection.
 
 ### Fixed
 
