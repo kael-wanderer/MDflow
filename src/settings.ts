@@ -21,6 +21,8 @@ export type Settings = {
   main: ZoneSettings;
   sub: ZoneSettings;
   keymap: Record<string, string>;
+  workspaceContext: boolean;
+  workspaceContextK: number;
 };
 
 export const THEME_OPTIONS: ReadonlyArray<{
@@ -54,6 +56,8 @@ export const DEFAULT_SETTINGS: Settings = {
   main: { font: "", size: 15 },
   sub: { font: "", size: 15 },
   keymap: {},
+  workspaceContext: true,
+  workspaceContextK: 5,
 };
 
 export const DEFAULT_SETTINGS_JSON = JSON.stringify(DEFAULT_SETTINGS, null, 2);
@@ -98,6 +102,8 @@ function defaults(): Settings {
     main: { ...DEFAULT_SETTINGS.main },
     sub: { ...DEFAULT_SETTINGS.sub },
     keymap: {},
+    workspaceContext: DEFAULT_SETTINGS.workspaceContext,
+    workspaceContextK: DEFAULT_SETTINGS.workspaceContextK,
   };
 }
 
@@ -137,6 +143,11 @@ export function parseSettings(raw: string): Settings {
   }
 
   const wrapColumn = clampWrapColumn(data.wrapColumn);
+  const rawWorkspaceContextK = Number(data.workspaceContextK);
+  const workspaceContextK =
+    Number.isFinite(rawWorkspaceContextK) && rawWorkspaceContextK > 0
+      ? Math.floor(rawWorkspaceContextK)
+      : DEFAULT_SETTINGS.workspaceContextK;
 
   return {
     theme,
@@ -151,6 +162,11 @@ export function parseSettings(raw: string): Settings {
     main: parseZone(data.main, DEFAULT_SETTINGS.main),
     sub: parseZone(data.sub, DEFAULT_SETTINGS.sub),
     keymap: parseKeymap(data.keymap),
+    workspaceContext:
+      typeof data.workspaceContext === "boolean"
+        ? data.workspaceContext
+        : DEFAULT_SETTINGS.workspaceContext,
+    workspaceContextK,
   };
 }
 

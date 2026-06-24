@@ -959,6 +959,10 @@ async function doSave(saveAs = false): Promise<void> {
     }
     const previousPath = t.path;
     await writeFile(target, text);
+    if (previousPath && previousPath !== target) {
+      aiPanel?.removeWorkspaceFile(previousPath);
+    }
+    aiPanel?.updateWorkspaceFile(target, text);
     clearDraft(previousPath, t.id);
     const recoveredId = recoveredDraftIds.get(t.id);
     if (recoveredId) clearDraftById(recoveredId);
@@ -1589,6 +1593,7 @@ function buildAIPanel(): void {
         tabId: tab?.id ?? "",
         from: selection.from,
         to: selection.to,
+        path: tab?.path ?? null,
       };
     },
     lookupTabText: panelReview.lookupTabText,
@@ -1625,6 +1630,16 @@ function buildAIPanel(): void {
         path: joinPath(folder, rel),
         name: basename(rel),
       }));
+    },
+    getWorkspaceContext: () => ({
+      enabled: currentSettings.workspaceContext,
+      k: currentSettings.workspaceContextK,
+    }),
+    onWorkspaceContextChange: (enabled) => {
+      saveSettingsFromPanel({
+        ...currentSettings,
+        workspaceContext: enabled,
+      });
     },
     historyKey: `mdflow.ai.history.${nativeWindowLabel}`,
   });
@@ -1975,6 +1990,7 @@ subscribe(() => {
   const s = getState();
   if (s.folder !== indexedFolder) {
     indexedFolder = s.folder;
+    aiPanel?.resetWorkspaceContext();
     void refreshFileList();
   }
   ui = {

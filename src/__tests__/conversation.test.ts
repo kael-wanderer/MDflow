@@ -36,6 +36,32 @@ describe("buildMessages untrusted boundary", () => {
     expect(text).toContain("improve");
   });
 
+  it("puts retrieved workspace context after the document and before attachments", () => {
+    const output = buildMessages({
+      history: [],
+      prompt: "answer",
+      docText: "DOC",
+      selection: "",
+      editMode: false,
+      retrieved: [
+        { path: "/notes/a.md", heading: "Setup", text: "CTX" },
+      ],
+      files: [{ kind: "text", name: "a.md", content: "ATTACH" }],
+      maxContextChars: 120_000,
+    });
+    const system = output.messages[0].content;
+    expect(system).toContain("<context>");
+    const last = output.messages[output.messages.length - 1];
+    const text = typeof last.content === "string" ? last.content : "";
+    const documentIndex = text.indexOf("<document>");
+    const contextIndex = text.indexOf('<context source="/notes/a.md#Setup">');
+    const attachmentIndex = text.indexOf("<attachment");
+    expect(documentIndex).toBeGreaterThanOrEqual(0);
+    expect(contextIndex).toBeGreaterThan(documentIndex);
+    expect(attachmentIndex).toBeGreaterThan(contextIndex);
+    expect(text).toContain("CTX");
+  });
+
   it("prefers selection over the full document", () => {
     const output = buildMessages({
       history: [],

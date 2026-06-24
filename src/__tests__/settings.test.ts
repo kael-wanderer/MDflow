@@ -68,6 +68,20 @@ describe("parseSettings", () => {
       parseSettings('{ "updateMode": "manual", "autoUpdate": true }').updateMode,
     ).toBe("manual");
   });
+
+  it("defaults workspace context on with five retrieved chunks", () => {
+    const settings = parseSettings("{}");
+    expect(settings.workspaceContext).toBe(true);
+    expect(settings.workspaceContextK).toBe(5);
+  });
+
+  it("respects workspace context settings", () => {
+    const settings = parseSettings(
+      '{ "workspaceContext": false, "workspaceContextK": 8 }',
+    );
+    expect(settings.workspaceContext).toBe(false);
+    expect(settings.workspaceContextK).toBe(8);
+  });
 });
 
 describe("soft wrap", () => {

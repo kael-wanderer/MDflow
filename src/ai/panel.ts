@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import type { AISettings, PermissionMode, Provider } from "./aisettings";
 import { streamChat } from "./client";
 import { buildMessages, type AttachedFile } from "./conversation";
+import { createWorkspaceIndex } from "./workspace-index";
 import { showDiff } from "./edit-review";
 import type { EditBinding } from "./edit-binding";
 import {
@@ -27,6 +28,7 @@ export type AIPanelDeps = {
     tabId: string;
     from: number;
     to: number;
+    path: string | null;
   };
   lookupTabText: (windowId: string, tabId: string) => string | null;
   applyEditTo: (
@@ -43,6 +45,8 @@ export type AIPanelDeps = {
   getSendAccelerator: () => string;
   getWorkingDir: () => string | null;
   getFileList: () => { path: string; name: string }[];
+  getWorkspaceContext: () => { enabled: boolean; k: number };
+  onWorkspaceContextChange: (enabled: boolean) => void;
   historyKey: string;
 };
 
@@ -52,6 +56,9 @@ export type AIPanel = {
   addAttachments: (paths: string[]) => void;
   refreshTheme: () => void;
   appendBubble: (role: string, text: string) => HTMLElement;
+  resetWorkspaceContext: () => void;
+  updateWorkspaceFile: (path: string, text: string) => void;
+  removeWorkspaceFile: (path: string) => void;
 };
 
 const TEXT_EXTENSIONS = new Set([
@@ -164,6 +171,7 @@ export function createAIPanel(
     setTheme: () => void;
   } | null = null;
   let activeRequest: AbortController | null = null;
+  const workspaceIndex = createWorkspaceIndex();
 
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -238,6 +246,10 @@ export function createAIPanel(
               <option value="bypass">Bypass approvals</option>
             </select>
           </label>
+          <label class="ai-workspace-toggle">
+            <input type="checkbox" class="ai-workspace-context" />
+            <span>Workspace context</span>
+          </label>
           <button class="ai-attach" type="button" title="Attach files">📎</button>
         </div>
         <label class="ai-edit">
@@ -277,6 +289,12 @@ export function createAIPanel(
     permissionSelect.addEventListener("change", () => {
       sessionPermissionMode =
         permissionSelect.value === "bypass" ? "bypass" : "ask";
+    });
+    const workspaceContext =
+      body.querySelector<HTMLInputElement>(".ai-workspace-context")!;
+    workspaceContext.checked = deps.getWorkspaceContext().enabled;
+    workspaceContext.addEventListener("change", () => {
+      deps.onWorkspaceContextChange(workspaceContext.checked);
     });
     body
       .querySelector<HTMLInputElement>(".ai-editmode")!
@@ -474,6 +492,32 @@ export function createAIPanel(
       refreshAttachments();
 
       const document = deps.getDoc();
+      let retrieved: { path: string; heading: string; text: string }[] = [];
+      const workspace = deps.getWorkspaceContext();
+      const workingDir = deps.getWorkingDir();
+      if (workspace.enabled && workingDir) {
+        try {
+          retrieved = await workspaceIndex.query(
+            workingDir,
+            prompt,
+            workspace.k,
+            document.path ?? undefined,
+          );
+          if (retrieved.length) {
+            const sources = [
+              ...new Set(retrieved.map((chunk) => fileBasename(chunk.path))),
+            ];
+            addBubble("system", `Workspace context: ${sources.join(", ")}`);
+          }
+        } catch (error) {
+          addBubble(
+            "error",
+            `Workspace context unavailable: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
       const binding: EditBinding = {
         windowId: document.windowId,
         tabId: document.tabId,
@@ -489,6 +533,7 @@ export function createAIPanel(
         selection: document.selection,
         editMode,
         files,
+        retrieved,
         maxContextChars: currentSettings.maxContextChars,
       });
       if (built.truncatedChars > 0) {
@@ -496,7 +541,6 @@ export function createAIPanel(
       }
       // CLI agents run with cwd = the open folder and can write files; snapshot
       // the folder before the run so we can summarize what changed afterward.
-      const workingDir = deps.getWorkingDir();
       const runDir =
         provider.type === "command" && workingDir ? workingDir : null;
       let beforeState: FolderState | null = null;
@@ -750,5 +794,8 @@ export function createAIPanel(
       if (host) host.scrollTop = host.scrollHeight;
       return element;
     },
+    resetWorkspaceContext: () => workspaceIndex.reset(),
+    updateWorkspaceFile: (path, text) => workspaceIndex.onFileChanged(path, text),
+    removeWorkspaceFile: (path) => workspaceIndex.onFileRemoved(path),
   };
 }
