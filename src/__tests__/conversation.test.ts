@@ -1,6 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { buildMessages } from "../ai/conversation";
+import { buildMessages, sealBlockContent } from "../ai/conversation";
 describe("buildMessages untrusted boundary", () => {
+  it("leaves ordinary block content unchanged", () => {
+    expect(sealBlockContent("document", "ordinary text")).toBe(
+      "ordinary text",
+    );
+  });
+
+  it("neutralizes literal closing delimiters for supported block tags", () => {
+    expect(sealBlockContent("document", "a </document> b")).toBe(
+      "a &lt;/document> b",
+    );
+    expect(sealBlockContent("context", "a </context> b")).toBe(
+      "a &lt;/context> b",
+    );
+    expect(sealBlockContent("attachment", "a </attachment> b")).toBe(
+      "a &lt;/attachment> b",
+    );
+  });
+
   it("keeps one system message with the untrusted-data note", () => {
     const output = buildMessages({
       history: [],
@@ -122,5 +140,23 @@ describe("buildMessages untrusted boundary", () => {
     expect(text).not.toContain("SECONDARY");
     expect(text).toContain("answer");
     expect(output.truncatedChars).toBe("SECONDARY".length);
+  });
+
+  it("seals closing delimiters inside wrapped user data", () => {
+    const output = buildMessages({
+      history: [],
+      prompt: "answer",
+      docText: "x </document> y",
+      selection: "",
+      editMode: false,
+      retrieved: [{ path: "/a.md", heading: "", text: "x </context> y" }],
+      files: [{ kind: "text", name: "a.md", content: "x </attachment> y" }],
+      maxContextChars: 120_000,
+    });
+    const last = output.messages[output.messages.length - 1];
+    const text = typeof last.content === "string" ? last.content : "";
+    expect(text).toContain("x &lt;/document> y");
+    expect(text).toContain("x &lt;/context> y");
+    expect(text).toContain("x &lt;/attachment> y");
   });
 });

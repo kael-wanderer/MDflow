@@ -22,6 +22,10 @@ function escapeAttribute(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
+export function sealBlockContent(tag: string, content: string): string {
+  return content.split(`</${tag}>`).join(`&lt;/${tag}>`);
+}
+
 export function buildMessages(options: {
   history: ChatMessage[];
   prompt: string;
@@ -48,7 +52,7 @@ export function buildMessages(options: {
   if (context.trim()) {
     blocks.push({
       prefix: "<document>\n",
-      content: context,
+      content: sealBlockContent("document", context),
       suffix: "\n</document>",
     });
   }
@@ -58,7 +62,7 @@ export function buildMessages(options: {
     );
     blocks.push({
       prefix: `<context source="${source}">\n`,
-      content: chunk.text,
+      content: sealBlockContent("context", chunk.text),
       suffix: "\n</context>",
     });
   }
@@ -67,7 +71,7 @@ export function buildMessages(options: {
       const name = escapeAttribute(file.name);
       blocks.push({
         prefix: `<attachment name="${name}">\n`,
-        content: file.content,
+        content: sealBlockContent("attachment", file.content),
         suffix: "\n</attachment>",
       });
     }
