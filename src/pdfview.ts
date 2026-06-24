@@ -14,6 +14,7 @@ export type PdfViewHandle = {
   setQuery: (query: string) => number;
   move: (delta: number) => { count: number; active: number };
   clear: () => void;
+  destroy: () => void;
   setZoom: (zoom: number) => void;
   getZoom: () => number;
   fitWidthZoom: (paneClientWidth: number) => number;
@@ -31,6 +32,8 @@ type PageInfo = {
   pointWidth: number;
   pointHeight: number;
   text: string;
+  renderedZoom: number | null;
+  painting: boolean;
 };
 
 const RERENDER_DELAY_MS = 200;
@@ -69,7 +72,6 @@ export async function renderPdf(
   let active = -1;
   let currentQuery = "";
   let zoom = pdfClampZoom(options?.initialZoom ?? 1);
-  let renderedZoom = zoom;
   let rerenderToken = 0;
   let rerenderTimer: ReturnType<typeof setTimeout> | undefined;
   let maxPagePointWidth = 0;
@@ -126,9 +128,73 @@ export async function renderPdf(
       const box = pdfPageBox(info.pointWidth, info.pointHeight, zoom);
       info.wrap.style.width = box.width;
       info.wrap.style.height = box.height;
-      info.inner.style.transform = pdfInnerTransform(zoom, renderedZoom);
+      info.inner.style.transform = pdfInnerTransform(
+        zoom,
+        info.renderedZoom ?? zoom,
+      );
     }
   }
+
+  function highlightPage(info: PageInfo, query: string): void {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!escaped) return;
+    const pattern = new RegExp(escaped, "gi");
+    info.wrap
+      .querySelectorAll<HTMLElement>(".pdf-text-layer span")
+      .forEach((span) => {
+        pattern.lastIndex = 0;
+        if (pattern.test(span.textContent ?? "")) {
+          span.classList.add("pdf-text-match");
+        }
+      });
+  }
+
+  function pageNearViewport(info: PageInfo, marginPx: number): boolean {
+    const hostRect = host.getBoundingClientRect();
+    const rect = info.wrap.getBoundingClientRect();
+    return (
+      rect.bottom >= hostRect.top - marginPx &&
+      rect.top <= hostRect.bottom + marginPx
+    );
+  }
+
+  async function ensureRendered(info: PageInfo): Promise<void> {
+    if (info.painting || info.renderedZoom === zoom) return;
+    info.painting = true;
+    const token = rerenderToken;
+    try {
+      await paintPage(info, zoom);
+    } finally {
+      info.painting = false;
+    }
+    if (token !== rerenderToken) {
+      info.renderedZoom = null;
+      window.setTimeout(renderVisible, 0);
+      return;
+    }
+    info.renderedZoom = zoom;
+    info.inner.style.transform = "scale(1)";
+    info.wrap.classList.add("pdf-rendered");
+    if (currentQuery) highlightPage(info, currentQuery);
+  }
+
+  function renderVisible(): void {
+    const margin = host.clientHeight;
+    pages
+      .filter((info) => pageNearViewport(info, margin))
+      .forEach((info) => void ensureRendered(info));
+  }
+
+  const pageObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const info = pages.find((page) => page.wrap === entry.target);
+        if (info) void ensureRendered(info);
+      }
+    },
+    { root: host, rootMargin: "150% 0px" },
+  );
 
   function clearDecorations(): void {
     pages.forEach(({ wrap }) => {
@@ -167,14 +233,7 @@ export async function renderPdf(
       const count = [...page.text.matchAll(pattern)].length;
       if (!count) return;
       page.wrap.classList.add("pdf-find-page");
-      page.inner
-        .querySelectorAll<HTMLElement>(".pdf-text-layer span")
-        .forEach((span) => {
-          pattern.lastIndex = 0;
-          if (pattern.test(span.textContent ?? "")) {
-            span.classList.add("pdf-text-match");
-          }
-        });
+      if (page.renderedZoom !== null) highlightPage(page, query);
       const badge = window.document.createElement("span");
       badge.className = "pdf-find-count";
       badge.textContent = `${count} match${count === 1 ? "" : "es"}`;
@@ -186,38 +245,6 @@ export async function renderPdf(
       move(1);
     }
     return matches.length;
-  }
-
-  async function crispRerender(): Promise<void> {
-    const token = ++rerenderToken;
-    const targetZoom = zoom;
-    for (const info of visibleFirstPages()) {
-      if (token !== rerenderToken) return;
-      await paintPage(info, targetZoom);
-      info.inner.style.transform = "scale(1)";
-    }
-    if (token !== rerenderToken) return;
-    renderedZoom = targetZoom;
-    applyInstantZoom();
-    if (currentQuery) applyQuery(currentQuery, active);
-  }
-
-  function scheduleCrispRerender(): void {
-    if (rerenderTimer) clearTimeout(rerenderTimer);
-    rerenderTimer = setTimeout(() => void crispRerender(), RERENDER_DELAY_MS);
-  }
-
-  function visibleFirstPages(): PageInfo[] {
-    const hostRect = host.getBoundingClientRect();
-    const distance = (info: PageInfo): number => {
-      const rect = info.wrap.getBoundingClientRect();
-      if (rect.bottom >= hostRect.top && rect.top <= hostRect.bottom) return 0;
-      return Math.min(
-        Math.abs(rect.top - hostRect.bottom),
-        Math.abs(hostRect.top - rect.bottom),
-      );
-    };
-    return [...pages].sort((a, b) => distance(a) - distance(b));
   }
 
   for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
@@ -247,10 +274,11 @@ export async function renderPdf(
       pointWidth,
       pointHeight,
       text: "",
+      renderedZoom: null,
+      painting: false,
     };
     pages.push(info);
     applyInstantZoom();
-    await paintPage(info, renderedZoom);
 
     try {
       const textContent = await page.getTextContent();
@@ -264,17 +292,28 @@ export async function renderPdf(
     if (pageNumber === options?.initialPage) {
       wrap.scrollIntoView({ block: "start" });
     }
+    pageObserver.observe(wrap);
   }
   applyInstantZoom();
+  renderVisible();
 
   return {
     setQuery: applyQuery,
     move,
     clear,
+    destroy: () => {
+      if (rerenderTimer) clearTimeout(rerenderTimer);
+      pageObserver.disconnect();
+      clearDecorations();
+    },
     setZoom: (next) => {
       zoom = pdfClampZoom(next);
+      rerenderToken += 1;
       applyInstantZoom();
-      scheduleCrispRerender();
+      if (rerenderTimer) clearTimeout(rerenderTimer);
+      rerenderTimer = setTimeout(() => {
+        renderVisible();
+      }, RERENDER_DELAY_MS);
     },
     getZoom: () => zoom,
     fitWidthZoom: (paneClientWidth) =>

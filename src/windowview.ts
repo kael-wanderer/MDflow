@@ -19,6 +19,7 @@ import type { ViewMode } from "./state";
 import type { MarkdownFormat } from "./markdown-format";
 import { THEME_OPTIONS, type ThemeName } from "./settings";
 import { renderPdf, scrollPdfToPage, type PdfFindHandle } from "./pdfview";
+import { mdFitZoom } from "./md-fit";
 import { FILE_ICON_TEXT, fileIcon } from "./icons";
 import {
   activateTextMatch,
@@ -450,13 +451,14 @@ export function createWindowView(
       previewFrame = null;
       previewCanvas = null;
       htmlPreviewContentSize = null;
+      pdfFind?.destroy();
       pdfFind = null;
       previewPane.innerHTML = '<div class="board-loading">Loading PDF…</div>';
       wsWords.textContent = "PDF";
       void renderPdf(previewPane, pathOrName!, { initialPage: pdfTargetPage })
         .then((handle) => {
           if (token !== boardRenderToken) {
-            handle.clear();
+            handle.destroy();
             return;
           }
           pdfFind = handle;
@@ -565,6 +567,7 @@ export function createWindowView(
     previewFrame = null;
     previewCanvas = null;
     htmlPreviewContentSize = null;
+    pdfFind?.destroy();
     pdfFind = null;
     previewPane.replaceChildren();
     if (!isMarkdownFile(pathOrName) && !isHtmlFile(pathOrName)) {
@@ -609,17 +612,24 @@ export function createWindowView(
       article.style.zoom = String(previewZoom);
       article.innerHTML = renderMarkdown(text);
       previewPane.appendChild(article);
-      enhancePreview(previewPane);
+      void enhancePreview(previewPane).then(() => {
+        if (previewPane.contains(article)) measureMarkdownFit();
+      });
+      measureMarkdownFit();
     }
     const count = countWords(text);
     wsWords.textContent = `${count} ${count === 1 ? "word" : "words"}`;
   }
 
   function updateZoomLabel(): void {
+    const mode = getWindow(windowId)?.mode;
+    const fitting =
+      previewAutoFit &&
+      ((isHtmlFile(previewPathOrName) && mode === "split") ||
+        isPdfFile(previewPathOrName) ||
+        isMarkdownFile(previewPathOrName));
     root.querySelector<HTMLElement>(".wt-preview-reset")!.textContent =
-      (previewAutoFit &&
-        ((isHtmlFile(previewPathOrName) && getWindow(windowId)?.mode === "split") ||
-          isPdfFile(previewPathOrName)))
+      fitting
         ? "Fit"
         : `${Math.round(previewZoom * 100)}%`;
   }
@@ -810,6 +820,26 @@ export function createWindowView(
     previewCanvas.style.height = scaled.canvasHeight;
   }
 
+  // Auto-fit Markdown preview by scaling the article around its widest fixed block.
+  function measureMarkdownFit(): void {
+    if (!isMarkdownFile(previewPathOrName) || !previewAutoFit) return;
+    const article = previewPane.querySelector<HTMLElement>("article.doc");
+    if (!article) return;
+    article.style.zoom = "1";
+    let widest = 0;
+    article
+      .querySelectorAll<HTMLElement>(
+        "pre.hljs, table, .mermaid-rendered, .katex-display, img",
+      )
+      .forEach((el) => {
+        widest = Math.max(widest, el.scrollWidth);
+      });
+    const fit = mdFitZoom(widest, previewPane.clientWidth);
+    previewZoom = fit;
+    article.style.zoom = String(fit);
+    updateZoomLabel();
+  }
+
   // Scale the HTML preview to fit the pane (used in split auto-fit mode).
   function fitHtmlPreview(): void {
     if (!htmlPreviewContentSize) measureHtmlPreview();
@@ -849,6 +879,10 @@ export function createWindowView(
       }
       return;
     }
+    if (isMarkdownFile(previewPathOrName) && previewAutoFit) {
+      measureMarkdownFit();
+      return;
+    }
     renderPreview(previewText, previewPathOrName);
   }
 
@@ -877,6 +911,9 @@ export function createWindowView(
       } else {
         applyHtmlZoom(previewZoom);
       }
+    }
+    if (isMarkdownFile(previewPathOrName) && previewAutoFit) {
+      measureMarkdownFit();
     }
   });
   previewResizeObserver.observe(previewPane);

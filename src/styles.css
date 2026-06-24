@@ -1233,6 +1233,10 @@ body.search-active #search-panel {
   scroll-margin-top: 16px;
 }
 
+.pdf-page-wrap:not(.pdf-rendered) {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
 .pdf-page-inner {
   position: relative;
   transform-origin: top left;
