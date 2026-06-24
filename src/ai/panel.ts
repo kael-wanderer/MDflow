@@ -16,6 +16,10 @@ import { matchAccelerator } from "../keymap";
 import { rankItems } from "../fuzzy";
 import { hashText } from "../hash";
 import { chatContentText, type ChatMessage } from "./providers";
+import {
+  commandPermissionProfiles,
+  resolveCommandPermissionProfile,
+} from "./providers";
 import { contextTrimWarning } from "./context-budget";
 
 export type AIPanelDeps = {
@@ -37,7 +41,10 @@ export type AIPanelDeps = {
     newText: string,
     selection: { text: string; from: number; to: number },
   ) => void;
-  confirmBypass: (label: string) => Promise<boolean>;
+  confirmPermission: (
+    providerLabel: string,
+    profileLabel: string,
+  ) => Promise<boolean>;
   beforeApply?: (binding: EditBinding) => void | Promise<void>;
   onInsert: (text: string) => void;
   onOpenChangedFile: (dir: string, relativePath: string) => void;
@@ -241,10 +248,7 @@ export function createAIPanel(
           </label>
           <label>
             <span>Permission</span>
-            <select class="ai-permission">
-              <option value="ask">Ask before doing</option>
-              <option value="bypass">Bypass approvals</option>
-            </select>
+            <select class="ai-permission"></select>
           </label>
           <label class="ai-workspace-toggle">
             <input type="checkbox" class="ai-workspace-context" />
@@ -282,13 +286,38 @@ export function createAIPanel(
         ...deps.getSettings(),
         defaultProvider: providerSelect.value,
       });
+      const nextProvider = deps
+        .getSettings()
+        .providers.find((provider) => provider.id === providerSelect.value);
+      renderPermissionOptions(nextProvider);
     });
     const permissionSelect =
       body.querySelector<HTMLSelectElement>(".ai-permission")!;
-    permissionSelect.value = sessionPermissionMode;
+    const permissionLabel = permissionSelect.closest("label") as HTMLElement;
+    const renderPermissionOptions = (provider: Provider | undefined): void => {
+      permissionSelect.replaceChildren();
+      if (!provider || provider.type !== "command") {
+        permissionSelect.disabled = true;
+        permissionLabel.hidden = true;
+        return;
+      }
+      permissionSelect.disabled = false;
+      permissionLabel.hidden = false;
+      const profiles = commandPermissionProfiles(provider);
+      for (const profile of profiles) {
+        const option = document.createElement("option");
+        option.value = profile.id;
+        option.textContent = profile.label;
+        permissionSelect.appendChild(option);
+      }
+      if (!profiles.some((profile) => profile.id === sessionPermissionMode)) {
+        sessionPermissionMode = profiles[0]?.id ?? "ask";
+      }
+      permissionSelect.value = sessionPermissionMode;
+    };
+    renderPermissionOptions(currentProvider(settings));
     permissionSelect.addEventListener("change", () => {
-      sessionPermissionMode =
-        permissionSelect.value === "bypass" ? "bypass" : "ask";
+      sessionPermissionMode = permissionSelect.value || "ask";
     });
     const workspaceContext =
       body.querySelector<HTMLInputElement>(".ai-workspace-context")!;
@@ -426,14 +455,16 @@ export function createAIPanel(
         );
         return;
       }
-      const runMode = sessionPermissionMode;
-      if (
-        runMode === "bypass" &&
-        provider.type === "command" &&
-        provider.bypassRun &&
-        !(await deps.confirmBypass(provider.label))
-      ) {
-        return;
+      let runMode = sessionPermissionMode;
+      if (provider.type === "command") {
+        const profile = resolveCommandPermissionProfile(provider, runMode);
+        runMode = profile.id;
+        if (
+          profile.confirmEachRun &&
+          !(await deps.confirmPermission(provider.label, profile.label))
+        ) {
+          return;
+        }
       }
 
       input.value = "";

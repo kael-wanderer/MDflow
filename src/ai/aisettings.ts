@@ -14,6 +14,14 @@ export type CommandProvider = {
   type: "command";
   run: string;
   bypassRun?: string;
+  permissionProfiles?: PermissionProfile[];
+};
+
+export type PermissionProfile = {
+  id: string;
+  label: string;
+  run: string;
+  confirmEachRun?: boolean;
 };
 
 export type Provider = HttpProvider | CommandProvider;
@@ -39,7 +47,7 @@ export type AISettings = {
   maxContextChars: number;
 };
 
-export type PermissionMode = "ask" | "bypass";
+export type PermissionMode = string;
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
   providers: [
@@ -164,6 +172,11 @@ function parseProvider(raw: unknown): Provider | null {
   }
 
   if (value.type === "command" && typeof value.run === "string") {
+    const permissionProfiles = Array.isArray(value.permissionProfiles)
+      ? value.permissionProfiles
+          .map(parsePermissionProfile)
+          .filter((profile): profile is PermissionProfile => Boolean(profile))
+      : undefined;
     return {
       id: value.id,
       label: value.label,
@@ -171,10 +184,34 @@ function parseProvider(raw: unknown): Provider | null {
       run: value.run,
       bypassRun:
         typeof value.bypassRun === "string" ? value.bypassRun : undefined,
+      permissionProfiles: permissionProfiles?.length
+        ? permissionProfiles
+        : undefined,
     };
   }
 
   return null;
+}
+
+function parsePermissionProfile(raw: unknown): PermissionProfile | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.label !== "string" ||
+    typeof value.run !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    label: value.label,
+    run: value.run,
+    confirmEachRun:
+      typeof value.confirmEachRun === "boolean"
+        ? value.confirmEachRun
+        : undefined,
+  };
 }
 
 function parseTerminal(raw: unknown): TerminalEntry | null {

@@ -3,8 +3,10 @@ import type { HttpProvider } from "../ai/aisettings";
 import {
   buildAnthropicBody,
   buildHttpBody,
+  commandPermissionProfiles,
   parseAnthropicSSEDelta,
   parseSSEDelta,
+  resolveCommandPermissionProfile,
   substitutePrompt,
 } from "../ai/providers";
 
@@ -105,5 +107,72 @@ describe("substitutePrompt", () => {
     expect(
       substitutePrompt("claude -p {prompt}", "hello world"),
     ).toEqual(["claude", "-p", "hello world"]);
+  });
+});
+
+describe("command permission profiles", () => {
+  it("creates ask/full-access fallback profiles from run and bypassRun", () => {
+    const profiles = commandPermissionProfiles({
+      id: "c",
+      label: "CLI",
+      type: "command",
+      run: "cli {prompt}",
+      bypassRun: "cli --yes {prompt}",
+    });
+    expect(profiles).toEqual([
+      {
+        id: "ask",
+        label: "Ask before doing",
+        run: "cli {prompt}",
+        confirmEachRun: false,
+      },
+      {
+        id: "full-access",
+        label: "Full access",
+        run: "cli --yes {prompt}",
+        confirmEachRun: true,
+      },
+    ]);
+  });
+
+  it("uses custom profiles when present", () => {
+    const resolved = resolveCommandPermissionProfile(
+      {
+        id: "c",
+        label: "CLI",
+        type: "command",
+        run: "cli {prompt}",
+        bypassRun: "cli --yes {prompt}",
+        permissionProfiles: [
+          { id: "read", label: "Read only", run: "cli --read {prompt}" },
+          {
+            id: "full",
+            label: "Full",
+            run: "cli --full {prompt}",
+            confirmEachRun: true,
+          },
+        ],
+      },
+      "full",
+    );
+    expect(resolved).toEqual({
+      id: "full",
+      label: "Full",
+      run: "cli --full {prompt}",
+      confirmEachRun: true,
+    });
+  });
+
+  it("falls back to the first profile when selection is unavailable", () => {
+    const resolved = resolveCommandPermissionProfile(
+      {
+        id: "c",
+        label: "CLI",
+        type: "command",
+        run: "cli {prompt}",
+      },
+      "missing",
+    );
+    expect(resolved).toMatchObject({ id: "ask", run: "cli {prompt}" });
   });
 });

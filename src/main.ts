@@ -1599,11 +1599,11 @@ function buildAIPanel(): void {
     lookupTabText: panelReview.lookupTabText,
     applyEditTo: panelReview.applyEditTo,
     beforeApply: panelReview.beforeApply,
-    confirmBypass: (label) =>
+    confirmPermission: (providerLabel, profileLabel) =>
       confirm(
-        `Run ${label} with approvals bypassed? It can read and modify files and run commands without prompting.`,
+        `Run ${providerLabel} with "${profileLabel}" permissions? MDflow will start the selected CLI command; the agent enforces its own permission flags.`,
         {
-          title: "Bypass approvals?",
+          title: "Confirm AI run",
           kind: "warning",
           okLabel: "Run once",
           cancelLabel: "Cancel",

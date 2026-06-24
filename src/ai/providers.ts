@@ -1,4 +1,4 @@
-import type { HttpProvider } from "./aisettings";
+import type { CommandProvider, HttpProvider, PermissionProfile } from "./aisettings";
 
 export type ChatContentPart =
   | { type: "text"; text: string }
@@ -15,6 +15,13 @@ export type AnthropicBody = {
   system?: string;
   messages: { role: "user" | "assistant"; content: string }[];
   stream: boolean;
+};
+
+export type ResolvedPermissionProfile = {
+  id: string;
+  label: string;
+  run: string;
+  confirmEachRun: boolean;
 };
 
 export function chatContentText(content: ChatMessage["content"]): string {
@@ -106,4 +113,50 @@ export function substitutePrompt(run: string, prompt: string): string[] {
     .split(/\s+/)
     .filter(Boolean)
     .map((token) => (token === "{prompt}" ? prompt : token));
+}
+
+export function commandPermissionProfiles(
+  provider: CommandProvider,
+): ResolvedPermissionProfile[] {
+  if (provider.permissionProfiles?.length) {
+    return provider.permissionProfiles.map(normalizeCustomProfile);
+  }
+  const profiles: ResolvedPermissionProfile[] = [
+    {
+      id: "ask",
+      label: "Ask before doing",
+      run: provider.run,
+      confirmEachRun: false,
+    },
+  ];
+  if (provider.bypassRun) {
+    profiles.push({
+      id: "full-access",
+      label: "Full access",
+      run: provider.bypassRun,
+      confirmEachRun: true,
+    });
+  }
+  return profiles;
+}
+
+export function resolveCommandPermissionProfile(
+  provider: CommandProvider,
+  selectedProfileId: string,
+): ResolvedPermissionProfile {
+  const profiles = commandPermissionProfiles(provider);
+  return (
+    profiles.find((profile) => profile.id === selectedProfileId) ?? profiles[0]
+  );
+}
+
+function normalizeCustomProfile(
+  profile: PermissionProfile,
+): ResolvedPermissionProfile {
+  return {
+    id: profile.id,
+    label: profile.label,
+    run: profile.run,
+    confirmEachRun: profile.confirmEachRun ?? false,
+  };
 }

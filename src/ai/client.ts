@@ -6,6 +6,7 @@ import {
   chatContentText,
   parseAnthropicSSEDelta,
   parseSSEDelta,
+  resolveCommandPermissionProfile,
   substitutePrompt,
   type ChatMessage,
 } from "./providers";
@@ -153,11 +154,8 @@ async function streamCommand(
           `${message.role.toUpperCase()}: ${chatContentText(message.content)}`,
       )
       .join("\n\n");
-  const run =
-    permissionMode === "bypass" && provider.bypassRun
-      ? provider.bypassRun
-      : provider.run;
-  const args = substitutePrompt(run, prompt);
+  const profile = resolveCommandPermissionProfile(provider, permissionMode);
+  const args = substitutePrompt(profile.run, prompt);
   const requestId = `ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const unlisteners: UnlistenFn[] = [];
   let resolveStream: () => void = () => {};

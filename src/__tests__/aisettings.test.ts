@@ -77,6 +77,34 @@ describe("parseAISettings", () => {
     });
   });
 
+  it("parses custom command permission profiles", () => {
+    const settings = parseAISettings(
+      JSON.stringify({
+        providers: [
+          {
+            id: "x",
+            label: "X",
+            type: "command",
+            run: "x {prompt}",
+            permissionProfiles: [
+              {
+                id: "read",
+                label: "Read only",
+                run: "x --read {prompt}",
+              },
+              { id: "bad" },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(settings.providers[0]).toMatchObject({
+      permissionProfiles: [
+        { id: "read", label: "Read only", run: "x --read {prompt}" },
+      ],
+    });
+  });
+
   it("bundles the current Anthropic model id", () => {
     const provider = DEFAULT_AI_SETTINGS.providers.find(
       (candidate) => candidate.id === "anthropic",
