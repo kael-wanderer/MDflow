@@ -435,6 +435,14 @@ export function createWindowView(
     text: string,
     pathOrName: string | null = null,
   ): void {
+    // Reset zoom/auto-fit on a document switch (new file), but not on the frequent
+    // edit-debounce re-renders of the same document — otherwise a manual zoom would
+    // snap back while typing. Without this, a freshly opened doc inherits the previous
+    // doc's stale zoom (e.g. Markdown opening at 140% with auto-fit off).
+    if (pathOrName !== previewPathOrName) {
+      previewAutoFit = true;
+      previewZoom = 1;
+    }
     previewText = text;
     previewPathOrName = pathOrName;
     if (!isPdfFile(pathOrName)) {
@@ -888,6 +896,17 @@ export function createWindowView(
     editor.requestMeasure();
   }
 
+  // Which surface the zoom shortcuts act on. PDF has no editor, and reading
+  // (preview-only) mode hides it, so zoom must target the preview there regardless of
+  // the last-focused pane (which defaults to "editor"). In split, follow the focus.
+  function zoomTarget(): "editor" | "preview" {
+    if (isPdfFile(previewPathOrName)) return "preview";
+    const mode = getWindow(windowId)?.mode;
+    if (mode === "preview") return "preview";
+    if (mode === "editor") return "editor";
+    return focusedPane;
+  }
+
   const previewResizeObserver = new ResizeObserver(() => {
     if (
       isPdfFile(previewPathOrName) &&
@@ -943,7 +962,7 @@ export function createWindowView(
         return;
       }
       if (isExcalidrawFile(previewPathOrName)) return;
-      if (focusedPane === "editor") {
+      if (zoomTarget() === "editor") {
         setEditorZoom(editorZoom + delta);
       } else {
         previewAutoFit = false;
@@ -956,7 +975,7 @@ export function createWindowView(
         return;
       }
       if (isExcalidrawFile(previewPathOrName)) return;
-      if (focusedPane === "editor") {
+      if (zoomTarget() === "editor") {
         setEditorZoom(1);
       } else {
         previewAutoFit = true;
