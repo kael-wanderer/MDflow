@@ -1229,7 +1229,14 @@ body.search-active #search-panel {
 
 .pdf-page-wrap {
   position: relative;
+  margin: 0 0 12px;
   scroll-margin-top: 16px;
+}
+
+.pdf-page-inner {
+  position: relative;
+  transform-origin: top left;
+  will-change: transform;
 }
 
 .pdf-text-layer {
@@ -1988,11 +1995,24 @@ body.no-folder .explorer-empty {
 
 .pdf-page {
   display: block;
-  max-width: 100%;
   height: auto;
-  margin: 0 auto 12px;
+  margin: 0;
   background: white;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+.pane.pdf-pan-mode {
+  cursor: grab;
+}
+
+.pane.pdf-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.pane.pdf-panning .pdf-text-layer :is(span, br) {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .pdf-loading {
