@@ -62,6 +62,19 @@ export async function refreshDir(dirPath: string): Promise<void> {
   setState({ tree: setChildren(tree, dirPath, children) });
 }
 
+function expandedDirPaths(node: TreeNode): string[] {
+  if (!node.isDir || !node.expanded) return [];
+  const childPaths = (node.children ?? []).flatMap(expandedDirPaths);
+  return [node.path, ...childPaths];
+}
+
+export async function refreshExpandedDirs(): Promise<void> {
+  const paths = state.tree ? expandedDirPaths(state.tree) : [];
+  for (const path of paths) {
+    await refreshDir(path);
+  }
+}
+
 export function getWindow(id: string): WindowState | undefined {
   return state.windows.find((w) => w.id === id);
 }

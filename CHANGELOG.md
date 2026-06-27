@@ -37,6 +37,8 @@ All notable changes to MDflow are documented here. The format is based on
 
 ### Fixed
 
+- Explorer folders and clean open files now refresh from disk every 5 seconds, so
+  files moved or edited by other apps appear without restarting MDflow.
 - HTML previews now size the iframe canvas from measured document pixels, so wide
   standalone HTML files show real pane scrollbars and the wheel scrolls the preview.
 

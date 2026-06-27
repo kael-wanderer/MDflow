@@ -51,6 +51,7 @@ export type EditorHandle = {
   getSelection(): { from: number; to: number; text: string };
   replaceRange(from: number, to: number, text: string): void;
   setText(text: string): void;
+  setTextFor(id: string, text: string): void;
   setSoftWrap(on: boolean): void;
   setSoftWrapMode(mode: SoftWrapMode, column: number): void;
   setLineNumbers(on: boolean): void;
@@ -302,6 +303,20 @@ export function createEditor(
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: text },
       });
+    },
+    setTextFor(id, text) {
+      if (id === activeId) {
+        handle.setText(text);
+        return;
+      }
+      const state = states.get(id);
+      if (!state) return;
+      states.set(
+        id,
+        state.update({
+          changes: { from: 0, to: state.doc.length, insert: text },
+        }).state,
+      );
     },
     setSoftWrap(on) {
       softWrapMode = on ? "window" : "off";

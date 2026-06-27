@@ -101,7 +101,17 @@ import {
   saveState,
   type ViewMode,
 } from "./state";
-import { getState, refreshDir, setState, subscribe, getWindow, mainWindow, activeWindow, patchWindow } from "./store";
+import {
+  getState,
+  refreshDir,
+  refreshExpandedDirs,
+  setState,
+  subscribe,
+  getWindow,
+  mainWindow,
+  activeWindow,
+  patchWindow,
+} from "./store";
 import {
   nextActiveAfterClose,
   otherTabIds,
@@ -134,6 +144,7 @@ let tabSeq = 0;
 const nextId = () => `t${++tabSeq}`;
 const cleanReloads = new Set<string>();
 const recoveredDraftIds = new Map<string, string>();
+const AUTO_REFRESH_MS = 5_000;
 
 function persistUiState(): void {
   if (isPrimaryNativeWindow) saveState(ui);
@@ -1034,7 +1045,7 @@ async function checkActiveForExternalChange(windowId: string): Promise<void> {
     reload: (text) => {
       cleanReloads.add(changeKey);
       try {
-        view.editor.setText(text);
+        view.editor.setTextFor(tab.id, text);
       } finally {
         cleanReloads.delete(changeKey);
       }
@@ -1066,6 +1077,75 @@ async function checkActiveForExternalChange(windowId: string): Promise<void> {
     },
     host: document.getElementById("editorarea")!,
   });
+}
+
+async function refreshCleanOpenFilesFromDisk(): Promise<void> {
+  for (const windowState of getState().windows) {
+    const view = views.get(windowState.id);
+    if (!view) continue;
+
+    for (const tab of windowState.tabs) {
+      if (!tab.path || tab.dirty || isPdfFile(tab.path)) continue;
+      const bufferText = view.editor.getText(tab.id);
+      const changeKey = `${windowState.id}:${tab.id}`;
+      await checkExternalChange(tab.path, false, bufferText, {
+        reload: (text) => {
+          cleanReloads.add(changeKey);
+          try {
+            view.editor.setTextFor(tab.id, text);
+          } finally {
+            cleanReloads.delete(changeKey);
+          }
+          clearDraft(tab.path, tab.id);
+          const current = getWindow(windowState.id);
+          if (current) {
+            patchWindow(windowState.id, {
+              tabs: current.tabs.map((item) =>
+                item.id === tab.id ? { ...item, dirty: false } : item,
+              ),
+            });
+          }
+          if (windowState.activeTabId === tab.id) {
+            view.renderPreview(text, tab.path!);
+          }
+        },
+        markDirty: () => {
+          const current = getWindow(windowState.id);
+          if (!current) return;
+          patchWindow(windowState.id, {
+            tabs: current.tabs.map((item) =>
+              item.id === tab.id ? { ...item, dirty: true } : item,
+            ),
+          });
+          scheduleDraft({
+            windowId: windowState.id,
+            tabId: tab.id,
+            path: tab.path,
+            name: tab.name,
+            contents: bufferText,
+          });
+        },
+        host: document.getElementById("editorarea")!,
+      });
+    }
+  }
+  renderAll();
+}
+
+let autoRefreshRunning = false;
+
+async function refreshWorkspaceFromDisk(): Promise<void> {
+  if (autoRefreshRunning) return;
+  autoRefreshRunning = true;
+  try {
+    if (getState().folder) {
+      await refreshExpandedDirs().catch(() => {});
+      await refreshFileList();
+    }
+    await refreshCleanOpenFilesFromDisk();
+  } finally {
+    autoRefreshRunning = false;
+  }
 }
 
 function openDraft(draft: DraftRecord): void {
@@ -2011,11 +2091,15 @@ subscribe(() => {
 window.addEventListener("focus", () => {
   const folder = getState().folder;
   if (folder) {
-    void refreshDir(folder).catch(() => {});
+    void refreshExpandedDirs().catch(() => {});
     void refreshFileList();
   }
   void checkActiveForExternalChange(getState().activeWindowId);
 });
+
+window.setInterval(() => {
+  void refreshWorkspaceFromDisk();
+}, AUTO_REFRESH_MS);
 
 listen<string>("menu", (event) => {
   const wid = getState().activeWindowId;
