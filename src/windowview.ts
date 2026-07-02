@@ -18,7 +18,13 @@ import { getWindow, getState } from "./store";
 import type { ViewMode } from "./state";
 import type { MarkdownFormat } from "./markdown-format";
 import { THEME_OPTIONS, type ThemeName } from "./settings";
-import { renderPdf, scrollPdfToPage, type PdfFindHandle } from "./pdfview";
+import {
+  PDF_SAVE_AS_EVENT,
+  PDF_SAVE_EVENT,
+  renderPdf,
+  scrollPdfToPage,
+  type PdfFindHandle,
+} from "./pdfview";
 import { FILE_ICON_TEXT, fileIcon } from "./icons";
 import {
   activateTextMatch,
@@ -40,6 +46,7 @@ export type WindowHandlers = {
   onToggleSub: () => void;
   onFocusWindow: (windowId: string) => void;
   onDocChange: (windowId: string, tabId: string, text: string) => void;
+  onPdfEditDirtyChange: (windowId: string, tabId: string, dirty: boolean) => void;
   onSave: (windowId: string) => void;
   onOpen: (windowId: string) => void;
   onResetMindmap: (windowId: string) => void;
@@ -64,6 +71,8 @@ export type WindowView = {
   destroy: () => void;
   setLineNumbersFlag: (on: boolean) => void;
   openPdfPage: (page: number) => void;
+  savePdf: () => boolean;
+  savePdfAs: () => boolean;
   openFind: () => boolean;
 };
 
@@ -435,6 +444,7 @@ export function createWindowView(
     previewText = text;
     previewPathOrName = pathOrName;
     if (isPdfFile(pathOrName)) {
+      const pdfTabId = getWindow(windowId)?.activeTabId;
       const token = ++boardRenderToken;
       boardDestroy?.();
       boardDestroy = null;
@@ -447,7 +457,15 @@ export function createWindowView(
       pdfFind = null;
       previewPane.innerHTML = '<div class="board-loading">Loading PDF…</div>';
       wsWords.textContent = "PDF";
-      void renderPdf(previewPane, pathOrName!, { initialPage: pdfTargetPage })
+      void renderPdf(previewPane, pathOrName!, {
+        initialPage: pdfTargetPage,
+        onEditDirtyChange: (dirty) => {
+          if (pdfTabId) h.onPdfEditDirtyChange(windowId, pdfTabId, dirty);
+        },
+        onReloadRequest: () => {
+          renderPreview(previewText, pathOrName);
+        },
+      })
         .then((handle) => {
           if (token !== boardRenderToken) {
             handle.destroy();
@@ -791,6 +809,16 @@ export function createWindowView(
         }
       };
       scrollWhenReady();
+    },
+    savePdf: () => {
+      if (!isPdfFile(previewPathOrName)) return false;
+      previewPane.dispatchEvent(new Event(PDF_SAVE_EVENT));
+      return true;
+    },
+    savePdfAs: () => {
+      if (!isPdfFile(previewPathOrName)) return false;
+      previewPane.dispatchEvent(new Event(PDF_SAVE_AS_EVENT));
+      return true;
     },
     openFind: () => {
       const state = getWindow(windowId);

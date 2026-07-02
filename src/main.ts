@@ -45,7 +45,7 @@ import {
   revealInFinder,
 } from "./filesys";
 import { createPalette, type PaletteItem } from "./palette";
-import { openHistoryPanel } from "./historyview";
+import { openBinaryHistoryPanel, openHistoryPanel } from "./historyview";
 import { markdownOutline } from "./outline";
 import { addRecent, loadRecent, saveRecent } from "./recent";
 import { breadcrumbsPath, joinPath, relativePath } from "./paths";
@@ -64,6 +64,7 @@ import {
   type ExportItem,
 } from "./export-options";
 import { initResize } from "./resize";
+import { clearPdfEditDraft } from "./pdfview";
 import {
   applySettings,
   DEFAULT_SETTINGS_JSON,
@@ -86,6 +87,7 @@ import {
   clearDraftById,
   forgetStat,
   hasDiskChanged,
+  manualBinarySnapshot,
   manualSnapshot,
   recordStat,
   restoreDrafts,
@@ -126,10 +128,17 @@ import helpDoc from "../HELP.md?raw";
 
 const windowsHost = document.getElementById("windows")!;
 
-const nativeWindowLabel =
+const currentNativeWindow =
   typeof (window as any).__TAURI_INTERNALS__ === "object"
-    ? getCurrentWindow().label
-    : "main";
+    ? getCurrentWindow()
+    : null;
+const nativeWindowLabel = currentNativeWindow?.label ?? "main";
+// Scope event listeners to this window: the backend emits menu/open-path
+// events only to the focused window, but the global `listen` receives events
+// targeted at any window, which would fire the handler in every open window.
+const listenScoped: typeof listen = currentNativeWindow
+  ? (currentNativeWindow.listen.bind(currentNativeWindow) as typeof listen)
+  : listen;
 const isPrimaryNativeWindow = nativeWindowLabel === "main";
 const startupUi = isPrimaryNativeWindow ? loadState() : freshState();
 let ui = { ...startupUi, aiVisible: false };
@@ -144,7 +153,7 @@ let tabSeq = 0;
 const nextId = () => `t${++tabSeq}`;
 const cleanReloads = new Set<string>();
 const recoveredDraftIds = new Map<string, string>();
-const AUTO_REFRESH_MS = 5_000;
+const AUTO_REFRESH_MS = 3_000;
 
 function persistUiState(): void {
   if (isPrimaryNativeWindow) saveState(ui);
@@ -365,6 +374,8 @@ const handlers = {
     }
   },
   onDocChange: (wid: string, tid: string, text: string) => onDocChange(wid, tid, text),
+  onPdfEditDirtyChange: (wid: string, tid: string, dirty: boolean) =>
+    onPdfEditDirtyChange(wid, tid, dirty),
   onSave: (wid: string) => {
     setState({ activeWindowId: wid });
     void doSave(false);
@@ -417,6 +428,7 @@ async function closeTabs(windowId: string, tabIds: string[]): Promise<void> {
     const tab = w.tabs.find((item) => item.id === id);
     if (tab) {
       clearDraft(tab.path, tab.id);
+      if (tab.path && isPdfFile(tab.path)) clearPdfEditDraft(tab.path);
       const recoveredId = recoveredDraftIds.get(tab.id);
       if (recoveredId) clearDraftById(recoveredId);
       recoveredDraftIds.delete(tab.id);
@@ -650,6 +662,7 @@ async function closeTab(windowId: string, tabId: string): Promise<boolean> {
   }
 
   clearDraft(t.path, t.id);
+  if (t.path && isPdfFile(t.path)) clearPdfEditDraft(t.path);
   const recoveredId = recoveredDraftIds.get(t.id);
   if (recoveredId) clearDraftById(recoveredId);
   recoveredDraftIds.delete(t.id);
@@ -698,6 +711,20 @@ function onDocChange(windowId: string, tabId: string, text: string): void {
     if (isExcalidrawFile(t?.path ?? t?.name) || isMindmapFile(t?.path ?? t?.name)) return;
     schedulePreview(windowId, tabId, text);
   }
+}
+
+function onPdfEditDirtyChange(
+  windowId: string,
+  tabId: string,
+  dirty: boolean,
+): void {
+  const w = getWindow(windowId);
+  const t = w?.tabs.find((x) => x.id === tabId);
+  if (!w || !t || !isPdfFile(t.path ?? t.name) || t.dirty === dirty) return;
+  patchWindow(windowId, {
+    tabs: w.tabs.map((x) => (x.id === tabId ? { ...x, dirty } : x)),
+  });
+  renderAll();
 }
 
 const timers = new Map<string, number>();
@@ -935,8 +962,15 @@ function newBoard(kind: "excalidraw" | "mind"): void {
 async function doSave(saveAs = false): Promise<void> {
   const t = activeMeta();
   if (!t) return;
-  if (isPdfFile(t.path ?? t.name)) return;
   const view = activeView();
+  if (isPdfFile(t.path ?? t.name)) {
+    if (saveAs) {
+      view.savePdfAs();
+    } else {
+      view.savePdf();
+    }
+    return;
+  }
 
   try {
     let target = saveAs ? null : t.path;
@@ -1009,14 +1043,53 @@ async function doSave(saveAs = false): Promise<void> {
 
 function snapshotActiveDocument(): void {
   const tab = activeMeta();
-  if (!tab?.path || isPdfFile(tab.path)) return;
+  if (!tab?.path) return;
+  if (isPdfFile(tab.path)) {
+    void invoke<number[]>("read_file_bytes", { path: tab.path }).then((bytes) =>
+      manualBinarySnapshot(
+        tab.path!,
+        new Uint8Array(bytes),
+        "Manual PDF snapshot",
+      ),
+    ).catch(() => {});
+    return;
+  }
   void manualSnapshot(tab.path, activeView().editor.getText(tab.id));
 }
 
 function showActiveHistory(): void {
   const windowState = activeWindow();
   const tab = windowState.tabs.find((item) => item.id === windowState.activeTabId);
-  if (!tab?.path || isPdfFile(tab.path)) return;
+  if (!tab?.path) return;
+  if (isPdfFile(tab.path)) {
+    void openBinaryHistoryPanel({
+      host: document.getElementById("editorarea")!,
+      path: tab.path,
+      name: tab.name,
+      onRestore: (bytes) => {
+        void invoke("save_bytes", {
+          path: tab.path!,
+          bytes: Array.from(bytes),
+        }).then(() => {
+          clearPdfEditDraft(tab.path!);
+          void recordStat(tab.path!);
+          const latestWindow = getWindow(windowState.id);
+          if (latestWindow) {
+            patchWindow(windowState.id, {
+              tabs: latestWindow.tabs.map((item) =>
+                item.id === tab.id ? { ...item, dirty: false } : item,
+              ),
+            });
+          }
+          renderAll();
+        }).catch((error) => {
+          const text = error instanceof Error ? error.message : String(error);
+          void message(text, { title: "Restore PDF snapshot", kind: "error" });
+        });
+      },
+    });
+    return;
+  }
   const view = activeView();
   void openHistoryPanel({
     host: document.getElementById("editorarea")!,
@@ -2101,7 +2174,7 @@ window.setInterval(() => {
   void refreshWorkspaceFromDisk();
 }, AUTO_REFRESH_MS);
 
-listen<string>("menu", (event) => {
+listenScoped<string>("menu", (event) => {
   const wid = getState().activeWindowId;
   const id = event.payload;
   if (id.startsWith("view.wrap.")) {
@@ -2318,7 +2391,7 @@ async function boot(): Promise<void> {
   }
 }
 
-void listen<string>("open-path", (event) => {
+void listenScoped<string>("open-path", (event) => {
   void doOpenPath(event.payload);
 }).then(() =>
   invoke<string[]>("take_open_paths").then((paths) => {

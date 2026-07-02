@@ -38,6 +38,8 @@ and never paste from it. Do not add Kaelio as a submodule or copy its files in.
 - Keep it simple. No premature abstraction. Small, focused files (one responsibility).
 - Spec-driven: spec → plan → build → test → document, in order.
 - Solo dev — favor low-risk, incremental, always-shippable steps.
+- Any bug fix must update `CHANGELOG.md` in the same change, unless the user
+  explicitly says not to.
 
 ## Commands
 

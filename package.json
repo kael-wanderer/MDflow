@@ -1,7 +1,7 @@
 {
   "name": "mdflow",
   "private": true,
-  "version": "0.2.6",
+  "version": "0.2.7",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -38,12 +38,16 @@
     "katex": "^0.17.0",
     "markdown-it": "^14.2.0",
     "mermaid": "^11.15.0",
-    "pdfjs-dist": "^6.0.227"
+    "pako": "^3.0.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.0.227",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "@types/katex": "^0.16.8",
     "@types/markdown-it": "^14.1.2",
+    "@types/pako": "^2.0.4",
     "esbuild": "^0.25.12",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
@@ -51,6 +55,7 @@
   },
   "allowScripts": {
     "esbuild@0.25.12": true,
-    "fsevents@2.3.3": true
+    "fsevents@2.3.3": true,
+    "tesseract.js@7.0.0": false
   }
 }

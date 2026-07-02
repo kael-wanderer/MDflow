@@ -7,7 +7,6 @@ import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import {
-  highlightSelectionMatches,
   search,
   searchKeymap,
 } from "@codemirror/search";
@@ -196,7 +195,6 @@ export function createEditor(
     highlightActiveLine(),
     keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
     search({ top: true }),
-    highlightSelectionMatches(),
     language.of(languageExtension(kind)),
     syntaxHighlighting(editorHighlight, { fallback: true }),
     wrap.of(wrapExtension()),

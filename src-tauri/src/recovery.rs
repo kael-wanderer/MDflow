@@ -27,6 +27,8 @@ pub struct SnapshotEntry {
     pub size: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
 }
 
 pub fn safe_id(id: &str) -> bool {
@@ -142,6 +144,29 @@ pub fn save_snapshot_at(
         ts,
         size: contents.len() as i64,
         label,
+        kind: None,
+    });
+    entries.sort_by(|left, right| right.ts.cmp(&left.ts));
+    let json = serde_json::to_vec(&entries).map_err(|error| error.to_string())?;
+    atomic_write(&snapshot_dir.join("index.json"), &json)
+}
+
+pub fn save_snapshot_bytes_at(
+    dir: &Path,
+    file_id: &str,
+    ts: i64,
+    bytes: &[u8],
+    label: Option<String>,
+) -> Result<(), String> {
+    let snapshot_dir = snapshot_dir(dir, file_id)?;
+    atomic_write(&snapshot_dir.join(format!("{ts}.bin")), bytes)?;
+    let mut entries = list_snapshots_at(dir, file_id)?;
+    entries.retain(|entry| entry.ts != ts);
+    entries.push(SnapshotEntry {
+        ts,
+        size: bytes.len() as i64,
+        label,
+        kind: Some("binary".into()),
     });
     entries.sort_by(|left, right| right.ts.cmp(&left.ts));
     let json = serde_json::to_vec(&entries).map_err(|error| error.to_string())?;
@@ -153,12 +178,19 @@ pub fn read_snapshot_at(dir: &Path, file_id: &str, ts: i64) -> Result<String, St
         .map_err(|error| error.to_string())
 }
 
+pub fn read_snapshot_bytes_at(dir: &Path, file_id: &str, ts: i64) -> Result<Vec<u8>, String> {
+    fs::read(snapshot_dir(dir, file_id)?.join(format!("{ts}.bin")))
+        .map_err(|error| error.to_string())
+}
+
 pub fn delete_snapshots_at(dir: &Path, file_id: &str, timestamps: &[i64]) -> Result<(), String> {
     let snapshot_dir = snapshot_dir(dir, file_id)?;
     for timestamp in timestamps {
-        let path = snapshot_dir.join(format!("{timestamp}.md"));
-        if path.exists() {
-            fs::remove_file(path).map_err(|error| error.to_string())?;
+        for extension in ["md", "bin"] {
+            let path = snapshot_dir.join(format!("{timestamp}.{extension}"));
+            if path.exists() {
+                fs::remove_file(path).map_err(|error| error.to_string())?;
+            }
         }
     }
     let kept: Vec<SnapshotEntry> = list_snapshots_at(dir, file_id)?
@@ -223,6 +255,17 @@ pub fn recovery_save_snapshot_labeled(
 }
 
 #[tauri::command]
+pub fn recovery_save_snapshot_bytes_labeled(
+    app: tauri::AppHandle,
+    file_id: String,
+    ts: i64,
+    bytes: Vec<u8>,
+    label: String,
+) -> Result<(), String> {
+    save_snapshot_bytes_at(&recovery_dir(&app)?, &file_id, ts, &bytes, Some(label))
+}
+
+#[tauri::command]
 pub fn recovery_list_snapshots(
     app: tauri::AppHandle,
     file_id: String,
@@ -240,6 +283,15 @@ pub fn recovery_read_snapshot(
 }
 
 #[tauri::command]
+pub fn recovery_read_snapshot_bytes(
+    app: tauri::AppHandle,
+    file_id: String,
+    ts: i64,
+) -> Result<Vec<u8>, String> {
+    read_snapshot_bytes_at(&recovery_dir(&app)?, &file_id, ts)
+}
+
+#[tauri::command]
 pub fn recovery_delete_snapshots(
     app: tauri::AppHandle,
     file_id: String,
@@ -251,14 +303,21 @@ pub fn recovery_delete_snapshots(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    static TMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
     fn tmp() -> PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("mdflow-rec-{nanos}"));
+        let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "mdflow-rec-{}-{nanos}-{counter}",
+            std::process::id()
+        ));
         fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -336,6 +395,30 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].ts, 2000);
         assert!(read_snapshot_at(&dir, "fAAA0000", 1000).is_err());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn binary_snapshot_save_list_read_delete() {
+        let dir = tmp();
+        save_snapshot_bytes_at(
+            &dir,
+            "fPDF0000",
+            3000,
+            b"%PDF bytes",
+            Some("before PDF overwrite".into()),
+        )
+        .unwrap();
+        let list = list_snapshots_at(&dir, "fPDF0000").unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].size, 10);
+        assert_eq!(list[0].kind.as_deref(), Some("binary"));
+        assert_eq!(
+            read_snapshot_bytes_at(&dir, "fPDF0000", 3000).unwrap(),
+            b"%PDF bytes"
+        );
+        delete_snapshots_at(&dir, "fPDF0000", &[3000]).unwrap();
+        assert!(read_snapshot_bytes_at(&dir, "fPDF0000", 3000).is_err());
         let _ = fs::remove_dir_all(dir);
     }
 }

@@ -2175,7 +2175,7 @@ dependencies = [
 
 [[package]]
 name = "mdflow"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "core-foundation 0.10.1",
  "keyring",

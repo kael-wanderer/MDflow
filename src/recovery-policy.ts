@@ -9,7 +9,12 @@ export type DraftRecord = {
 
 export type DiskState = { mtimeMs: number; size: number } | null;
 export type ChangeDecision = "unchanged" | "reload" | "conflict" | "deleted";
-export type SnapshotEntry = { ts: number; size: number; label?: string };
+export type SnapshotEntry = {
+  ts: number;
+  size: number;
+  label?: string;
+  kind?: "binary";
+};
 
 const KEEP_MIN = 10;
 const MAX_TOTAL = 50;

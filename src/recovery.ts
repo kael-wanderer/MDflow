@@ -237,6 +237,32 @@ async function writeSnapshot(
   }
 }
 
+async function writeBinarySnapshot(
+  path: string,
+  bytes: Uint8Array,
+  label: string,
+): Promise<void> {
+  const fileId = fileIdFor(path);
+  const ts = Date.now();
+  try {
+    await invoke("recovery_save_snapshot_bytes_labeled", {
+      fileId,
+      ts,
+      bytes: Array.from(bytes),
+      label,
+    });
+    const entries = await invoke<SnapshotEntry[]>("recovery_list_snapshots", {
+      fileId,
+    });
+    const timestamps = snapshotsToPrune(entries, Date.now());
+    if (timestamps.length > 0) {
+      await invoke("recovery_delete_snapshots", { fileId, timestamps });
+    }
+  } catch {
+    // Version history is best-effort and must never block a real save.
+  }
+}
+
 export async function snapshotOnSave(
   path: string,
   contents: string,
@@ -268,6 +294,14 @@ export async function manualSnapshot(
   await writeSnapshot(path, contents, label);
 }
 
+export async function manualBinarySnapshot(
+  path: string,
+  bytes: Uint8Array,
+  label: string,
+): Promise<void> {
+  await writeBinarySnapshot(path, bytes, label);
+}
+
 export async function listSnapshots(path: string): Promise<SnapshotEntry[]> {
   try {
     return await invoke<SnapshotEntry[]>("recovery_list_snapshots", {
@@ -283,4 +317,15 @@ export function readSnapshot(path: string, ts: number): Promise<string> {
     fileId: fileIdFor(path),
     ts,
   });
+}
+
+export async function readBinarySnapshot(
+  path: string,
+  ts: number,
+): Promise<Uint8Array> {
+  const bytes = await invoke<number[]>("recovery_read_snapshot_bytes", {
+    fileId: fileIdFor(path),
+    ts,
+  });
+  return new Uint8Array(bytes);
 }

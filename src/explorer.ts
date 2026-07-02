@@ -466,6 +466,16 @@ function render(): void {
   if (tree?.children) {
     for (const child of tree.children) renderNode(child, 0, treeElement);
   }
+
+  // WKWebView can leave a stale paint of this overflow:auto container after all
+  // its children are replaced (e.g. switching folders), so the tree keeps
+  // showing the previous folder until a visibility change forces a repaint.
+  // Toggling display (as collapse/expand does) forces it; preserve scroll.
+  const scroll = treeElement.scrollTop;
+  treeElement.style.display = "none";
+  void treeElement.offsetHeight;
+  treeElement.style.display = "";
+  treeElement.scrollTop = scroll;
 }
 
 export function initExplorer(

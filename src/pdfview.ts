@@ -1,6 +1,63 @@
 import { invoke } from "@tauri-apps/api/core";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { pickExportPath, pickImagePath } from "./files";
+import {
+  pdfCapabilityDetails,
+  pdfCapabilityMessage,
+  pdfPageCapabilityMessage,
+  summarizePdfCapabilities,
+  type PdfCapabilitySummary,
+  type PdfPageTextSignal,
+} from "./pdf-edit-capabilities";
+import {
+  DEFAULT_PDF_TEXT_STYLE,
+  addPdfEditOperation,
+  createPdfEditDocument,
+  hasPdfEdits,
+  normalizePdfRect,
+  parsePdfEditDocument,
+  removePdfEditOperation,
+  serializePdfEditDocument,
+  snapPdfRect,
+  type PdfEditDocument,
+  type PdfEditOperation,
+  type PdfPageBox,
+  type PdfRect,
+} from "./pdf-edit-document";
+import {
+  estimatePdfFontSizeFromSelectionRects,
+  pdfSelectionClientRectsToPageRects,
+  pdfSelectionClientRectToPageRect,
+  pdfTextStyleFromSelectionCss,
+} from "./pdf-selection-edit";
+import {
+  inspectPdfPageAnnotations,
+  inspectPdfPageOperators,
+  mergePdfPageObjectSignals,
+  pdfObjectSignalMessage,
+  type PdfPageObjectSignal,
+} from "./pdf-object-inspection";
+import {
+  inspectPdfPageFonts,
+  pdfFontSignalMessage,
+  type PdfPageFontSignal,
+  type PdfTextContentItemLike,
+  type PdfTextContentStyleLike,
+} from "./pdf-font-inspection";
+import {
+  listOcrReviewItems,
+  removeOcrReviewItem,
+  summarizeOcrReview,
+  updateOcrReviewText,
+} from "./pdf-ocr-review";
+import {
+  listPdfProofIssues,
+  reflowPdfEditOperationText,
+  updatePdfEditOperationText,
+} from "./pdf-proofing";
 import { installReadableStreamAsyncIterator } from "./readable-stream-iter";
+import { manualBinarySnapshot } from "./recovery";
 
 export type PdfFindHandle = {
   setQuery: (query: string) => number;
@@ -9,12 +66,426 @@ export type PdfFindHandle = {
   destroy: () => void;
 };
 
+export type PdfRenderOptions = {
+  initialPage?: number;
+  onEditDirtyChange?: (dirty: boolean) => void;
+  onReloadRequest?: () => void;
+};
+
+export const PDF_SAVE_EVENT = "mdflow:pdf-save";
+export const PDF_SAVE_AS_EVENT = "mdflow:pdf-save-as";
+
 const RENDER_SCALE = 1.4;
+const PDF_EDIT_HISTORY_LIMIT = 80;
+type PdfEditTool = "select" | "text" | "cover" | "replace" | "image";
+type PendingPdfImage = {
+  name: string;
+  mimeType: "image/png" | "image/jpeg";
+  bytes: number[];
+  width: number;
+  height: number;
+};
+
+type PdfPageView = {
+  element: HTMLElement;
+  overlay: HTMLElement;
+  text: string;
+  box: PdfPageBox;
+};
+
+function operationRect(operation: PdfEditOperation): PdfRect {
+  if (operation.type === "replacementText") return operation.text.rect;
+  return operation.rect;
+}
+
+function operationText(operation: PdfEditOperation): string {
+  if (operation.type === "textBox") return operation.text;
+  if (operation.type === "replacementText") return operation.text.value;
+  if (operation.type === "ocrTextBlock") return operation.text;
+  if (operation.type === "directTextEdit") return operation.replacementText;
+  if (operation.type === "imageBox") return operation.name;
+  return "";
+}
+
+function operationLabel(operation: PdfEditOperation): string {
+  if (operation.type === "coverPatch") return "Cover patch";
+  if (operation.type === "replacementText") return operation.text.value;
+  if (operation.type === "directTextEdit") return operation.replacementText;
+  if (operation.type === "ocrTextBlock") {
+    return `OCR ${Math.round(operation.confidence * 100)}%: ${operation.text}`;
+  }
+  if (operation.type === "imageBox") return `Image: ${operation.name}`;
+  return operationText(operation);
+}
+
+function operationId(): string {
+  return `pdf-edit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function scaledRect(rect: PdfRect): Record<string, string> {
+  return {
+    left: `${rect.x * RENDER_SCALE}px`,
+    top: `${rect.y * RENDER_SCALE}px`,
+    width: `${rect.width * RENDER_SCALE}px`,
+    height: `${rect.height * RENDER_SCALE}px`,
+  };
+}
+
+function rectFromPointer(
+  event: MouseEvent,
+  pageElement: HTMLElement,
+  page: PdfPageBox,
+  width: number,
+  height: number,
+): PdfRect {
+  const bounds = pageElement.getBoundingClientRect();
+  const x = (event.clientX - bounds.left) / RENDER_SCALE;
+  const y = (event.clientY - bounds.top) / RENDER_SCALE;
+  return normalizePdfRect(
+    { x, y, width, height },
+    page,
+  );
+}
+
+function imageMimeFromPath(path: string): "image/png" | "image/jpeg" | null {
+  const normalized = path.toLowerCase();
+  if (normalized.endsWith(".png")) return "image/png";
+  if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")) return "image/jpeg";
+  return null;
+}
+
+function basename(path: string): string {
+  return path.split(/[\\/]/).pop() || "Image";
+}
+
+function bytesToDataUrl(bytes: number[], mimeType: string): string {
+  let binary = "";
+  const chunkSize = 8192;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(index, index + chunkSize));
+  }
+  return `data:${mimeType};base64,${window.btoa(binary)}`;
+}
+
+function readImageDimensions(bytes: number[], mimeType: string): Promise<{
+  width: number;
+  height: number;
+}> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mimeType }));
+    const done = (size: { width: number; height: number }): void => {
+      URL.revokeObjectURL(url);
+      resolve(size);
+    };
+    image.onload = () => done({ width: image.naturalWidth || 1, height: image.naturalHeight || 1 });
+    image.onerror = () => done({ width: 1, height: 1 });
+    image.src = url;
+  });
+}
+
+function moveOperation(
+  operation: PdfEditOperation,
+  page: PdfPageBox,
+  dx: number,
+  dy: number,
+): PdfEditOperation {
+  const moveRect = (rect: PdfRect): PdfRect =>
+    normalizePdfRect({ ...rect, x: rect.x + dx, y: rect.y + dy }, page);
+  if (operation.type === "replacementText") {
+    return {
+      ...operation,
+      cover: {
+        ...operation.cover,
+        rect: moveRect(operation.cover.rect),
+        rects: operation.cover.rects?.map(moveRect),
+      },
+      text: {
+        ...operation.text,
+        rect: moveRect(operation.text.rect),
+      },
+    };
+  }
+  if (operation.type === "directTextEdit") {
+    return {
+      ...operation,
+      rect: moveRect(operation.rect),
+      fallbackCoverRects: operation.fallbackCoverRects?.map(moveRect),
+    };
+  }
+  return {
+    ...operation,
+    rect: moveRect(operation.rect),
+  };
+}
+
+function resizeOperation(
+  operation: PdfEditOperation,
+  page: PdfPageBox,
+  dx: number,
+  dy: number,
+): PdfEditOperation {
+  const grow = (rect: PdfRect): PdfRect =>
+    normalizePdfRect(
+      {
+        ...rect,
+        width: Math.max(12, rect.width + dx),
+        height: Math.max(12, rect.height + dy),
+      },
+      page,
+    );
+  if (operation.type === "replacementText") {
+    const rect = grow(operation.text.rect);
+    return {
+      ...operation,
+      cover: { ...operation.cover, rect, rects: undefined },
+      text: { ...operation.text, rect },
+    };
+  }
+  if (operation.type === "directTextEdit") {
+    return { ...operation, rect: grow(operation.rect), fallbackCoverRects: undefined };
+  }
+  return { ...operation, rect: grow(operation.rect) };
+}
+
+function snapOperation(operation: PdfEditOperation, page: PdfPageBox): PdfEditOperation {
+  if (operation.type === "replacementText") {
+    const rect = snapPdfRect(operation.text.rect, page);
+    return {
+      ...operation,
+      cover: {
+        ...operation.cover,
+        rect,
+        rects: operation.cover.rects?.map((item) => snapPdfRect(item, page)),
+      },
+      text: { ...operation.text, rect },
+    };
+  }
+  if (operation.type === "directTextEdit") {
+    return {
+      ...operation,
+      rect: snapPdfRect(operation.rect, page),
+      fallbackCoverRects: operation.fallbackCoverRects?.map((rect) =>
+        snapPdfRect(rect, page),
+      ),
+    };
+  }
+  return { ...operation, rect: snapPdfRect(operation.rect, page) };
+}
+
+function draftKey(path: string): string {
+  return `mdflow.pdf.edits.${encodeURIComponent(path)}`;
+}
+
+export function clearPdfEditDraft(path: string): void {
+  try {
+    window.localStorage.removeItem(draftKey(path));
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+function loadDraft(path: string): PdfEditDocument {
+  try {
+    const raw = window.localStorage.getItem(draftKey(path));
+    if (!raw) return createPdfEditDocument(path);
+    const parsed = parsePdfEditDocument(raw);
+    return parsed.sourceFingerprint === path ? parsed : createPdfEditDocument(path);
+  } catch {
+    return createPdfEditDocument(path);
+  }
+}
+
+function storeDraft(path: string, edits: PdfEditDocument): void {
+  try {
+    const key = draftKey(path);
+    if (hasPdfEdits(edits)) {
+      window.localStorage.setItem(key, serializePdfEditDocument(edits));
+    } else {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Draft persistence is best-effort; editing should continue if storage is blocked.
+  }
+}
+
+function clonePdfEditDocument(edits: PdfEditDocument): PdfEditDocument {
+  return parsePdfEditDocument(serializePdfEditDocument(edits));
+}
+
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+}
+
+function drawPreviewRect(
+  context: CanvasRenderingContext2D,
+  rect: PdfRect,
+  scale: number,
+  color: string,
+  opacity: number,
+): void {
+  context.save();
+  context.globalAlpha = Math.max(0, Math.min(1, opacity));
+  context.fillStyle = color;
+  context.fillRect(rect.x * scale, rect.y * scale, rect.width * scale, rect.height * scale);
+  context.restore();
+}
+
+function wrapCanvasText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split(/\r?\n/)) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      lines.push("");
+      continue;
+    }
+    let current = "";
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (context.measureText(candidate).width <= maxWidth || !current) {
+        current = candidate;
+      } else {
+        lines.push(current);
+        current = word;
+      }
+    }
+    if (current) lines.push(current);
+  }
+  return lines;
+}
+
+function drawPreviewText(
+  context: CanvasRenderingContext2D,
+  rect: PdfRect,
+  scale: number,
+  text: string,
+  style: typeof DEFAULT_PDF_TEXT_STYLE,
+): void {
+  const fontSize = Math.max(6, style.fontSize * scale);
+  const lineHeight = fontSize * 1.25;
+  const maxLines = Math.max(1, Math.floor((rect.height * scale) / lineHeight));
+  const weight = style.bold ? "700" : "400";
+  const fontStyle = style.italic ? "italic" : "normal";
+  context.save();
+  context.globalAlpha = Math.max(0, Math.min(1, style.opacity));
+  context.fillStyle = style.color;
+  context.font = `${fontStyle} ${weight} ${fontSize}px ${style.fontFamily}`;
+  context.textBaseline = "top";
+  context.textAlign = style.align;
+  const lines = wrapCanvasText(context, text, rect.width * scale).slice(0, maxLines);
+  const x =
+    style.align === "center"
+      ? (rect.x + rect.width / 2) * scale
+      : style.align === "right"
+        ? (rect.x + rect.width) * scale
+        : rect.x * scale;
+  const y = rect.y * scale;
+  lines.forEach((line, index) => {
+    context.fillText(line, x, y + index * lineHeight, rect.width * scale);
+  });
+  context.restore();
+}
+
+function drawPreviewOperation(
+  context: CanvasRenderingContext2D,
+  operation: PdfEditOperation,
+  scale: number,
+): void {
+  if (operation.type === "coverPatch") {
+    drawPreviewRect(context, operation.rect, scale, operation.color, operation.opacity);
+    return;
+  }
+  if (operation.type === "replacementText") {
+    (operation.cover.rects ?? [operation.cover.rect]).forEach((rect) => {
+      drawPreviewRect(context, rect, scale, operation.cover.color, operation.cover.opacity);
+    });
+    drawPreviewText(
+      context,
+      operation.text.rect,
+      scale,
+      operation.text.value,
+      operation.text.style,
+    );
+    return;
+  }
+  if (operation.type === "directTextEdit") {
+    (operation.fallbackCoverRects ?? [operation.rect]).forEach((rect) => {
+      drawPreviewRect(context, rect, scale, "#ffffff", 1);
+    });
+    drawPreviewText(
+      context,
+      operation.rect,
+      scale,
+      operation.replacementText,
+      operation.fallbackStyle ?? DEFAULT_PDF_TEXT_STYLE,
+    );
+    return;
+  }
+  if (operation.type === "textBox") {
+    drawPreviewText(context, operation.rect, scale, operation.text, operation.style);
+    return;
+  }
+  if (operation.type === "imageBox") {
+    drawPreviewRect(context, operation.rect, scale, "#dce7ff", 0.85);
+    drawPreviewText(
+      context,
+      operation.rect,
+      scale,
+      operation.name,
+      { ...DEFAULT_PDF_TEXT_STYLE, color: "#244680", fontSize: 10, align: "center" },
+    );
+    return;
+  }
+  if (operation.type === "ocrTextBlock") {
+    context.save();
+    context.globalAlpha = 0.65;
+    context.strokeStyle = "#4f8cff";
+    context.setLineDash([3, 2]);
+    context.strokeRect(
+      operation.rect.x * scale,
+      operation.rect.y * scale,
+      operation.rect.width * scale,
+      operation.rect.height * scale,
+    );
+    context.restore();
+  }
+}
+
+function createReviewCanvasPair(
+  source: HTMLCanvasElement,
+  page: PdfPageBox,
+  operations: PdfEditOperation[],
+  width = 180,
+): { before: HTMLCanvasElement; after: HTMLCanvasElement } {
+  const scale = width / page.width;
+  const height = Math.max(1, Math.round(page.height * scale));
+  const makeCanvas = (): HTMLCanvasElement => {
+    const canvas = source.ownerDocument.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  };
+  const before = makeCanvas();
+  const after = makeCanvas();
+  before.getContext("2d")?.drawImage(source, 0, 0, width, height);
+  const afterContext = after.getContext("2d");
+  if (afterContext) {
+    afterContext.drawImage(source, 0, 0, width, height);
+    operations.forEach((operation) => drawPreviewOperation(afterContext, operation, scale));
+  }
+  return { before, after };
+}
 
 export async function renderPdf(
   host: HTMLElement,
   path: string,
-  options?: { initialPage?: number },
+  options?: PdfRenderOptions,
 ): Promise<PdfFindHandle> {
   host.innerHTML = '<div class="pdf-loading">Loading PDF…</div>';
   installReadableStreamAsyncIterator();
@@ -25,13 +496,1572 @@ export async function renderPdf(
     data: new Uint8Array(bytes),
   }).promise;
   host.innerHTML = "";
+  let editDocument: PdfEditDocument = loadDraft(path);
+  let activeTool: PdfEditTool = "select";
+  let selectedOperationId: string | null = null;
+  let saving = false;
+  let currentStyle = { ...DEFAULT_PDF_TEXT_STYLE };
+  let currentCoverColor = "#ffffff";
+  let snapEnabled = false;
+  let pendingImage: PendingPdfImage | null = null;
+  let pendingInlineEditId: string | null = null;
+  let undoStack: PdfEditDocument[] = [];
+  let redoStack: PdfEditDocument[] = [];
+  const toolbar = window.document.createElement("div");
+  toolbar.className = "pdf-edit-toolbar";
+  const toolButtons = new Map<PdfEditTool, HTMLButtonElement>();
+  const saveButton = window.document.createElement("button");
+  const saveAsButton = window.document.createElement("button");
+  const reviewButton = window.document.createElement("button");
+  const proofButton = window.document.createElement("button");
+  const imageButton = window.document.createElement("button");
+  const undoButton = window.document.createElement("button");
+  const redoButton = window.document.createElement("button");
+  const snapButton = window.document.createElement("button");
+  const deleteButton = window.document.createElement("button");
+  const editSelectedButton = window.document.createElement("button");
+  const directSelectedButton = window.document.createElement("button");
+  const reflowButton = window.document.createElement("button");
+  const ocrButton = window.document.createElement("button");
+  const ocrReviewButton = window.document.createElement("button");
+  const capabilityButton = window.document.createElement("button");
+  const thumbnailButton = window.document.createElement("button");
+  const ocrLanguageInput = window.document.createElement("input");
+  const fontFamilySelect = window.document.createElement("select");
+  const fontSizeInput = window.document.createElement("input");
+  const boldButton = window.document.createElement("button");
+  const italicButton = window.document.createElement("button");
+  const alignSelect = window.document.createElement("select");
+  const colorInput = window.document.createElement("input");
+  const opacityInput = window.document.createElement("input");
+  const status = window.document.createElement("span");
+  status.className = "pdf-edit-status";
+  const setStatus = (text: string): void => {
+    status.textContent = text;
+  };
+  const setTool = (tool: PdfEditTool): void => {
+    activeTool = tool;
+    container.dataset.pdfTool = tool;
+    toolButtons.forEach((button, key) => {
+      button.classList.toggle("active", key === tool);
+    });
+    setStatus(
+      tool === "select"
+        ? "Select or drag an edit"
+        : tool === "text"
+          ? "Click a page to add text"
+          : tool === "cover"
+            ? "Click a page to cover content"
+            : tool === "replace"
+              ? "Click a page to replace visible text"
+              : pendingImage
+                ? `Click a page to place ${pendingImage.name}`
+                : "Choose an image to place",
+    );
+  };
+  const addToolButton = (tool: PdfEditTool, label: string): void => {
+    const button = window.document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.title = label;
+    button.addEventListener("click", () => setTool(tool));
+    toolButtons.set(tool, button);
+    toolbar.appendChild(button);
+  };
+  addToolButton("select", "Select");
+  addToolButton("text", "Text");
+  addToolButton("cover", "Cover");
+  addToolButton("replace", "Replace");
+  imageButton.type = "button";
+  imageButton.textContent = "Image";
+  imageButton.title = "Add a PNG or JPEG image object";
+  imageButton.addEventListener("click", () => {
+    void (async () => {
+      const imagePath = await pickImagePath();
+      if (!imagePath) return;
+      const mimeType = imageMimeFromPath(imagePath);
+      if (!mimeType) {
+        setStatus("Choose a PNG or JPEG image");
+        return;
+      }
+      const imageBytes = await invoke<number[]>("read_file_bytes", { path: imagePath });
+      if (!imageBytes.length) {
+        setStatus("The selected image is empty");
+        return;
+      }
+      const dimensions = await readImageDimensions(imageBytes, mimeType);
+      pendingImage = {
+        name: basename(imagePath),
+        mimeType,
+        bytes: imageBytes,
+        ...dimensions,
+      };
+      setTool("image");
+    })();
+  });
+  toolButtons.set("image", imageButton);
+  toolbar.appendChild(imageButton);
+  undoButton.type = "button";
+  undoButton.textContent = "Undo";
+  undoButton.title = "Undo PDF edit";
+  undoButton.disabled = true;
+  redoButton.type = "button";
+  redoButton.textContent = "Redo";
+  redoButton.title = "Redo PDF edit";
+  redoButton.disabled = true;
+  snapButton.type = "button";
+  snapButton.textContent = "Snap";
+  snapButton.title = "Snap PDF edit placement to a 5-point grid";
+  deleteButton.type = "button";
+  deleteButton.textContent = "Delete";
+  deleteButton.disabled = true;
+  editSelectedButton.type = "button";
+  editSelectedButton.textContent = "Edit Text";
+  editSelectedButton.title = "Replace the currently selected PDF text visually";
+  directSelectedButton.type = "button";
+  directSelectedButton.textContent = "Direct";
+  directSelectedButton.title = "Try a real PDF text rewrite for the selected text";
+  reflowButton.type = "button";
+  reflowButton.textContent = "Reflow";
+  reflowButton.title = "Reflow the selected PDF text edit";
+  reflowButton.disabled = true;
+  ocrButton.type = "button";
+  ocrButton.textContent = "OCR Page";
+  ocrButton.title = "Recognize text on the visible page";
+  ocrReviewButton.type = "button";
+  ocrReviewButton.textContent = "Review OCR";
+  ocrReviewButton.title = "Review and correct OCR text blocks";
+  ocrReviewButton.disabled = true;
+  capabilityButton.type = "button";
+  capabilityButton.textContent = "Limits";
+  capabilityButton.title = "Show PDF editing capabilities by page";
+  capabilityButton.disabled = true;
+  thumbnailButton.type = "button";
+  thumbnailButton.textContent = "Thumbs";
+  thumbnailButton.title = "Show PDF page thumbnails";
+  thumbnailButton.disabled = true;
+  ocrLanguageInput.type = "text";
+  ocrLanguageInput.value = "eng";
+  ocrLanguageInput.title = "OCR language, for example eng or eng+vie";
+  ocrLanguageInput.className = "pdf-edit-ocr-language";
+  saveButton.type = "button";
+  saveButton.textContent = "Save";
+  saveButton.disabled = true;
+  saveAsButton.type = "button";
+  saveAsButton.textContent = "Save As";
+  saveAsButton.disabled = true;
+  reviewButton.type = "button";
+  reviewButton.textContent = "Review";
+  reviewButton.title = "Review pending PDF edits before saving";
+  reviewButton.disabled = true;
+  proofButton.type = "button";
+  proofButton.textContent = "Proof";
+  proofButton.title = "Proofread pending PDF text edits";
+  proofButton.disabled = true;
+  fontFamilySelect.title = "Font family";
+  fontFamilySelect.className = "pdf-edit-select pdf-edit-font-family";
+  [
+    ["Helvetica", "Helvetica"],
+    ["Times Roman", "Times"],
+    ["Courier", "Courier"],
+  ].forEach(([label, value]) => {
+    const option = window.document.createElement("option");
+    option.textContent = label;
+    option.value = value;
+    fontFamilySelect.appendChild(option);
+  });
+  fontFamilySelect.value = currentStyle.fontFamily;
+  fontSizeInput.type = "number";
+  fontSizeInput.min = "6";
+  fontSizeInput.max = "96";
+  fontSizeInput.step = "1";
+  fontSizeInput.value = String(currentStyle.fontSize);
+  fontSizeInput.title = "Font size";
+  fontSizeInput.className = "pdf-edit-number";
+  boldButton.type = "button";
+  boldButton.textContent = "B";
+  boldButton.title = "Bold";
+  italicButton.type = "button";
+  italicButton.textContent = "I";
+  italicButton.title = "Italic";
+  alignSelect.title = "Text alignment";
+  alignSelect.className = "pdf-edit-select pdf-edit-align";
+  [
+    ["Left", "left"],
+    ["Center", "center"],
+    ["Right", "right"],
+  ].forEach(([label, value]) => {
+    const option = window.document.createElement("option");
+    option.textContent = label;
+    option.value = value;
+    alignSelect.appendChild(option);
+  });
+  alignSelect.value = currentStyle.align;
+  colorInput.type = "color";
+  colorInput.value = currentStyle.color;
+  colorInput.title = "Text or cover color";
+  opacityInput.type = "range";
+  opacityInput.min = "0.05";
+  opacityInput.max = "1";
+  opacityInput.step = "0.05";
+  opacityInput.value = String(currentStyle.opacity);
+  opacityInput.title = "Opacity";
+  toolbar.append(
+    undoButton,
+    redoButton,
+    snapButton,
+    deleteButton,
+    editSelectedButton,
+    directSelectedButton,
+    reflowButton,
+    fontFamilySelect,
+    fontSizeInput,
+    boldButton,
+    italicButton,
+    alignSelect,
+    colorInput,
+    opacityInput,
+    ocrLanguageInput,
+    ocrButton,
+    ocrReviewButton,
+    capabilityButton,
+    thumbnailButton,
+    reviewButton,
+    proofButton,
+    saveButton,
+    saveAsButton,
+    status,
+  );
   const container = window.document.createElement("div");
   container.className = "pdf-document";
   container.dataset.path = path;
-  host.appendChild(container);
-  const pages: { element: HTMLElement; text: string }[] = [];
+  host.append(toolbar, container);
+  const pages: PdfPageView[] = [];
+  const textSignals: PdfPageTextSignal[] = [];
+  const objectSignals: PdfPageObjectSignal[] = [];
+  const fontSignals: PdfPageFontSignal[] = [];
+  let ocrReviewPanel: HTMLElement | null = null;
+  let capabilityPanel: HTMLElement | null = null;
+  let thumbnailPanel: HTMLElement | null = null;
+  let reviewPanel: HTMLElement | null = null;
+  let proofPanel: HTMLElement | null = null;
+  let capabilitySummary: PdfCapabilitySummary | null = null;
   let matches: number[] = [];
   let active = -1;
+  const selectedOperation = (): PdfEditOperation | null => {
+    if (!selectedOperationId) return null;
+    for (const page of editDocument.pages) {
+      const found = page.operations.find((operation) => operation.id === selectedOperationId);
+      if (found) return found;
+    }
+    return null;
+  };
+  const selectionReplacement = ():
+    | {
+        pageView: PdfPageView;
+        sourceText: string;
+        rect: PdfRect;
+        coverRects: PdfRect[];
+        style: typeof DEFAULT_PDF_TEXT_STYLE;
+      }
+    | null => {
+    const selection = window.getSelection();
+    const sourceText = selection?.toString().trim() ?? "";
+    if (!selection || selection.rangeCount === 0 || !sourceText) return null;
+    const range = selection.getRangeAt(0);
+    const selectionRect = range.getBoundingClientRect();
+    if (selectionRect.width <= 0 || selectionRect.height <= 0) return null;
+    const node = range.commonAncestorContainer;
+    const element =
+      node.nodeType === window.Node.ELEMENT_NODE
+        ? (node as Element)
+        : node.parentElement;
+    const centerX = selectionRect.left + selectionRect.width / 2;
+    const centerY = selectionRect.top + selectionRect.height / 2;
+    const pageView =
+      pages.find((page) => element && page.element.contains(element)) ??
+      pages.find((page) => {
+        const bounds = page.element.getBoundingClientRect();
+        return (
+          centerX >= bounds.left &&
+          centerX <= bounds.right &&
+          centerY >= bounds.top &&
+          centerY <= bounds.bottom
+        );
+      });
+    if (!pageView) return null;
+    const pageRect = pageView.element.getBoundingClientRect();
+    const lineRects = Array.from(range.getClientRects());
+    const textSpan = element?.closest?.(".pdf-text-layer span");
+    const computed = textSpan ? window.getComputedStyle(textSpan) : null;
+    const fontSize = estimatePdfFontSizeFromSelectionRects(
+      lineRects,
+      RENDER_SCALE,
+      currentStyle.fontSize,
+    );
+    return {
+      pageView,
+      sourceText,
+      rect: pdfSelectionClientRectToPageRect(
+        pageView.box,
+        pageRect,
+        selectionRect,
+        RENDER_SCALE,
+      ),
+      coverRects: pdfSelectionClientRectsToPageRects(
+        pageView.box,
+        pageRect,
+        lineRects,
+        RENDER_SCALE,
+      ),
+      style: computed
+        ? pdfTextStyleFromSelectionCss(
+            {
+              fontFamily: computed.fontFamily,
+              fontStyle: computed.fontStyle,
+              fontWeight: computed.fontWeight,
+              color: computed.color,
+            },
+            fontSize,
+            currentStyle,
+          )
+        : {
+            ...currentStyle,
+            fontSize,
+          },
+    };
+  };
+  let cachedSelectionReplacement: ReturnType<typeof selectionReplacement> = null;
+
+  const setSelectedOperation = (id: string | null): void => {
+    selectedOperationId = id;
+    const operation = selectedOperation();
+    const applyStyleControls = (style: typeof DEFAULT_PDF_TEXT_STYLE): void => {
+      fontFamilySelect.value =
+        ["Helvetica", "Times", "Courier"].includes(style.fontFamily)
+          ? style.fontFamily
+          : "Helvetica";
+      fontSizeInput.value = String(style.fontSize);
+      colorInput.value = style.color;
+      opacityInput.value = String(style.opacity);
+      boldButton.classList.toggle("active", style.bold);
+      italicButton.classList.toggle("active", style.italic);
+      alignSelect.value = style.align;
+    };
+    if (operation?.type === "textBox") {
+      applyStyleControls(operation.style);
+    } else if (operation?.type === "replacementText") {
+      applyStyleControls(operation.text.style);
+      currentCoverColor = operation.cover.color;
+    } else if (operation?.type === "directTextEdit") {
+      const style = operation.fallbackStyle ?? DEFAULT_PDF_TEXT_STYLE;
+      applyStyleControls(style);
+    } else if (operation?.type === "coverPatch") {
+      colorInput.value = operation.color;
+      opacityInput.value = String(operation.opacity);
+    }
+    deleteButton.disabled = !id;
+    reflowButton.disabled =
+      !operation ||
+      (operation.type !== "textBox" &&
+        operation.type !== "replacementText" &&
+        operation.type !== "directTextEdit" &&
+        operation.type !== "ocrTextBlock");
+    container
+      .querySelectorAll<HTMLElement>(".pdf-edit-item")
+      .forEach((item) => item.classList.toggle("selected", item.dataset.editId === id));
+  };
+  const updateToolbarState = (): void => {
+    saveButton.disabled = saving || !hasPdfEdits(editDocument);
+    saveAsButton.disabled = saving || !hasPdfEdits(editDocument);
+    reviewButton.disabled = saving || !hasPdfEdits(editDocument);
+    const proofIssues = listPdfProofIssues(editDocument);
+    proofButton.disabled = saving || !hasPdfEdits(editDocument);
+    proofButton.textContent = proofIssues.length ? `Proof ${proofIssues.length}` : "Proof";
+    undoButton.disabled = saving || undoStack.length === 0;
+    redoButton.disabled = saving || redoStack.length === 0;
+    deleteButton.disabled = !selectedOperationId;
+    const ocrSummary = summarizeOcrReview(listOcrReviewItems(editDocument));
+    ocrReviewButton.disabled = ocrSummary.total === 0;
+    ocrReviewButton.textContent =
+      ocrSummary.total === 0
+        ? "Review OCR"
+        : ocrSummary.lowConfidence > 0
+          ? `Review OCR ${ocrSummary.lowConfidence}/${ocrSummary.total}`
+          : `Review OCR ${ocrSummary.total}`;
+    options?.onEditDirtyChange?.(hasPdfEdits(editDocument));
+    if (hasPdfEdits(editDocument) && activeTool === "select" && !saving) {
+      setStatus("Unsaved PDF edits");
+    }
+  };
+  const applyEditDocument = (
+    nextDocument: PdfEditDocument,
+    options: { history?: boolean } = {},
+  ): void => {
+    const changed =
+      serializePdfEditDocument(nextDocument) !== serializePdfEditDocument(editDocument);
+    if (!changed) return;
+    if (options.history !== false) {
+      undoStack = [...undoStack, clonePdfEditDocument(editDocument)].slice(
+        -PDF_EDIT_HISTORY_LIMIT,
+      );
+      redoStack = [];
+    }
+    editDocument = nextDocument;
+    storeDraft(path, editDocument);
+  };
+  const restoreEditDocument = (nextDocument: PdfEditDocument): void => {
+    editDocument = clonePdfEditDocument(nextDocument);
+    selectedOperationId = null;
+    storeDraft(path, editDocument);
+    renderEditOverlays();
+    refreshOcrReviewPanel();
+    refreshProofPanel();
+  };
+  const commitTransientEdit = (before: PdfEditDocument): void => {
+    const changed =
+      serializePdfEditDocument(before) !== serializePdfEditDocument(editDocument);
+    if (!changed) return;
+    undoStack = [...undoStack, clonePdfEditDocument(before)].slice(
+      -PDF_EDIT_HISTORY_LIMIT,
+    );
+    redoStack = [];
+    updateToolbarState();
+  };
+  const snapIfNeeded = (page: PdfPageBox, operation: PdfEditOperation): PdfEditOperation =>
+    snapEnabled ? snapOperation(operation, page) : operation;
+  const replaceOperation = (
+    page: PdfPageBox,
+    operation: PdfEditOperation,
+    options: { history?: boolean } = {},
+  ): void => {
+    applyEditDocument(
+      addPdfEditOperation(
+        removePdfEditOperation(editDocument, operation.id),
+        page,
+        snapIfNeeded(page, operation),
+      ),
+      options,
+    );
+  };
+  const beginInlineTextEdit = (
+    page: PdfPageBox,
+    operation: PdfEditOperation,
+    item: HTMLElement,
+  ): void => {
+    if (
+      operation.type !== "textBox" &&
+      operation.type !== "replacementText" &&
+      operation.type !== "directTextEdit" &&
+      operation.type !== "ocrTextBlock"
+    ) {
+      return;
+    }
+    setSelectedOperation(operation.id);
+    setTool("select");
+    const beforeEdit = clonePdfEditDocument(editDocument);
+    item.contentEditable = "true";
+    item.spellcheck = true;
+    item.classList.add("editing");
+    item.focus();
+    const selection = window.getSelection();
+    const range = window.document.createRange();
+    range.selectNodeContents(item);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const textFromItem = (): string =>
+      item.innerText.replace(/\u00a0/g, " ").replace(/\n$/, "");
+    const onInput = (): void => {
+      applyEditDocument(
+        updatePdfEditOperationText(editDocument, page, operation.id, textFromItem()),
+        { history: false },
+      );
+      updateToolbarState();
+    };
+    const finish = (): void => {
+      item.removeEventListener("input", onInput);
+      item.removeEventListener("blur", finish);
+      item.removeEventListener("keydown", onKeyDown);
+      item.contentEditable = "false";
+      item.spellcheck = false;
+      item.classList.remove("editing");
+      commitTransientEdit(beforeEdit);
+      renderEditOverlays();
+      refreshOcrReviewPanel();
+      refreshProofPanel();
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        item.blur();
+      }
+    };
+    item.addEventListener("input", onInput);
+    item.addEventListener("blur", finish);
+    item.addEventListener("keydown", onKeyDown);
+  };
+  const focusOperation = (id: string): void => {
+    const page = editDocument.pages.find((item) =>
+      item.operations.some((operation) => operation.id === id),
+    );
+    const pageView = pages.find((item) => item.box.page === page?.page);
+    pageView?.element.scrollIntoView({ block: "center" });
+    setTool("select");
+    setSelectedOperation(id);
+  };
+  const focusPage = (pageNumber: number): void => {
+    const pageView = pages.find((item) => item.box.page === pageNumber);
+    if (!pageView) return;
+    pageView.element.scrollIntoView({ block: "center" });
+    pageView.element.classList.add("active");
+    window.setTimeout(() => pageView.element.classList.remove("active"), 1000);
+    if (capabilitySummary) {
+      setStatus(pdfPageCapabilityMessage(capabilitySummary, pageNumber));
+    }
+  };
+  const closeCapabilityPanel = (): void => {
+    capabilityPanel?.remove();
+    capabilityPanel = null;
+  };
+  const renderCapabilityPanel = (): void => {
+    if (!capabilityPanel || !capabilitySummary) return;
+    capabilityPanel.innerHTML = "";
+    const header = window.document.createElement("header");
+    const title = window.document.createElement("strong");
+    title.textContent = "PDF Editing Limits";
+    const meta = window.document.createElement("span");
+    meta.textContent = pdfCapabilityMessage(capabilitySummary);
+    const close = window.document.createElement("button");
+    close.type = "button";
+    close.textContent = "×";
+    close.title = "Close editing limits";
+    close.addEventListener("click", closeCapabilityPanel);
+    header.append(title, meta, close);
+    capabilityPanel.appendChild(header);
+
+    const list = window.document.createElement("div");
+    list.className = "pdf-capability-list";
+    for (const detail of pdfCapabilityDetails(capabilitySummary)) {
+      const row = window.document.createElement("section");
+      row.className = `pdf-capability-row ${detail.capability}`;
+      const rowHeader = window.document.createElement("div");
+      const focus = window.document.createElement("button");
+      focus.type = "button";
+      focus.textContent = `Page ${detail.page}`;
+      focus.addEventListener("click", () => focusPage(detail.page));
+      const label = window.document.createElement("strong");
+      label.textContent = detail.label;
+      const badge = window.document.createElement("span");
+      badge.textContent = detail.directEditingSafe ? "Direct candidate" : "Fallback";
+      rowHeader.append(focus, label, badge);
+      const message = window.document.createElement("p");
+      message.textContent = detail.message;
+      row.append(rowHeader, message);
+      const objectSignal = objectSignals.find((signal) => signal.page === detail.page);
+      const fontSignal = fontSignals.find((signal) => signal.page === detail.page);
+      if (fontSignal) {
+        const fonts = window.document.createElement("p");
+        fonts.className = "pdf-capability-fonts";
+        fonts.textContent = pdfFontSignalMessage(fontSignal);
+        row.appendChild(fonts);
+      }
+      if (objectSignal) {
+        const objects = window.document.createElement("p");
+        objects.className = "pdf-capability-objects";
+        objects.textContent = pdfObjectSignalMessage(objectSignal);
+        row.appendChild(objects);
+        if (objectSignal.objects.length) {
+          const objectList = window.document.createElement("div");
+          objectList.className = "pdf-capability-object-list";
+          objectSignal.objects.forEach((object, index) => {
+            const objectRow = window.document.createElement("div");
+            const objectKind =
+              object.type === "image"
+                ? "Image"
+                : object.type === "annotation"
+                  ? object.label || "Annotation"
+                  : "Vector";
+            const focusObject = window.document.createElement("button");
+            focusObject.type = "button";
+            focusObject.textContent = `${objectKind} ${index + 1}`;
+            focusObject.title = `Focus detected ${object.type} bounds`;
+            focusObject.addEventListener("click", () => {
+              focusPage(object.page);
+              setStatus(
+                `Detected ${object.type} bounds: ${Math.round(object.rect.width)} x ${Math.round(object.rect.height)} pt`,
+              );
+            });
+            const coverObject = window.document.createElement("button");
+            coverObject.type = "button";
+            coverObject.textContent = "Cover";
+            coverObject.title = `Safely cover this detected ${object.type}; source-level object rewrites stay disabled for unsupported PDFs`;
+            coverObject.addEventListener("click", () => {
+              const pageView = pages.find((item) => item.box.page === object.page);
+              if (!pageView) return;
+              applyEditDocument(
+                addPdfEditOperation(editDocument, pageView.box, {
+                  id: operationId(),
+                  type: "coverPatch",
+                  page: object.page,
+                  rect: normalizePdfRect(object.rect, pageView.box),
+                  color: currentCoverColor,
+                  opacity: Number(opacityInput.value) || 1,
+                }),
+              );
+              renderEditOverlays();
+              focusPage(object.page);
+              setStatus(`Queued cover patch for detected ${object.type} ${index + 1}`);
+            });
+            objectRow.append(focusObject, coverObject);
+            objectList.appendChild(objectRow);
+          });
+          row.appendChild(objectList);
+        }
+      }
+      list.appendChild(row);
+    }
+    capabilityPanel.appendChild(list);
+  };
+  const openCapabilityPanel = (): void => {
+    if (capabilityPanel) {
+      closeCapabilityPanel();
+      return;
+    }
+    capabilityPanel = window.document.createElement("aside");
+    capabilityPanel.className = "pdf-capability-panel";
+    host.appendChild(capabilityPanel);
+    renderCapabilityPanel();
+  };
+  const closeThumbnailPanel = (): void => {
+    thumbnailPanel?.remove();
+    thumbnailPanel = null;
+  };
+  const renderThumbnailPanel = (): void => {
+    if (!thumbnailPanel) return;
+    thumbnailPanel.innerHTML = "";
+    const header = window.document.createElement("header");
+    const title = window.document.createElement("strong");
+    title.textContent = "Pages";
+    const meta = window.document.createElement("span");
+    meta.textContent = `${pages.length} page${pages.length === 1 ? "" : "s"}`;
+    const close = window.document.createElement("button");
+    close.type = "button";
+    close.textContent = "×";
+    close.title = "Close page thumbnails";
+    close.addEventListener("click", closeThumbnailPanel);
+    header.append(title, meta, close);
+    thumbnailPanel.appendChild(header);
+
+    const list = window.document.createElement("div");
+    list.className = "pdf-thumbnail-list";
+    for (const pageView of pages) {
+      const source = pageView.element.querySelector<HTMLCanvasElement>("canvas.pdf-page");
+      if (!source) continue;
+      const button = window.document.createElement("button");
+      button.type = "button";
+      button.className = "pdf-thumbnail";
+      button.title = `Go to page ${pageView.box.page}`;
+      button.addEventListener("click", () => focusPage(pageView.box.page));
+      const canvas = window.document.createElement("canvas");
+      const ratio = source.height > 0 ? source.width / source.height : 0.75;
+      canvas.width = 96;
+      canvas.height = Math.max(80, Math.round(canvas.width / Math.max(0.2, ratio)));
+      const context = canvas.getContext("2d");
+      context?.drawImage(source, 0, 0, canvas.width, canvas.height);
+      const label = window.document.createElement("span");
+      label.textContent = String(pageView.box.page);
+      button.append(canvas, label);
+      list.appendChild(button);
+    }
+    thumbnailPanel.appendChild(list);
+  };
+  const openThumbnailPanel = (): void => {
+    if (thumbnailPanel) {
+      closeThumbnailPanel();
+      return;
+    }
+    thumbnailPanel = window.document.createElement("aside");
+    thumbnailPanel.className = "pdf-thumbnail-panel";
+    host.appendChild(thumbnailPanel);
+    renderThumbnailPanel();
+  };
+  const closeReviewPanel = (): void => {
+    reviewPanel?.remove();
+    reviewPanel = null;
+  };
+  const closeProofPanel = (): void => {
+    proofPanel?.remove();
+    proofPanel = null;
+  };
+  const renderReviewPanel = (): void => {
+    if (!reviewPanel) return;
+    reviewPanel.innerHTML = "";
+    const editedPages = editDocument.pages.filter((page) => page.operations.length > 0);
+    const header = window.document.createElement("header");
+    const title = window.document.createElement("strong");
+    title.textContent = "Review Edits";
+    const meta = window.document.createElement("span");
+    meta.textContent = editedPages.length
+      ? `${editedPages.length} edited page${editedPages.length === 1 ? "" : "s"}`
+      : "No pending edits";
+    const close = window.document.createElement("button");
+    close.type = "button";
+    close.textContent = "×";
+    close.title = "Close edit review";
+    close.addEventListener("click", closeReviewPanel);
+    header.append(title, meta, close);
+    reviewPanel.appendChild(header);
+
+    const list = window.document.createElement("div");
+    list.className = "pdf-review-list";
+    if (!editedPages.length) {
+      const empty = window.document.createElement("p");
+      empty.className = "pdf-review-empty";
+      empty.textContent = "There are no pending PDF edits.";
+      list.appendChild(empty);
+    }
+    for (const page of editedPages) {
+      const pageView = pages.find((item) => item.box.page === page.page);
+      const source = pageView?.element.querySelector<HTMLCanvasElement>("canvas.pdf-page");
+      const row = window.document.createElement("section");
+      row.className = "pdf-review-row";
+      const rowHeader = window.document.createElement("div");
+      const focus = window.document.createElement("button");
+      focus.type = "button";
+      focus.textContent = `Page ${page.page}`;
+      focus.addEventListener("click", () => focusPage(page.page));
+      const count = window.document.createElement("span");
+      count.textContent = `${page.operations.length} edit${page.operations.length === 1 ? "" : "s"}`;
+      rowHeader.append(focus, count);
+      row.appendChild(rowHeader);
+
+      if (source && pageView) {
+        const preview = window.document.createElement("div");
+        preview.className = "pdf-review-preview";
+        const pair = createReviewCanvasPair(source, pageView.box, page.operations);
+        const beforeFigure = window.document.createElement("figure");
+        const beforeLabel = window.document.createElement("figcaption");
+        beforeLabel.textContent = "Before";
+        beforeFigure.append(pair.before, beforeLabel);
+        const afterFigure = window.document.createElement("figure");
+        const afterLabel = window.document.createElement("figcaption");
+        afterLabel.textContent = "After";
+        afterFigure.append(pair.after, afterLabel);
+        preview.append(beforeFigure, afterFigure);
+        row.appendChild(preview);
+      }
+
+      const summary = window.document.createElement("ul");
+      summary.className = "pdf-review-summary";
+      page.operations.forEach((operation) => {
+        const item = window.document.createElement("li");
+        item.textContent =
+          operation.type === "directTextEdit"
+            ? `Direct edit fallback: ${operation.replacementText}`
+            : operation.type === "replacementText"
+              ? `Replacement: ${operation.text.value}`
+              : operation.type === "coverPatch"
+                ? "Cover patch"
+                : operation.type === "ocrTextBlock"
+                  ? `OCR block ${Math.round(operation.confidence * 100)}%`
+                  : operation.type === "imageBox"
+                    ? `Image: ${operation.name}`
+                    : `Text: ${operation.text}`;
+        summary.appendChild(item);
+      });
+      row.appendChild(summary);
+      list.appendChild(row);
+    }
+    reviewPanel.appendChild(list);
+  };
+  const refreshReviewPanel = (): void => {
+    if (reviewPanel) renderReviewPanel();
+  };
+  const openReviewPanel = (): void => {
+    if (reviewPanel) {
+      closeReviewPanel();
+      return;
+    }
+    reviewPanel = window.document.createElement("aside");
+    reviewPanel.className = "pdf-review-panel";
+    host.appendChild(reviewPanel);
+    renderReviewPanel();
+  };
+  const renderProofPanel = (): void => {
+    if (!proofPanel) return;
+    proofPanel.innerHTML = "";
+    const issues = listPdfProofIssues(editDocument);
+    const header = window.document.createElement("header");
+    const title = window.document.createElement("strong");
+    title.textContent = "Proofing";
+    const meta = window.document.createElement("span");
+    meta.textContent = issues.length
+      ? `${issues.length} suggestion${issues.length === 1 ? "" : "s"}`
+      : "No suggestions";
+    const close = window.document.createElement("button");
+    close.type = "button";
+    close.textContent = "×";
+    close.title = "Close proofing";
+    close.addEventListener("click", closeProofPanel);
+    header.append(title, meta, close);
+    proofPanel.appendChild(header);
+
+    const list = window.document.createElement("div");
+    list.className = "pdf-proof-list";
+    if (!issues.length) {
+      const empty = window.document.createElement("p");
+      empty.className = "pdf-proof-empty";
+      empty.textContent = "No proofing suggestions for pending text edits.";
+      list.appendChild(empty);
+    }
+    for (const issue of issues) {
+      const row = window.document.createElement("section");
+      row.className = "pdf-proof-row";
+      const rowHeader = window.document.createElement("div");
+      const focus = window.document.createElement("button");
+      focus.type = "button";
+      focus.textContent = `Page ${issue.page}`;
+      focus.addEventListener("click", () => focusOperation(issue.operationId));
+      const message = window.document.createElement("span");
+      message.textContent = issue.message;
+      let suggestionText = issue.replacement;
+      const apply = window.document.createElement("button");
+      apply.type = "button";
+      apply.textContent = "Apply";
+      apply.addEventListener("click", () => {
+        const page = pages.find((item) => item.box.page === issue.page)?.box;
+        if (!page) return;
+        applyEditDocument(
+          updatePdfEditOperationText(
+            editDocument,
+            page,
+            issue.operationId,
+            suggestionText,
+          ),
+        );
+        renderEditOverlays();
+        renderProofPanel();
+        setStatus("Applied proofing suggestion");
+      });
+      rowHeader.append(focus, message, apply);
+      const textarea = window.document.createElement("textarea");
+      textarea.spellcheck = true;
+      textarea.value = issue.replacement;
+      textarea.rows = Math.min(5, Math.max(2, issue.replacement.split(/\r?\n/).length));
+      textarea.addEventListener("focus", () => focusOperation(issue.operationId));
+      textarea.addEventListener("input", () => {
+        suggestionText = textarea.value;
+        const page = pages.find((item) => item.box.page === issue.page)?.box;
+        if (!page) return;
+        applyEditDocument(
+          updatePdfEditOperationText(
+            editDocument,
+            page,
+            issue.operationId,
+            textarea.value,
+          ),
+        );
+        renderEditOverlays();
+      });
+      const reflow = window.document.createElement("button");
+      reflow.type = "button";
+      reflow.textContent = "Reflow";
+      reflow.addEventListener("click", () => {
+        const page = pages.find((item) => item.box.page === issue.page)?.box;
+        if (!page) return;
+        applyEditDocument(
+          reflowPdfEditOperationText(editDocument, page, issue.operationId),
+        );
+        renderEditOverlays();
+        renderProofPanel();
+        setStatus("Reflowed PDF edit text");
+      });
+      row.append(rowHeader, textarea, reflow);
+      list.appendChild(row);
+    }
+    proofPanel.appendChild(list);
+  };
+  const refreshProofPanel = (): void => {
+    if (proofPanel) renderProofPanel();
+  };
+  const openProofPanel = (): void => {
+    if (proofPanel) {
+      closeProofPanel();
+      return;
+    }
+    proofPanel = window.document.createElement("aside");
+    proofPanel.className = "pdf-proof-panel";
+    host.appendChild(proofPanel);
+    renderProofPanel();
+  };
+  const closeOcrReviewPanel = (): void => {
+    ocrReviewPanel?.remove();
+    ocrReviewPanel = null;
+  };
+  const renderOcrReviewPanel = (): void => {
+    if (!ocrReviewPanel) return;
+    ocrReviewPanel.innerHTML = "";
+    const items = listOcrReviewItems(editDocument);
+    const summary = summarizeOcrReview(items);
+    const header = window.document.createElement("header");
+    const title = window.document.createElement("strong");
+    title.textContent = "OCR Review";
+    const meta = window.document.createElement("span");
+    meta.textContent =
+      summary.total === 0
+        ? "No blocks"
+        : summary.lowConfidence > 0
+          ? `${summary.lowConfidence} low confidence of ${summary.total}`
+          : `${summary.total} reviewed blocks`;
+    const close = window.document.createElement("button");
+    close.type = "button";
+    close.textContent = "×";
+    close.title = "Close OCR review";
+    close.addEventListener("click", closeOcrReviewPanel);
+    header.append(title, meta, close);
+    ocrReviewPanel.appendChild(header);
+
+    const list = window.document.createElement("div");
+    list.className = "pdf-ocr-review-list";
+    if (items.length === 0) {
+      const empty = window.document.createElement("p");
+      empty.className = "pdf-ocr-review-empty";
+      empty.textContent = "Run OCR Page to create reviewable text blocks.";
+      list.appendChild(empty);
+    }
+    for (const item of items) {
+      const row = window.document.createElement("section");
+      row.className = "pdf-ocr-review-row";
+      row.classList.toggle("low-confidence", item.confidence < 0.75);
+      row.dataset.editId = item.id;
+      const rowHeader = window.document.createElement("div");
+      const focus = window.document.createElement("button");
+      focus.type = "button";
+      focus.textContent = `Page ${item.page}`;
+      focus.addEventListener("click", () => focusOperation(item.id));
+      const confidence = window.document.createElement("span");
+      confidence.textContent = `${Math.round(item.confidence * 100)}%`;
+      const remove = window.document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", () => {
+        applyEditDocument(removeOcrReviewItem(editDocument, item.id));
+        if (selectedOperationId === item.id) setSelectedOperation(null);
+        renderEditOverlays();
+        renderOcrReviewPanel();
+      });
+      rowHeader.append(focus, confidence, remove);
+      const textarea = window.document.createElement("textarea");
+      textarea.value = item.text;
+      textarea.rows = Math.min(5, Math.max(2, item.text.split(/\r?\n/).length));
+      textarea.addEventListener("focus", () => focusOperation(item.id));
+      textarea.addEventListener("input", () => {
+        applyEditDocument(updateOcrReviewText(editDocument, item.id, textarea.value));
+        renderEditOverlays();
+      });
+      row.append(rowHeader, textarea);
+      list.appendChild(row);
+    }
+    ocrReviewPanel.appendChild(list);
+  };
+  const refreshOcrReviewPanel = (): void => {
+    if (ocrReviewPanel) renderOcrReviewPanel();
+  };
+  const openOcrReviewPanel = (): void => {
+    if (ocrReviewPanel) {
+      closeOcrReviewPanel();
+      return;
+    }
+    ocrReviewPanel = window.document.createElement("aside");
+    ocrReviewPanel.className = "pdf-ocr-review-panel";
+    host.appendChild(ocrReviewPanel);
+    renderOcrReviewPanel();
+  };
+  ocrReviewButton.addEventListener("click", openOcrReviewPanel);
+  capabilityButton.addEventListener("click", openCapabilityPanel);
+  thumbnailButton.addEventListener("click", openThumbnailPanel);
+  reviewButton.addEventListener("click", openReviewPanel);
+  proofButton.addEventListener("click", openProofPanel);
+  const updateSelectedStyle = (): void => {
+    const nextStyle = (base: typeof DEFAULT_PDF_TEXT_STYLE): typeof DEFAULT_PDF_TEXT_STYLE => ({
+      ...base,
+      fontFamily: fontFamilySelect.value,
+      fontSize: Number(fontSizeInput.value) || base.fontSize,
+      color: colorInput.value,
+      opacity: Number(opacityInput.value) || base.opacity,
+      bold: boldButton.classList.contains("active"),
+      italic: italicButton.classList.contains("active"),
+      align:
+        alignSelect.value === "center" || alignSelect.value === "right"
+          ? alignSelect.value
+          : "left",
+    });
+    const selected = selectedOperation();
+    if (!selected) {
+      currentStyle = nextStyle(currentStyle);
+      currentCoverColor = colorInput.value;
+      return;
+    }
+    const page = pages.find((item) => item.box.page === selected.page)?.box;
+    if (!page) return;
+    if (selected.type === "textBox") {
+      replaceOperation(page, {
+        ...selected,
+        style: nextStyle(selected.style),
+      });
+    } else if (selected.type === "replacementText") {
+      replaceOperation(page, {
+        ...selected,
+        cover: {
+          ...selected.cover,
+          color: currentCoverColor,
+          opacity: Number(opacityInput.value) || selected.cover.opacity,
+        },
+        text: {
+          ...selected.text,
+          style: nextStyle(selected.text.style),
+        },
+      });
+    } else if (selected.type === "coverPatch") {
+      replaceOperation(page, {
+        ...selected,
+        color: colorInput.value,
+        opacity: Number(opacityInput.value) || selected.opacity,
+      });
+      currentCoverColor = colorInput.value;
+    } else if (selected.type === "directTextEdit") {
+      const style = selected.fallbackStyle ?? DEFAULT_PDF_TEXT_STYLE;
+      replaceOperation(page, {
+        ...selected,
+        fallbackStyle: nextStyle(style),
+      });
+    }
+    renderEditOverlays();
+  };
+  fontFamilySelect.addEventListener("change", updateSelectedStyle);
+  fontSizeInput.addEventListener("change", updateSelectedStyle);
+  boldButton.addEventListener("click", () => {
+    boldButton.classList.toggle("active");
+    updateSelectedStyle();
+  });
+  italicButton.addEventListener("click", () => {
+    italicButton.classList.toggle("active");
+    updateSelectedStyle();
+  });
+  alignSelect.addEventListener("change", updateSelectedStyle);
+  colorInput.addEventListener("input", updateSelectedStyle);
+  opacityInput.addEventListener("input", updateSelectedStyle);
+  const renderEditOverlays = (): void => {
+    pages.forEach((pageView) => {
+      pageView.overlay.innerHTML = "";
+      editDocument.pages
+        .find((page) => page.page === pageView.box.page)
+        ?.operations.forEach((operation) => {
+          if (operation.type === "replacementText") {
+            (operation.cover.rects ?? [operation.cover.rect]).forEach((rect) => {
+              const cover = window.document.createElement("div");
+              cover.className = "pdf-edit-item pdf-edit-cover";
+              Object.assign(cover.style, scaledRect(rect));
+              cover.style.background = operation.cover.color;
+              cover.style.opacity = String(operation.cover.opacity);
+              pageView.overlay.appendChild(cover);
+            });
+          }
+          const item = window.document.createElement("div");
+          item.className = `pdf-edit-item pdf-edit-${operation.type}`;
+          item.dataset.editId = operation.id;
+          item.tabIndex = 0;
+          item.title = operationLabel(operation);
+          Object.assign(item.style, scaledRect(operationRect(operation)));
+          if (operation.type === "coverPatch") {
+            item.style.background = operation.color;
+            item.style.opacity = String(operation.opacity);
+          } else if (operation.type === "imageBox") {
+            const image = window.document.createElement("img");
+            image.alt = operation.name;
+            image.draggable = false;
+            image.src = bytesToDataUrl(operation.bytes, operation.mimeType);
+            item.appendChild(image);
+          } else {
+            const text =
+              operation.type === "replacementText" ? operation.text.value : operationText(operation);
+            const style =
+              operation.type === "replacementText"
+                ? operation.text.style
+                : operation.type === "directTextEdit"
+                  ? operation.fallbackStyle ?? DEFAULT_PDF_TEXT_STYLE
+                : "style" in operation
+                  ? operation.style
+                  : DEFAULT_PDF_TEXT_STYLE;
+            item.textContent = text;
+            item.style.color = style.color;
+            item.style.fontFamily = style.fontFamily;
+            item.style.fontSize = `${style.fontSize * RENDER_SCALE}px`;
+            item.style.fontWeight = style.bold ? "700" : "400";
+            item.style.fontStyle = style.italic ? "italic" : "normal";
+            item.style.textAlign = style.align;
+            item.style.opacity = String(style.opacity);
+            if (operation.type === "ocrTextBlock") {
+              item.style.color = "var(--accent)";
+              item.style.background = "color-mix(in srgb, var(--accent) 10%, transparent)";
+              item.style.opacity = "0.38";
+            }
+          }
+          const handle = window.document.createElement("span");
+          handle.className = "pdf-edit-resize";
+          handle.contentEditable = "false";
+          handle.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setSelectedOperation(operation.id);
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const original = selectedOperation();
+            if (!original) return;
+            const beforeDrag = clonePdfEditDocument(editDocument);
+            const onMove = (moveEvent: PointerEvent): void => {
+              const dx = (moveEvent.clientX - startX) / RENDER_SCALE;
+              const dy = (moveEvent.clientY - startY) / RENDER_SCALE;
+              replaceOperation(
+                pageView.box,
+                resizeOperation(original, pageView.box, dx, dy),
+                { history: false },
+              );
+              renderEditOverlays();
+            };
+            const onUp = (): void => {
+              window.document.removeEventListener("pointermove", onMove);
+              window.document.removeEventListener("pointerup", onUp);
+              commitTransientEdit(beforeDrag);
+            };
+            window.document.addEventListener("pointermove", onMove);
+            window.document.addEventListener("pointerup", onUp, { once: true });
+          });
+          item.appendChild(handle);
+          item.classList.toggle("selected", operation.id === selectedOperationId);
+          item.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setSelectedOperation(operation.id);
+            setTool("select");
+          });
+          item.addEventListener("dblclick", (event) => {
+            event.stopPropagation();
+            const current = selectedOperation();
+            if (!current) return;
+            beginInlineTextEdit(pageView.box, current, item);
+          });
+          item.addEventListener("pointerdown", (event) => {
+            if (activeTool !== "select") return;
+            if (item.isContentEditable) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setSelectedOperation(operation.id);
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const original = selectedOperation();
+            if (!original) return;
+            const beforeDrag = clonePdfEditDocument(editDocument);
+            const onMove = (moveEvent: PointerEvent): void => {
+              const dx = (moveEvent.clientX - startX) / RENDER_SCALE;
+              const dy = (moveEvent.clientY - startY) / RENDER_SCALE;
+              replaceOperation(
+                pageView.box,
+                moveOperation(original, pageView.box, dx, dy),
+                { history: false },
+              );
+              renderEditOverlays();
+            };
+            const onUp = (): void => {
+              window.document.removeEventListener("pointermove", onMove);
+              window.document.removeEventListener("pointerup", onUp);
+              commitTransientEdit(beforeDrag);
+            };
+            window.document.addEventListener("pointermove", onMove);
+            window.document.addEventListener("pointerup", onUp, { once: true });
+          });
+          pageView.overlay.appendChild(item);
+          if (pendingInlineEditId === operation.id) {
+            pendingInlineEditId = null;
+            window.requestAnimationFrame(() => beginInlineTextEdit(pageView.box, operation, item));
+          }
+        });
+    });
+    updateToolbarState();
+    refreshReviewPanel();
+    refreshProofPanel();
+  };
+  const addOperationAt = (pageView: PdfPageView, event: MouseEvent): void => {
+    if (activeTool === "select") {
+      setSelectedOperation(null);
+      return;
+    }
+    if (activeTool === "text") {
+      const operation: PdfEditOperation = {
+        id: operationId(),
+        type: "textBox",
+        page: pageView.box.page,
+        rect: rectFromPointer(event, pageView.element, pageView.box, 170, 34),
+        text: "Text",
+        style: currentStyle,
+      };
+      applyEditDocument(
+        addPdfEditOperation(
+          editDocument,
+          pageView.box,
+          snapIfNeeded(pageView.box, operation),
+        ),
+      );
+      selectedOperationId = operation.id;
+      pendingInlineEditId = operation.id;
+    } else if (activeTool === "cover") {
+      applyEditDocument(
+        addPdfEditOperation(
+          editDocument,
+          pageView.box,
+          snapIfNeeded(pageView.box, {
+            id: operationId(),
+            type: "coverPatch",
+            page: pageView.box.page,
+            rect: rectFromPointer(event, pageView.element, pageView.box, 170, 28),
+            color: currentCoverColor,
+            opacity: Number(opacityInput.value) || 1,
+          }),
+        ),
+      );
+    } else if (activeTool === "replace") {
+      const text = window.prompt("Replacement text");
+      if (!text) return;
+      const rect = rectFromPointer(event, pageView.element, pageView.box, 190, 34);
+      applyEditDocument(
+        addPdfEditOperation(
+          editDocument,
+          pageView.box,
+          snapIfNeeded(pageView.box, {
+            id: operationId(),
+            type: "replacementText",
+            page: pageView.box.page,
+            sourceText: "",
+            cover: {
+              rect,
+              color: currentCoverColor,
+              opacity: Number(opacityInput.value) || 1,
+            },
+            text: {
+              rect,
+              value: text,
+              style: currentStyle,
+            },
+          }),
+        ),
+      );
+    } else if (activeTool === "image") {
+      if (!pendingImage) {
+        setStatus("Choose an image first");
+        return;
+      }
+      const aspect = pendingImage.width / Math.max(1, pendingImage.height);
+      const width = Math.min(220, pageView.box.width * 0.45);
+      const height = Math.max(24, width / Math.max(0.1, aspect));
+      applyEditDocument(
+        addPdfEditOperation(
+          editDocument,
+          pageView.box,
+          snapIfNeeded(pageView.box, {
+            id: operationId(),
+            type: "imageBox",
+            page: pageView.box.page,
+            rect: rectFromPointer(event, pageView.element, pageView.box, width, height),
+            name: pendingImage.name,
+            mimeType: pendingImage.mimeType,
+            bytes: pendingImage.bytes,
+          }),
+        ),
+      );
+      pendingImage = null;
+    }
+    setTool("select");
+    renderEditOverlays();
+  };
+  const deleteSelected = (): void => {
+    if (!selectedOperationId) return;
+    applyEditDocument(removePdfEditOperation(editDocument, selectedOperationId));
+    setSelectedOperation(null);
+    renderEditOverlays();
+    refreshOcrReviewPanel();
+  };
+  const undoPdfEdit = (): void => {
+    const previous = undoStack[undoStack.length - 1];
+    if (!previous) return;
+    redoStack = [...redoStack, clonePdfEditDocument(editDocument)].slice(
+      -PDF_EDIT_HISTORY_LIMIT,
+    );
+    undoStack = undoStack.slice(0, -1);
+    restoreEditDocument(previous);
+    setStatus("Undid PDF edit");
+  };
+  const redoPdfEdit = (): void => {
+    const next = redoStack[redoStack.length - 1];
+    if (!next) return;
+    undoStack = [...undoStack, clonePdfEditDocument(editDocument)].slice(
+      -PDF_EDIT_HISTORY_LIMIT,
+    );
+    redoStack = redoStack.slice(0, -1);
+    restoreEditDocument(next);
+    setStatus("Redid PDF edit");
+  };
+  deleteButton.addEventListener("click", deleteSelected);
+  undoButton.addEventListener("click", undoPdfEdit);
+  redoButton.addEventListener("click", redoPdfEdit);
+  snapButton.addEventListener("click", () => {
+    snapEnabled = !snapEnabled;
+    snapButton.classList.toggle("active", snapEnabled);
+    setStatus(snapEnabled ? "Snap enabled" : "Snap disabled");
+  });
+  const cachePdfSelection = (event: Event): void => {
+    event.preventDefault();
+    cachedSelectionReplacement = selectionReplacement();
+  };
+  editSelectedButton.addEventListener("pointerdown", cachePdfSelection);
+  editSelectedButton.addEventListener("mousedown", cachePdfSelection);
+  editSelectedButton.addEventListener("click", () => {
+    const replacement = cachedSelectionReplacement ?? selectionReplacement();
+    cachedSelectionReplacement = null;
+    if (!replacement) {
+      setStatus("Select PDF text first, then choose Edit Text");
+      return;
+    }
+    const operation: PdfEditOperation = {
+      id: operationId(),
+      type: "replacementText",
+      page: replacement.pageView.box.page,
+      sourceText: replacement.sourceText,
+      cover: {
+        rect: replacement.rect,
+        rects: replacement.coverRects.length ? replacement.coverRects : undefined,
+        color: currentCoverColor,
+        opacity: Number(opacityInput.value) || 1,
+      },
+      text: {
+        rect: replacement.rect,
+        value: replacement.sourceText,
+        style: replacement.style,
+      },
+    };
+    applyEditDocument(
+      addPdfEditOperation(
+        editDocument,
+        replacement.pageView.box,
+        snapIfNeeded(replacement.pageView.box, operation),
+      ),
+    );
+    selectedOperationId = operation.id;
+    pendingInlineEditId = operation.id;
+    window.getSelection()?.removeAllRanges();
+    setTool("select");
+    renderEditOverlays();
+    setStatus(`Queued replacement on page ${replacement.pageView.box.page}`);
+  });
+  directSelectedButton.addEventListener("pointerdown", cachePdfSelection);
+  directSelectedButton.addEventListener("mousedown", cachePdfSelection);
+  directSelectedButton.addEventListener("click", () => {
+    const replacement = cachedSelectionReplacement ?? selectionReplacement();
+    cachedSelectionReplacement = null;
+    if (!replacement) {
+      setStatus("Select PDF text first, then choose Direct");
+      return;
+    }
+    const operation: PdfEditOperation = {
+      id: operationId(),
+      type: "directTextEdit",
+      page: replacement.pageView.box.page,
+      sourceId: `page-${replacement.pageView.box.page}-selection`,
+      originalText: replacement.sourceText,
+      replacementText: replacement.sourceText,
+      rect: replacement.rect,
+      fallbackCoverRects: replacement.coverRects.length
+        ? replacement.coverRects
+        : undefined,
+      fallbackStyle: replacement.style,
+    };
+    applyEditDocument(
+      addPdfEditOperation(
+        editDocument,
+        replacement.pageView.box,
+        snapIfNeeded(replacement.pageView.box, operation),
+      ),
+    );
+    selectedOperationId = operation.id;
+    pendingInlineEditId = operation.id;
+    window.getSelection()?.removeAllRanges();
+    setTool("select");
+    renderEditOverlays();
+    setStatus("Queued direct edit; Save falls back visually if unsafe");
+  });
+  reflowButton.addEventListener("click", () => {
+    const selected = selectedOperation();
+    if (!selected) return;
+    const page = pages.find((item) => item.box.page === selected.page)?.box;
+    if (!page) return;
+    applyEditDocument(reflowPdfEditOperationText(editDocument, page, selected.id));
+    renderEditOverlays();
+    setStatus("Reflowed selected PDF edit text");
+  });
+  const visiblePage = (): PdfPageView | null => {
+    const toolbarBottom = toolbar.getBoundingClientRect().bottom;
+    let bestPage: PdfPageView | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const page of pages) {
+      const bounds = page.element.getBoundingClientRect();
+      const distance = Math.abs(bounds.top - toolbarBottom);
+      if (distance < bestDistance) {
+        bestPage = page;
+        bestDistance = distance;
+      }
+    }
+    return bestPage;
+  };
+  ocrButton.addEventListener("click", () => {
+    void (async () => {
+      const page = visiblePage();
+      const canvas = page?.element.querySelector<HTMLCanvasElement>("canvas.pdf-page");
+      if (!page || !canvas) return;
+      ocrButton.disabled = true;
+      setStatus(`Running OCR on page ${page.box.page}...`);
+      try {
+        const { recognizePdfPageCanvas } = await import("./pdf-ocr");
+        const operations = await recognizePdfPageCanvas(
+          canvas,
+          page.box,
+          ocrLanguageInput.value,
+        );
+        if (!operations.length) {
+          setStatus(`No OCR text found on page ${page.box.page}`);
+          return;
+        }
+        let nextDocument = editDocument;
+        operations.forEach((operation) => {
+          nextDocument = addPdfEditOperation(nextDocument, page.box, operation);
+        });
+        applyEditDocument(nextDocument);
+        renderEditOverlays();
+        refreshOcrReviewPanel();
+        setStatus(`Added OCR text layer on page ${page.box.page}`);
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error));
+      } finally {
+        ocrButton.disabled = false;
+        updateToolbarState();
+      }
+    })();
+  });
+  const keyHandler = (event: KeyboardEvent): void => {
+    if (isTextEntryTarget(event.target)) return;
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        redoPdfEdit();
+      } else {
+        undoPdfEdit();
+      }
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y") {
+      event.preventDefault();
+      redoPdfEdit();
+      return;
+    }
+    if ((event.key === "Delete" || event.key === "Backspace") && selectedOperationId) {
+      event.preventDefault();
+      deleteSelected();
+    }
+  };
+  host.addEventListener("keydown", keyHandler);
+  const saveEditedPdf = async (): Promise<void> => {
+    if (!hasPdfEdits(editDocument) || saving) return;
+    const overwrite = await confirm(
+      "Save these edits into the original PDF? MDflow will create a backup copy first.",
+      {
+        title: "Save edited PDF",
+        kind: "warning",
+        okLabel: "Save",
+        cancelLabel: "Cancel",
+      },
+    );
+    if (!overwrite) return;
+    saving = true;
+    updateToolbarState();
+    try {
+      setStatus("Saving PDF history snapshot...");
+      await manualBinarySnapshot(
+        path,
+        new Uint8Array(bytes),
+        "Before PDF edit overwrite",
+      );
+      setStatus("Backing up original PDF...");
+      const backupPath = await invoke<string>("backup_file", { path });
+      setStatus("Saving edited PDF...");
+      const { writeEditedPdf } = await import("./pdf-edit-writer");
+      const output = await writeEditedPdf(new Uint8Array(bytes), editDocument);
+      await invoke("save_bytes", { path, bytes: Array.from(output) });
+      editDocument = createPdfEditDocument(path);
+      undoStack = [];
+      redoStack = [];
+      selectedOperationId = null;
+      storeDraft(path, editDocument);
+      closeOcrReviewPanel();
+      closeCapabilityPanel();
+      closeThumbnailPanel();
+      closeReviewPanel();
+      closeProofPanel();
+      options?.onEditDirtyChange?.(false);
+      setStatus(`Saved. Backup: ${backupPath}`);
+      options?.onReloadRequest?.();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      saving = false;
+      updateToolbarState();
+    }
+  };
+  const saveEditedPdfAs = async (): Promise<void> => {
+    if (!hasPdfEdits(editDocument) || saving) return;
+    const out = await pickExportPath("pdf");
+    if (!out) return;
+    saving = true;
+    updateToolbarState();
+    try {
+      setStatus("Saving edited PDF...");
+      const { writeEditedPdf } = await import("./pdf-edit-writer");
+      const output = await writeEditedPdf(new Uint8Array(bytes), editDocument);
+      await invoke("save_bytes", { path: out, bytes: Array.from(output) });
+      setStatus("Edited PDF saved");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      saving = false;
+      updateToolbarState();
+    }
+  };
+  const onMenuSave = (): void => {
+    void saveEditedPdf();
+  };
+  const onMenuSaveAs = (): void => {
+    void saveEditedPdfAs();
+  };
+  host.addEventListener(PDF_SAVE_EVENT, onMenuSave);
+  host.addEventListener(PDF_SAVE_AS_EVENT, onMenuSaveAs);
+  saveButton.addEventListener("click", () => {
+    void (async () => {
+      await saveEditedPdf();
+    })();
+  });
+  saveAsButton.addEventListener("click", () => {
+    void (async () => {
+      await saveEditedPdfAs();
+    })();
+  });
+  setTool("select");
 
   for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
     const page = await document.getPage(pageNumber);
@@ -39,6 +2069,8 @@ export async function renderPdf(
     const pageElement = window.document.createElement("div");
     pageElement.className = "pdf-page-wrap";
     pageElement.dataset.page = String(pageNumber);
+    pageElement.style.width = `${viewport.width}px`;
+    pageElement.style.height = `${viewport.height}px`;
     const canvas = window.document.createElement("canvas");
     canvas.className = "pdf-page";
     canvas.width = viewport.width;
@@ -51,8 +2083,17 @@ export async function renderPdf(
     // Text extraction powers the find feature; never let it block the visible
     // page render (it can fail per-file on some PDFs).
     let pageText = "";
+    let itemCount = 0;
     try {
       const textContent = await page.getTextContent();
+      itemCount = textContent.items.length;
+      fontSignals.push(
+        inspectPdfPageFonts(
+          pageNumber,
+          textContent.styles as Record<string, PdfTextContentStyleLike>,
+          textContent.items as PdfTextContentItemLike[],
+        ),
+      );
       const textLayer = window.document.createElement("div");
       textLayer.className = "pdf-text-layer";
       textLayer.style.setProperty("--total-scale-factor", String(viewport.scale));
@@ -66,13 +2107,78 @@ export async function renderPdf(
         .map((item) => ("str" in item ? item.str : ""))
         .join(" ");
     } catch {
+      fontSignals.push({ page: pageNumber, fonts: [] });
       // Page stays visible; it just won't be searchable.
     }
-    pages.push({ element: pageElement, text: pageText });
+    let objectSignal: PdfPageObjectSignal = {
+      page: pageNumber,
+      imagePaints: 0,
+      vectorPaints: 0,
+      textPaints: 0,
+      annotationPaints: 0,
+      objects: [],
+    };
+    try {
+      const operatorList = await page.getOperatorList();
+      objectSignal = inspectPdfPageOperators(
+          pageNumber,
+          Array.from(operatorList.fnArray),
+          pdfjs.OPS as Record<string, number>,
+          Array.from(operatorList.argsArray),
+          viewport.height / RENDER_SCALE,
+      );
+    } catch {
+      // Keep the page editable even if operator inspection fails.
+    }
+    try {
+      const annotations = await page.getAnnotations();
+      objectSignal = mergePdfPageObjectSignals(
+        objectSignal,
+        inspectPdfPageAnnotations(
+          pageNumber,
+          viewport.height / RENDER_SCALE,
+          annotations,
+        ),
+      );
+    } catch {
+      // Annotation extraction can fail separately from drawing.
+    }
+    objectSignals.push(objectSignal);
+    const overlay = window.document.createElement("div");
+    overlay.className = "pdf-edit-layer";
+    const pageView = {
+      element: pageElement,
+      overlay,
+      text: pageText,
+      box: {
+        page: pageNumber,
+        width: viewport.width / RENDER_SCALE,
+        height: viewport.height / RENDER_SCALE,
+      },
+    };
+    overlay.addEventListener("click", (event) => addOperationAt(pageView, event));
+    pageElement.appendChild(overlay);
+    pages.push(pageView);
+    textSignals.push({ page: pageNumber, text: pageText, itemCount });
     if (pageNumber === options?.initialPage) {
       pageElement.scrollIntoView({ block: "start" });
     }
   }
+  thumbnailButton.disabled = pages.length === 0;
+  renderThumbnailPanel();
+  capabilitySummary = summarizePdfCapabilities(textSignals);
+  capabilityButton.disabled = capabilitySummary.pages.length === 0;
+  capabilityButton.textContent =
+    capabilitySummary.hasScannedPages ||
+    capabilitySummary.directSimplePages < capabilitySummary.pages.length
+      ? "Limits !"
+      : "Limits";
+  capabilityButton.title = pdfCapabilityMessage(capabilitySummary);
+  renderCapabilityPanel();
+  if (!hasPdfEdits(editDocument)) {
+    setStatus(pdfCapabilityMessage(capabilitySummary));
+  }
+  renderEditOverlays();
 
   const clear = (): void => {
     pages.forEach(({ element }) => {
@@ -123,7 +2229,17 @@ export async function renderPdf(
     },
     move,
     clear,
-    destroy: clear,
+    destroy: () => {
+      clear();
+      closeOcrReviewPanel();
+      closeCapabilityPanel();
+      closeThumbnailPanel();
+      closeReviewPanel();
+      closeProofPanel();
+      host.removeEventListener(PDF_SAVE_EVENT, onMenuSave);
+      host.removeEventListener(PDF_SAVE_AS_EVENT, onMenuSaveAs);
+      host.removeEventListener("keydown", keyHandler);
+    },
   };
 }
 

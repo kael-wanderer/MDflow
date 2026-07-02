@@ -2,6 +2,7 @@ use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Serialize)]
 pub struct Entry {
@@ -414,6 +415,46 @@ pub fn save_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
     fs::write(&path, bytes).map_err(|error| error.to_string())
 }
 
+pub fn backup_path_for(path: &Path, timestamp_ms: u128) -> Result<PathBuf, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Invalid backup path".to_string())?;
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("document");
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
+    let backup_name = if extension.is_empty() {
+        format!("{stem}.{timestamp_ms}.bak")
+    } else {
+        format!("{stem}.{timestamp_ms}.{extension}")
+    };
+    Ok(parent.join(".mdflow-pdf-backups").join(backup_name))
+}
+
+pub fn backup_file_at(path: &Path, timestamp_ms: u128) -> Result<PathBuf, String> {
+    let backup = backup_path_for(path, timestamp_ms)?;
+    let parent = backup
+        .parent()
+        .ok_or_else(|| "Invalid backup path".to_string())?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    fs::copy(path, &backup).map_err(|error| error.to_string())?;
+    Ok(backup)
+}
+
+#[tauri::command]
+pub fn backup_file(path: String) -> Result<String, String> {
+    let timestamp_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_millis();
+    backup_file_at(Path::new(&path), timestamp_ms).map(|path| path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub fn get_initial_file() -> Option<String> {
     std::env::args().nth(1).filter(|p| Path::new(p).is_file())
@@ -622,6 +663,37 @@ mod duplicate_tests {
 }
 
 #[cfg(test)]
+mod backup_tests {
+    use super::{backup_file_at, backup_path_for};
+    use std::fs;
+
+    #[test]
+    fn builds_hidden_pdf_backup_path() {
+        let path = std::path::Path::new("/tmp/report.final.pdf");
+        let backup = backup_path_for(path, 12345).unwrap();
+        assert_eq!(
+            backup.to_string_lossy(),
+            "/tmp/.mdflow-pdf-backups/report.final.12345.pdf"
+        );
+    }
+
+    #[test]
+    fn copies_file_to_backup_directory() {
+        let tmp = std::env::temp_dir().join("mdflow_pdf_backup_test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let source = tmp.join("invoice.pdf");
+        fs::write(&source, b"%PDF original").unwrap();
+
+        let backup = backup_file_at(&source, 98765).unwrap();
+        assert_eq!(fs::read(&backup).unwrap(), b"%PDF original");
+        assert!(backup.ends_with(".mdflow-pdf-backups/invoice.98765.pdf"));
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
+#[cfg(test)]
 mod drop_copy_tests {
     use super::copy_into_directory;
     use std::fs;
@@ -688,14 +760,23 @@ mod walk_tests {
 mod ai_settings_tests {
     use super::resolve_ai_settings_at;
     use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    static TMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
     fn tmp() -> std::path::PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("mdflow_ai_settings_{nanos}"));
+        let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "mdflow_ai_settings_{}_{}_{}",
+            std::process::id(),
+            nanos,
+            counter,
+        ));
         let _ = fs::remove_dir_all(&dir);
         dir
     }

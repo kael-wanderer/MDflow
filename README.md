@@ -44,9 +44,14 @@ panel, a PDF reader, editable Excalidraw and mindmap boards, and document export
   math (`$…$`, `$$…$$`), and raw HTML. Standalone HTML previews measure their
   rendered content so wide documents scroll in the preview pane without trapping
   overflow inside the iframe.
-- **PDF reader** — open `.pdf` files rendered with pdf.js, with fit-to-width reset,
-  zoom, horizontal wheel navigation, and Space/middle-mouse panning for enlarged
-  pages while preserving text selection and find.
+- **PDF reader & editor** — open `.pdf` files rendered with pdf.js, with fit-to-width
+  reset, zoom, horizontal wheel navigation, and Space/middle-mouse panning for enlarged
+  pages while preserving text selection and find. An edit toolbar adds text boxes,
+  cover boxes (color / opacity), and selection edits — either a visual overlay (Edit
+  Text) or a real in-document rewrite (Direct) via pdf-lib — plus per-page OCR
+  (tesseract.js, configurable language such as `eng` or `eng+vie`) for scanned pages.
+  Edits draft locally until saved; the original is backed up to a hidden
+  `.mdflow-pdf-backups/` folder before Save / Save As.
 - **Excalidraw boards** — open and edit `.excalidraw` files in a focused full-pane
   canvas. Boards use the normal tab, save, dirty-close, and session workflows.
 - **Mindmap boards** — open and edit `.mind` files (jsMind) with an on-board toolbar:
@@ -155,7 +160,13 @@ src/
   settings.ts      settings.json model (themes, fonts, sizes, session, keymap)
   updater.ts       manual and once-daily signed update checks
   compareview.ts   side-by-side diff surface
-  pdfview.ts       pdf.js viewer
+  pdfview.ts       pdf.js viewer + edit toolbar
+  pdf-edit-document.ts   PDF edit operation model (parse/serialize/draft)
+  pdf-edit-writer.ts     applies edits to the PDF via pdf-lib
+  pdf-edit-capabilities.ts  per-page edit-capability classification
+  pdf-selection-edit.ts  selection-to-edit geometry helpers
+  pdf-direct-rewrite.ts  in-document text rewrite path
+  pdf-ocr.ts       per-page OCR via tesseract.js
   excalidraw-document.ts Excalidraw JSON validation and serialization
   excalidrawview.ts lazy board-only runtime loader
   mindmap-document.ts jsMind node_tree validation and serialization

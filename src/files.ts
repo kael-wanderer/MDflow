@@ -35,6 +35,15 @@ export function pickExportPath(ext: string): Promise<string | null> {
   }).then((path) => path ?? null);
 }
 
+export function pickImagePath(): Promise<string | null> {
+  return open({
+    multiple: false,
+    filters: [
+      { name: "Images", extensions: ["png", "jpg", "jpeg"] },
+    ],
+  }).then((path) => (typeof path === "string" ? path : null));
+}
+
 export function writeFile(path: string, contents: string): Promise<void> {
   return invoke("save_file", { path, contents });
 }

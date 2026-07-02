@@ -4,6 +4,41 @@ All notable changes to MDflow are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] — 2026-07-02
+
+### Added
+
+- **PDF editing** — PDFs are no longer read-only. An edit toolbar above the page
+  offers Select / Text / Cover / Replace tools: add text boxes (font size and color),
+  add cover boxes (color and opacity), and Delete annotations. Selected PDF text can
+  be replaced visually (Edit Text) or rewritten in the document itself (Direct) via
+  pdf-lib.
+- **Per-page OCR** — scanned pages can be recognized in place with tesseract.js, with
+  a configurable language (for example `eng` or `eng+vie`). A status line reports each
+  document's edit capability (text vs. scanned vs. mixed).
+- **Safe saves** — the original file is copied to a hidden `.mdflow-pdf-backups/`
+  folder (new `backup_file` command) before Save / Save As. PDF edits are drafted to
+  local storage per file and cleared when the tab is saved or closed, and the tab's
+  dirty indicator tracks unsaved PDF edits.
+
+### Fixed
+
+- **Open Folder in multiple windows** — menu and Finder-open events are now scoped to
+  the window they target, so opening a folder (or a file) in one window no longer
+  triggers a duplicate dialog/open in every other open window.
+- **Explorer refresh on folder switch** — opening a different folder now updates the
+  file tree immediately. Previously the tree kept showing the previous folder's files
+  (a stale WebView paint) until the window was minimized/restored or the tree
+  collapsed/expanded.
+- Editor text selection no longer highlights matching words elsewhere in the
+  document, avoiding confusion where the caret appears on one line while green
+  selection-like highlights appear on other occurrences.
+
+### Changed
+
+- The background workspace auto-refresh interval is now 3 seconds (was 5) so
+  externally changed files appear a little sooner.
+
 ## [0.2.6] — 2026-06-24
 
 ### Added
